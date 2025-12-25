@@ -15,6 +15,7 @@ enum DashboardView: String, CaseIterable {
 struct ContentView: View {
     @Environment(AppState.self) private var appState
     @State private var showingAddFeature = false
+    @State private var showingBrainstorm = false
     @State private var newFeatureTitle = ""
     @State private var selectedView: DashboardView = .missionControl  // Default to Mission Control
 
@@ -70,7 +71,7 @@ struct ContentView: View {
                 case .kanban:
                     KanbanView()
                 case .missionControl:
-                    MissionControlView()
+                    MissionControlV2()
                 }
             } else {
                 VStack(spacing: 16) {
@@ -91,6 +92,44 @@ struct ContentView: View {
                 isPresented: $showingAddFeature,
                 featureTitle: $newFeatureTitle
             )
+        }
+        .sheet(isPresented: $showingBrainstorm) {
+            BrainstormSheet()
+        }
+        .sheet(isPresented: Binding(
+            get: { appState.showingProposalReview },
+            set: { appState.showingProposalReview = $0 }
+        )) {
+            if let project = appState.selectedProject {
+                ProposalReviewView(
+                    proposals: Binding(
+                        get: { appState.parsedProposals },
+                        set: { appState.parsedProposals = $0 }
+                    ),
+                    projectName: project.name,
+                    onComplete: { _ in
+                        appState.showingProposalReview = false
+                    }
+                )
+            }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    showingBrainstorm = true
+                } label: {
+                    Label("Brainstorm", systemImage: "brain.head.profile")
+                }
+                .help("Import ideas from Claude brainstorm")
+
+                Button {
+                    showingAddFeature = true
+                } label: {
+                    Label("Add Feature", systemImage: "plus")
+                }
+                .help("Quick add a feature")
+                .keyboardShortcut("n", modifiers: .command)
+            }
         }
     }
 

@@ -403,6 +403,52 @@ class AppState {
         }
     }
 
+    // MARK: - Ship Feature (Merge)
+
+    /// Ship a feature - merges it and triggers celebration
+    /// Returns true if successful (for celebration trigger)
+    func shipFeature(_ feature: Feature) async -> Bool {
+        guard let project = selectedProject else { return false }
+
+        do {
+            // First check if merge is safe
+            let check = try await apiClient.getMergeCheck(project: project.name, featureId: feature.id)
+
+            if !check.canMerge {
+                // Friendly error message for vibecoders
+                if let conflicts = check.conflicts, !conflicts.isEmpty {
+                    self.errorMessage = "This feature changed files that were also changed elsewhere. Let me help merge them."
+                } else {
+                    self.errorMessage = check.message ?? "Can't ship this feature right now. Try refreshing."
+                }
+                return false
+            }
+
+            // Perform the merge
+            let result = try await apiClient.mergeFeature(project: project.name, featureId: feature.id)
+
+            if result.success {
+                // Update local state
+                if let index = features.firstIndex(where: { $0.id == feature.id }) {
+                    features[index].status = .completed
+                    features[index].completedAt = Date()
+                }
+
+                // Reload stats to update streak
+                await loadShippingStats()
+
+                return true
+            } else {
+                self.errorMessage = result.message ?? "Something went wrong. Try again?"
+                return false
+            }
+        } catch {
+            // Friendly error message
+            self.errorMessage = "Can't reach the server. Check your connection."
+            return false
+        }
+    }
+
     // MARK: - Brainstorm
 
     /// Parse brainstorm output from Claude and show review UI

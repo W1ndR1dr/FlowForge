@@ -167,6 +167,48 @@ actor APIClient {
         return try await get(url: url)
     }
 
+    // MARK: - Merge Operations
+
+    /// Check if a feature can be merged safely
+    func getMergeCheck(project: String, featureId: String) async throws -> MergeCheckResponse {
+        let url = baseURL.appendingPathComponent("api/\(project)/features/\(featureId)/merge-check")
+        return try await get(url: url)
+    }
+
+    /// Merge a feature (ship it!)
+    func mergeFeature(project: String, featureId: String) async throws -> MergeResponse {
+        let url = baseURL.appendingPathComponent("api/\(project)/features/\(featureId)/merge")
+        return try await post(url: url, body: [:])
+    }
+
+    // MARK: - Feature Intelligence
+
+    /// Analyze a feature for complexity, scope, expert suggestions
+    func analyzeFeature(project: String, title: String, description: String?) async throws -> FeatureAnalysis {
+        let url = baseURL.appendingPathComponent("api/\(project)/analyze-feature")
+        var body: [String: Any] = ["title": title]
+        if let description = description {
+            body["description"] = description
+        }
+        return try await post(url: url, body: body)
+    }
+
+    /// Quick scope check (local, no AI) for as-you-type feedback
+    func quickScopeCheck(text: String) async throws -> QuickScopeResponse {
+        let url = baseURL.appendingPathComponent("api/quick-scope")
+        let body = ["text": text]
+        return try await post(url: url, body: body)
+    }
+
+    /// Get available experts for a domain
+    func getExperts(domain: String? = nil) async throws -> ExpertsResponse {
+        var url = baseURL.appendingPathComponent("api/experts")
+        if let domain = domain {
+            url = url.appendingPathComponent(domain)
+        }
+        return try await get(url: url)
+    }
+
     // MARK: - Private HTTP Methods
 
     private func get<T: Decodable>(url: URL) async throws -> T {
@@ -237,4 +279,87 @@ private struct FeatureListResponse: Decodable {
 
 private struct FeatureAddResponse: Decodable {
     let feature_id: String
+}
+
+// MARK: - Merge Response Types
+
+struct MergeCheckResponse: Decodable {
+    let canMerge: Bool
+    let conflicts: [String]?
+    let message: String?
+
+    enum CodingKeys: String, CodingKey {
+        case canMerge = "can_merge"
+        case conflicts
+        case message
+    }
+}
+
+struct MergeResponse: Decodable {
+    let success: Bool
+    let message: String?
+    let commitSha: String?
+
+    enum CodingKeys: String, CodingKey {
+        case success
+        case message
+        case commitSha = "commit_sha"
+    }
+}
+
+// MARK: - Feature Intelligence Types
+
+struct FeatureAnalysis: Decodable {
+    let complexity: String
+    let estimatedHours: Double?
+    let confidence: Double?
+    let foundationScore: Int?
+    let expertDomain: String?
+    let scopeCreepWarnings: [String]?
+    let suggestedBreakdown: [String]?
+    let filesAffected: [String]?
+    let shippableToday: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case complexity
+        case estimatedHours = "estimated_hours"
+        case confidence
+        case foundationScore = "foundation_score"
+        case expertDomain = "expert_domain"
+        case scopeCreepWarnings = "scope_creep_warnings"
+        case suggestedBreakdown = "suggested_breakdown"
+        case filesAffected = "files_affected"
+        case shippableToday = "shippable_today"
+    }
+}
+
+struct QuickScopeResponse: Decodable {
+    let hasWarnings: Bool
+    let warnings: [String]
+    let suggestedComplexity: String?
+
+    enum CodingKeys: String, CodingKey {
+        case hasWarnings = "has_warnings"
+        case warnings
+        case suggestedComplexity = "suggested_complexity"
+    }
+}
+
+struct ExpertsResponse: Decodable {
+    let experts: [Expert]
+}
+
+struct Expert: Decodable, Identifiable {
+    var id: String { name }
+    let name: String
+    let domain: String
+    let philosophy: String
+    let keyPrinciples: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case domain
+        case philosophy
+        case keyPrinciples = "key_principles"
+    }
 }

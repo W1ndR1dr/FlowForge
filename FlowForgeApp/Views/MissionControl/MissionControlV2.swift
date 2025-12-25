@@ -303,12 +303,11 @@ struct MissionControlV2: View {
         isAnalyzing = true
 
         Task {
-            // TODO: Call the analyze-feature endpoint
-            // For now, simulate with delay
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            // Add the feature via API
+            await appState.addFeature(title: idea)
 
-            // Add the feature
-            // await appState.addFeature(title: idea)
+            // Reload features to show the new one
+            await appState.loadFeatures()
 
             await MainActor.run {
                 isAnalyzing = false
@@ -321,13 +320,15 @@ struct MissionControlV2: View {
         lastShippedTitle = feature.title
 
         Task {
-            // TODO: Call merge endpoint
-            // await appState.shipFeature(feature)
+            let success = await appState.shipFeature(feature)
 
-            await MainActor.run {
-                showConfetti = true
-                showCelebration = true
+            if success {
+                await MainActor.run {
+                    showConfetti = true
+                    showCelebration = true
+                }
             }
+            // If failed, appState.errorMessage is already set with friendly message
         }
     }
 }
