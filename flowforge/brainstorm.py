@@ -314,3 +314,147 @@ def load_proposals(project_root: Path, session_name: str) -> list[Proposal]:
 
     data = json.loads(filepath.read_text())
     return [Proposal.from_dict(p) for p in data.get("proposals", [])]
+
+
+# =============================================================================
+# Scope Creep Detection (Wave 4)
+# =============================================================================
+
+# Phrases that indicate scope creep - trying to do too much in one feature
+SCOPE_CREEP_INDICATORS = [
+    r"\band\s+also\b",
+    r"\bplus\b",
+    r"\badditionally\b",
+    r"\bas\s+well\s+as\b",
+    r"\balong\s+with\b",
+    r"\btogether\s+with\b",
+    r"\bon\s+top\s+of\b",
+    r"\bin\s+addition\b",
+    r"\bfurthermore\b",
+    r"\bmoreover\b",
+    r"\bnot\s+only\b.*\bbut\s+also\b",
+    r"\bmultiple\b.*\bfeatures?\b",
+    r"\bseveral\b.*\bthings?\b",
+]
+
+# Complexity levels that suggest scope is too large
+HIGH_COMPLEXITY_LEVELS = ["large", "complex", "epic"]
+
+
+@dataclass
+class ScopeCreepWarning:
+    """Warning about potential scope creep."""
+    issue: str
+    suggestion: str
+    severity: str = "warning"  # warning, error
+
+
+def detect_scope_creep(
+    title: str,
+    description: str = "",
+    complexity: str = "medium",
+) -> list[ScopeCreepWarning]:
+    """
+    Detect potential scope creep in a feature.
+
+    Returns a list of warnings if the feature seems too broad.
+    """
+    warnings = []
+    text = f"{title} {description}".lower()
+
+    # Check for scope creep indicator phrases
+    for pattern in SCOPE_CREEP_INDICATORS:
+        if re.search(pattern, text, re.IGNORECASE):
+            match = re.search(pattern, text, re.IGNORECASE)
+            warnings.append(ScopeCreepWarning(
+                issue=f"Found scope creep indicator: '{match.group()}'",
+                suggestion="Consider splitting into separate features that can ship independently.",
+                severity="warning",
+            ))
+            break  # One warning is enough
+
+    # Check complexity
+    if complexity.lower() in HIGH_COMPLEXITY_LEVELS:
+        warnings.append(ScopeCreepWarning(
+            issue=f"High complexity ({complexity}) suggests this might be too big.",
+            suggestion="Break into smaller, medium-complexity features you can ship in 4 hours.",
+            severity="warning",
+        ))
+
+    # Check for multiple distinct concepts (heuristic: many commas or semicolons)
+    if text.count(",") >= 4 or text.count(";") >= 2:
+        warnings.append(ScopeCreepWarning(
+            issue="Description lists many items - might be multiple features in one.",
+            suggestion="Each feature should do ONE thing well. Split this list.",
+            severity="warning",
+        ))
+
+    # Check title length (long titles often indicate scope creep)
+    if len(title) > 60:
+        warnings.append(ScopeCreepWarning(
+            issue="Long title suggests feature does too many things.",
+            suggestion="A good feature title fits in a tweet. What's the ONE thing?",
+            severity="warning",
+        ))
+
+    return warnings
+
+
+def suggest_split(title: str, description: str = "") -> list[str]:
+    """
+    Suggest how to split a feature that has scope creep.
+
+    Returns a list of suggested smaller feature titles.
+    """
+    text = f"{title}. {description}".lower()
+    suggestions = []
+
+    # Look for "and" splits
+    and_parts = re.split(r"\s+and\s+|\s*,\s+and\s+", text)
+    if len(and_parts) > 1:
+        for part in and_parts:
+            clean = part.strip().capitalize()
+            if len(clean) > 10:  # Skip trivial parts
+                suggestions.append(clean[:80])
+
+    # Look for comma-separated items
+    if not suggestions:
+        comma_parts = [p.strip() for p in text.split(",") if len(p.strip()) > 10]
+        if len(comma_parts) > 2:
+            suggestions = [p.capitalize()[:80] for p in comma_parts[:4]]
+
+    # If no split found, suggest breaking by phase
+    if not suggestions:
+        suggestions = [
+            f"{title} - Core functionality",
+            f"{title} - UI polish",
+            f"{title} - Error handling",
+        ]
+
+    return suggestions[:4]  # Max 4 suggestions
+
+
+def check_shippable(title: str, description: str = "", complexity: str = "medium") -> dict:
+    """
+    Check if a feature is shippable in 4 hours (the shipping machine constraint).
+
+    Returns a dict with:
+    - shippable: bool - can this ship today?
+    - warnings: list - any scope creep warnings
+    - suggestions: list - if not shippable, how to split
+    """
+    warnings = detect_scope_creep(title, description, complexity)
+
+    # Feature is shippable if no warnings and complexity is small/medium
+    shippable = len(warnings) == 0 and complexity.lower() in ["small", "medium", "trivial", "simple"]
+
+    result = {
+        "shippable": shippable,
+        "warnings": [{"issue": w.issue, "suggestion": w.suggestion, "severity": w.severity} for w in warnings],
+        "suggestions": [],
+    }
+
+    if not shippable and warnings:
+        result["suggestions"] = suggest_split(title, description)
+
+    return result

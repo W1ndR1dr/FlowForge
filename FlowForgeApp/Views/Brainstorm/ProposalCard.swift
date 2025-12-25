@@ -1,5 +1,9 @@
 import SwiftUI
 
+#if os(macOS)
+import AppKit
+#endif
+
 struct ProposalCard: View {
     @Binding var proposal: Proposal
     let onApprove: () -> Void
@@ -118,7 +122,7 @@ struct ProposalCard: View {
         case .deferred:
             return Color.orange.opacity(0.1)
         case .pending:
-            return Color(NSColor.textBackgroundColor)
+            return Color.textBackground
         }
     }
 

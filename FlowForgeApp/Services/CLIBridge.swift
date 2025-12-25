@@ -1,5 +1,9 @@
 import Foundation
 
+#if os(macOS)
+import AppKit
+#endif
+
 enum CLIError: Error, LocalizedError {
     case commandFailed(String)
     case invalidOutput(String)
@@ -49,39 +53,63 @@ actor CLIBridge {
         return try decoder.decode(ProjectConfig.self, from: data)
     }
 
-    // MARK: - CLI Commands
+    // MARK: - CLI Commands (macOS only - uses Process)
+
+    // MARK: - Local Feature Operations (no CLI needed)
 
     func addFeature(title: String, projectPath: String) async throws {
-        let output = try await runCommand(
-            args: ["add", title],
-            workingDirectory: projectPath
+        let registryPath = "\(projectPath)/.flowforge/registry.json"
+        let data = try Data(contentsOf: URL(fileURLWithPath: registryPath))
+        let decoder = JSONDecoder()
+        var registry = try decoder.decode(FeatureRegistry.self, from: data)
+
+        // Generate a slug-based ID from the title
+        let id = title.lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "[^a-z0-9-]", with: "", options: .regularExpression)
+
+        let feature = Feature(
+            id: id,
+            title: title,
+            description: nil,
+            status: .planned,
+            complexity: nil,
+            parentId: nil,
+            dependencies: [],
+            branch: nil,
+            worktreePath: nil,
+            promptPath: nil,
+            createdAt: Date(),
+            startedAt: nil,
+            completedAt: nil,
+            tags: []
         )
 
-        if output.contains("error") || output.contains("Error") {
-            throw CLIError.commandFailed(output)
-        }
+        registry.features[id] = feature
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let updatedData = try encoder.encode(registry)
+        try updatedData.write(to: URL(fileURLWithPath: registryPath))
     }
 
     func startFeature(featureId: String, projectPath: String) async throws {
-        let output = try await runCommand(
-            args: ["start", featureId],
-            workingDirectory: projectPath
+        // For local mode, just update the status to in-progress
+        // The full CLI would also create worktrees, generate prompts, etc.
+        try await updateFeatureStatus(
+            featureId: featureId,
+            status: .inProgress,
+            projectPath: projectPath
         )
-
-        if output.contains("error") || output.contains("Error") {
-            throw CLIError.commandFailed(output)
-        }
     }
 
     func stopFeature(featureId: String, projectPath: String) async throws {
-        let output = try await runCommand(
-            args: ["stop", featureId],
-            workingDirectory: projectPath
+        // For local mode, just update the status to review
+        try await updateFeatureStatus(
+            featureId: featureId,
+            status: .review,
+            projectPath: projectPath
         )
-
-        if output.contains("error") || output.contains("Error") {
-            throw CLIError.commandFailed(output)
-        }
     }
 
     func updateFeatureStatus(featureId: String, status: FeatureStatus, projectPath: String) async throws {
@@ -119,6 +147,28 @@ actor CLIBridge {
         try updatedData.write(to: URL(fileURLWithPath: registryPath))
     }
 
+    func deleteFeature(featureId: String, projectPath: String) async throws {
+        // Read the registry
+        let registryPath = "\(projectPath)/.flowforge/registry.json"
+        let data = try Data(contentsOf: URL(fileURLWithPath: registryPath))
+        let decoder = JSONDecoder()
+        var registry = try decoder.decode(FeatureRegistry.self, from: data)
+
+        // Remove the feature
+        guard registry.features[featureId] != nil else {
+            throw CLIError.commandFailed("Feature not found: \(featureId)")
+        }
+
+        registry.features.removeValue(forKey: featureId)
+
+        // Write back to registry
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let updatedData = try encoder.encode(registry)
+        try updatedData.write(to: URL(fileURLWithPath: registryPath))
+    }
+
+    #if os(macOS)
     func listFeatures(projectPath: String) async throws -> String {
         return try await runCommand(
             args: ["list"],
@@ -172,4 +222,5 @@ actor CLIBridge {
             }
         }
     }
+    #endif
 }

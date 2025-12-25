@@ -1,5 +1,9 @@
 import SwiftUI
 
+#if os(macOS)
+import AppKit
+#endif
+
 /// Sheet for editing feature attributes
 struct FeatureEditSheet: View {
     @Environment(AppState.self) private var appState

@@ -63,13 +63,16 @@ struct Feature: Identifiable, Codable, Hashable {
         case complexity
         case parentId = "parent_id"
         case dependencies
+        case dependsOn = "depends_on"  // Python uses depends_on
         case branch
         case worktreePath = "worktree_path"
         case promptPath = "prompt_path"
         case createdAt = "created_at"
         case startedAt = "started_at"
         case completedAt = "completed_at"
+        case updatedAt = "updated_at"  // Python uses updated_at
         case tags
+        case priority
     }
 
     init(
@@ -113,30 +116,43 @@ struct Feature: Identifiable, Codable, Hashable {
         status = try container.decode(FeatureStatus.self, forKey: .status)
         complexity = try container.decodeIfPresent(Complexity.self, forKey: .complexity)
         parentId = try container.decodeIfPresent(String.self, forKey: .parentId)
-        dependencies = try container.decodeIfPresent([String].self, forKey: .dependencies) ?? []
+
+        // Support both "dependencies" and "depends_on" field names
+        if let deps = try container.decodeIfPresent([String].self, forKey: .dependencies) {
+            dependencies = deps
+        } else if let deps = try container.decodeIfPresent([String].self, forKey: .dependsOn) {
+            dependencies = deps
+        } else {
+            dependencies = []
+        }
+
         branch = try container.decodeIfPresent(String.self, forKey: .branch)
         worktreePath = try container.decodeIfPresent(String.self, forKey: .worktreePath)
         promptPath = try container.decodeIfPresent(String.self, forKey: .promptPath)
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
 
-        // Handle date decoding - support both ISO8601 strings and timestamps
-        let createdAtString = try container.decode(String.self, forKey: .createdAt)
-        if let date = ISO8601DateFormatter().date(from: createdAtString) {
-            createdAt = date
-        } else {
-            createdAt = Date()
+        // Handle date decoding - support both ISO8601 strings and flexible formats
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        let fallbackFormatter = ISO8601DateFormatter()
+        fallbackFormatter.formatOptions = [.withInternetDateTime]
+
+        func parseDate(_ string: String) -> Date? {
+            formatter.date(from: string) ?? fallbackFormatter.date(from: string)
         }
 
-        if let startedAtString = try container.decodeIfPresent(String.self, forKey: .startedAt),
-           let date = ISO8601DateFormatter().date(from: startedAtString) {
-            startedAt = date
+        let createdAtString = try container.decode(String.self, forKey: .createdAt)
+        createdAt = parseDate(createdAtString) ?? Date()
+
+        if let startedAtString = try container.decodeIfPresent(String.self, forKey: .startedAt) {
+            startedAt = parseDate(startedAtString)
         } else {
             startedAt = nil
         }
 
-        if let completedAtString = try container.decodeIfPresent(String.self, forKey: .completedAt),
-           let date = ISO8601DateFormatter().date(from: completedAtString) {
-            completedAt = date
+        if let completedAtString = try container.decodeIfPresent(String.self, forKey: .completedAt) {
+            completedAt = parseDate(completedAtString)
         } else {
             completedAt = nil
         }
@@ -180,6 +196,54 @@ struct FeatureRegistry: Codable {
         enum CodingKeys: String, CodingKey {
             case version
             case lastModified = "last_modified"
+        }
+    }
+}
+
+
+// MARK: - Shipping Stats (Wave 4.4)
+
+/// Shipping streak statistics for gamification
+struct ShippingStats: Codable {
+    var currentStreak: Int
+    var longestStreak: Int
+    var totalShipped: Int
+    var lastShipDate: String?
+    var streakDisplay: String?
+
+    enum CodingKeys: String, CodingKey {
+        case currentStreak = "current_streak"
+        case longestStreak = "longest_streak"
+        case totalShipped = "total_shipped"
+        case lastShipDate = "last_ship_date"
+        case streakDisplay = "streak_display"
+    }
+
+    init(
+        currentStreak: Int = 0,
+        longestStreak: Int = 0,
+        totalShipped: Int = 0,
+        lastShipDate: String? = nil,
+        streakDisplay: String? = nil
+    ) {
+        self.currentStreak = currentStreak
+        self.longestStreak = longestStreak
+        self.totalShipped = totalShipped
+        self.lastShipDate = lastShipDate
+        self.streakDisplay = streakDisplay
+    }
+
+    /// Formatted display string for the streak
+    var displayText: String {
+        if let display = streakDisplay, !display.isEmpty {
+            return display
+        }
+        if currentStreak == 0 {
+            return "No streak"
+        } else if currentStreak == 1 {
+            return "🔥 1 day"
+        } else {
+            return "🔥 \(currentStreak) days"
         }
     }
 }

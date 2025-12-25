@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+@MainActor
 @Observable
 class AppState {
     var projects: [Project] = []
@@ -8,13 +9,100 @@ class AppState {
     var features: [Feature] = []
     var isLoading = false
     var errorMessage: String?
+    var isConnectedToServer = false
+    var connectionError: String?
 
+    // Brainstorm state
+    var parsedProposals: [Proposal] = []
+    var showingProposalReview = false
+
+    // Shipping stats (Wave 4.4)
+    var shippingStats: ShippingStats = ShippingStats()
+
+    #if os(macOS)
     private let cliBridge = CLIBridge()
     private var fileWatcher: FileWatcher?
+    #endif
+
+    private var apiClient = APIClient()
+    private var webSocketClient: WebSocketClient?
+
+    /// Whether to use API mode (server) vs CLI mode (local file only)
+    /// Default to API mode when server is running - gives full features
+    #if os(iOS)
+    private let useAPIMode = true  // iOS always uses API
+    #else
+    private var useAPIMode = true  // macOS uses API when server is running
+    #endif
 
     init() {
+        setupWebSocket()
         Task {
             await loadProjects()
+        }
+    }
+
+    // MARK: - Server Configuration
+
+    /// Update the server URL and reconnect
+    func updateServerURL(_ urlString: String) {
+        PlatformConfig.setServerURL(urlString)
+
+        // Update API client
+        apiClient = APIClient(baseURL: URL(string: urlString))
+
+        // Reconnect WebSocket if connected
+        if let project = selectedProject {
+            webSocketClient?.disconnect()
+            webSocketClient?.connect(project: project.name)
+        }
+
+        // Reload to test connection
+        Task {
+            await loadProjects()
+        }
+    }
+
+    /// Test connection to server
+    func testConnection() async -> (success: Bool, message: String) {
+        do {
+            let projects = try await apiClient.getProjects()
+            isConnectedToServer = true
+            connectionError = nil
+            return (true, "Connected! Found \(projects.count) project(s)")
+        } catch {
+            isConnectedToServer = false
+            connectionError = error.localizedDescription
+            return (false, error.localizedDescription)
+        }
+    }
+
+    private func setupWebSocket() {
+        webSocketClient = WebSocketClient()
+
+        webSocketClient?.onFeatureUpdate = { [weak self] update in
+            Task { @MainActor in
+                await self?.handleFeatureUpdate(update)
+            }
+        }
+
+        webSocketClient?.onSyncRequest = { [weak self] in
+            Task { @MainActor in
+                await self?.reloadFeatures()
+            }
+        }
+    }
+
+    private func handleFeatureUpdate(_ update: WebSocketClient.FeatureUpdate) async {
+        guard update.project == selectedProject?.name else { return }
+
+        switch update.action {
+        case "deleted":
+            // Remove the feature from local state
+            features.removeAll { $0.id == update.featureId }
+        default:
+            // For created, updated, started, stopped - reload to get latest
+            await reloadFeatures()
         }
     }
 
@@ -41,11 +129,40 @@ class AppState {
 
     func selectProject(_ project: Project) async {
         selectedProject = project
+
+        // Connect WebSocket for real-time updates
+        if useAPIMode {
+            await MainActor.run {
+                webSocketClient?.connect(project: project.name)
+            }
+        }
+
         await loadFeatures()
     }
 
+    /// Enable API mode (for connecting to remote server)
+    func enableAPIMode() {
+        #if os(macOS)
+        useAPIMode = true
+        if let project = selectedProject {
+            Task { @MainActor in
+                webSocketClient?.connect(project: project.name)
+            }
+        }
+        #endif
+    }
+
+    /// Disable API mode (for local CLI usage)
+    func disableAPIMode() {
+        #if os(macOS)
+        useAPIMode = false
+        webSocketClient?.disconnect()
+        #endif
+    }
+
     private func discoverProjects() async -> [Project] {
-        // Run synchronous file operations on background queue
+        #if os(macOS)
+        // macOS: Scan local filesystem for FlowForge projects
         return await Task.detached {
             // Check common project locations
             let homeDir = FileManager.default.homeDirectoryForCurrentUser
@@ -56,6 +173,7 @@ class AppState {
             ]
 
             var discoveredProjects: [Project] = []
+            var seenPaths: Set<String> = []  // Deduplicate by path
 
             for basePath in projectsPaths {
                 guard let enumerator = FileManager.default.enumerator(
@@ -71,12 +189,17 @@ class AppState {
 
                     if FileManager.default.fileExists(atPath: flowforgeDir.path, isDirectory: &isDirectory),
                        isDirectory.boolValue {
-                        let project = Project(
-                            name: url.lastPathComponent,
-                            path: url.path,
-                            isActive: true
-                        )
-                        discoveredProjects.append(project)
+                        // Deduplicate - only add if we haven't seen this path
+                        let resolvedPath = url.standardizedFileURL.path
+                        if !seenPaths.contains(resolvedPath) {
+                            seenPaths.insert(resolvedPath)
+                            let project = Project(
+                                name: url.lastPathComponent,
+                                path: resolvedPath,
+                                isActive: true
+                            )
+                            discoveredProjects.append(project)
+                        }
 
                         // Don't recurse into project directories
                         enumerator.skipDescendants()
@@ -86,6 +209,15 @@ class AppState {
 
             return discoveredProjects
         }.value
+        #else
+        // iOS: Fetch projects from API
+        do {
+            return try await apiClient.getProjects()
+        } catch {
+            print("Failed to fetch projects: \(error)")
+            return []
+        }
+        #endif
     }
 
     // MARK: - Feature Management
@@ -96,31 +228,50 @@ class AppState {
         isLoading = true
         errorMessage = nil
 
-        // Stop watching previous project
+        #if os(macOS)
+        // Stop watching previous project (local mode only)
         fileWatcher?.stop()
+        #endif
 
         do {
-            let registryPath = project.registryPath
-            let features = try await cliBridge.loadRegistry(at: registryPath)
+            let features: [Feature]
 
-            await MainActor.run {
-                self.features = features
-                self.isLoading = false
-            }
+            #if os(iOS)
+            // iOS always uses API mode
+            features = try await apiClient.getFeatures(project: project.name)
+            self.isConnectedToServer = true
+            #else
+            if useAPIMode {
+                // API mode: fetch from server
+                features = try await apiClient.getFeatures(project: project.name)
+                self.isConnectedToServer = true
+            } else {
+                // CLI mode: read local registry
+                let registryPath = project.registryPath
+                features = try await cliBridge.loadRegistry(at: registryPath)
 
-            // Start watching new project
-            fileWatcher = FileWatcher(path: registryPath) { [weak self] in
-                Task { [weak self] in
-                    await self?.reloadFeatures()
+                // Start watching for local changes
+                fileWatcher = FileWatcher(path: registryPath) { [weak self] in
+                    Task { [weak self] in
+                        await self?.reloadFeatures()
+                    }
                 }
+                fileWatcher?.start()
             }
-            fileWatcher?.start()
+            #endif
+
+            self.features = features
+            self.isLoading = false
+
+            // Load shipping stats in background
+            Task {
+                await loadShippingStats()
+            }
 
         } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to load features: \(error.localizedDescription)"
-                self.isLoading = false
-            }
+            self.errorMessage = "Failed to load features: \(error.localizedDescription)"
+            self.isLoading = false
+            self.isConnectedToServer = false
         }
     }
 
@@ -128,12 +279,20 @@ class AppState {
         guard let project = selectedProject else { return }
 
         do {
-            let registryPath = project.registryPath
-            let features = try await cliBridge.loadRegistry(at: registryPath)
+            let features: [Feature]
 
-            await MainActor.run {
-                self.features = features
+            #if os(iOS)
+            features = try await apiClient.getFeatures(project: project.name)
+            #else
+            if useAPIMode {
+                features = try await apiClient.getFeatures(project: project.name)
+            } else {
+                let registryPath = project.registryPath
+                features = try await cliBridge.loadRegistry(at: registryPath)
             }
+            #endif
+
+            self.features = features
         } catch {
             // Silent fail on reload - don't show error to user
             print("Failed to reload features: \(error)")
@@ -144,16 +303,29 @@ class AppState {
         guard let project = selectedProject else { return }
 
         do {
-            try await cliBridge.updateFeatureStatus(
+            #if os(iOS)
+            try await apiClient.updateFeature(
+                project: project.name,
                 featureId: feature.id,
-                status: newStatus,
-                projectPath: project.path
+                status: newStatus.rawValue
             )
-            // Features will be reloaded by file watcher
-        } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to update feature: \(error.localizedDescription)"
+            #else
+            if useAPIMode {
+                try await apiClient.updateFeature(
+                    project: project.name,
+                    featureId: feature.id,
+                    status: newStatus.rawValue
+                )
+            } else {
+                try await cliBridge.updateFeatureStatus(
+                    featureId: feature.id,
+                    status: newStatus,
+                    projectPath: project.path
+                )
             }
+            #endif
+        } catch {
+            self.errorMessage = "Failed to update feature: \(error.localizedDescription)"
         }
     }
 
@@ -161,12 +333,17 @@ class AppState {
         guard let project = selectedProject else { return }
 
         do {
-            try await cliBridge.addFeature(title: title, projectPath: project.path)
-            // Features will be reloaded by file watcher
-        } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to add feature: \(error.localizedDescription)"
+            #if os(iOS)
+            try await apiClient.addFeature(project: project.name, title: title)
+            #else
+            if useAPIMode {
+                try await apiClient.addFeature(project: project.name, title: title)
+            } else {
+                try await cliBridge.addFeature(title: title, projectPath: project.path)
             }
+            #endif
+        } catch {
+            self.errorMessage = "Failed to add feature: \(error.localizedDescription)"
         }
     }
 
@@ -174,13 +351,91 @@ class AppState {
         guard let project = selectedProject else { return }
 
         do {
-            try await cliBridge.startFeature(featureId: feature.id, projectPath: project.path)
-            // Features will be reloaded by file watcher
-        } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to start feature: \(error.localizedDescription)"
+            #if os(iOS)
+            try await apiClient.startFeature(project: project.name, featureId: feature.id)
+            #else
+            if useAPIMode {
+                try await apiClient.startFeature(project: project.name, featureId: feature.id)
+            } else {
+                try await cliBridge.startFeature(featureId: feature.id, projectPath: project.path)
             }
+            #endif
+        } catch {
+            self.errorMessage = "Failed to start feature: \(error.localizedDescription)"
         }
+    }
+
+    func stopFeature(_ feature: Feature) async {
+        guard let project = selectedProject else { return }
+
+        do {
+            #if os(iOS)
+            try await apiClient.stopFeature(project: project.name, featureId: feature.id)
+            #else
+            if useAPIMode {
+                try await apiClient.stopFeature(project: project.name, featureId: feature.id)
+            } else {
+                try await cliBridge.stopFeature(featureId: feature.id, projectPath: project.path)
+            }
+            #endif
+        } catch {
+            self.errorMessage = "Failed to stop feature: \(error.localizedDescription)"
+        }
+    }
+
+    func deleteFeature(_ feature: Feature) async {
+        guard let project = selectedProject else { return }
+
+        do {
+            #if os(iOS)
+            try await apiClient.deleteFeature(project: project.name, featureId: feature.id)
+            self.features.removeAll { $0.id == feature.id }
+            #else
+            if useAPIMode {
+                try await apiClient.deleteFeature(project: project.name, featureId: feature.id)
+                self.features.removeAll { $0.id == feature.id }
+            } else {
+                try await cliBridge.deleteFeature(featureId: feature.id, projectPath: project.path)
+            }
+            #endif
+        } catch {
+            self.errorMessage = "Failed to delete feature: \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: - Brainstorm
+
+    /// Parse brainstorm output from Claude and show review UI
+    func parseBrainstorm(claudeOutput: String) async throws {
+        guard let project = selectedProject else {
+            throw APIError.requestFailed("No project selected")
+        }
+
+        let proposals = try await apiClient.parseBrainstorm(
+            project: project.name,
+            claudeOutput: claudeOutput
+        )
+
+        self.parsedProposals = proposals
+        self.showingProposalReview = true
+    }
+
+    /// Approve selected proposals and add to registry
+    func approveProposals(_ proposals: [Proposal]) async throws {
+        guard let project = selectedProject else {
+            throw APIError.requestFailed("No project selected")
+        }
+
+        let approvedProposals = proposals.filter { $0.status == .approved }
+        guard !approvedProposals.isEmpty else { return }
+
+        _ = try await apiClient.approveProposals(
+            project: project.name,
+            proposals: approvedProposals
+        )
+
+        // Reload features to show newly added
+        await loadFeatures()
     }
 
     // MARK: - Helpers
@@ -191,5 +446,39 @@ class AppState {
 
     func clearError() {
         errorMessage = nil
+    }
+
+    // MARK: - Shipping Machine Constraints
+
+    /// Maximum planned features allowed (Wave 4 constraint)
+    static let maxPlannedFeatures = 3
+
+    /// Number of currently planned features
+    var plannedCount: Int {
+        features.filter { $0.status == .planned }.count
+    }
+
+    /// Remaining slots for planned features
+    var plannedSlotsRemaining: Int {
+        max(0, Self.maxPlannedFeatures - plannedCount)
+    }
+
+    /// Whether user can add a new planned feature
+    var canAddPlannedFeature: Bool {
+        plannedCount < Self.maxPlannedFeatures
+    }
+
+    // MARK: - Shipping Stats
+
+    func loadShippingStats() async {
+        guard let project = selectedProject else { return }
+
+        do {
+            let stats = try await apiClient.getShippingStats(project: project.name)
+            self.shippingStats = stats
+        } catch {
+            // Silent fail - stats are optional
+            print("Failed to load shipping stats: \(error)")
+        }
     }
 }

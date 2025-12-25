@@ -14,18 +14,23 @@ struct StatusColumn: View {
         VStack(alignment: .leading, spacing: 12) {
             // Column Header
             HStack {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 8, height: 8)
+
                 Text(status.displayName)
                     .font(.headline)
                     .fontWeight(.semibold)
+                    .foregroundColor(status == .blocked ? .red : .primary)
 
                 Spacer()
 
                 Text("\(features.count)")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(status == .blocked ? .red.opacity(0.8) : .secondary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
-                    .background(Color.secondary.opacity(0.2))
+                    .background(status == .blocked ? Color.red.opacity(0.15) : Color.secondary.opacity(0.2))
                     .clipShape(Capsule())
             }
             .padding(.horizontal, 12)
@@ -55,7 +60,7 @@ struct StatusColumn: View {
         .frame(width: 280)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color(NSColor.controlBackgroundColor))
+                .fill(Color.controlBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
@@ -80,6 +85,16 @@ struct StatusColumn: View {
         }
 
         return true
+    }
+
+    private var statusColor: Color {
+        switch status {
+        case .planned: return .gray
+        case .inProgress: return .blue
+        case .review: return .orange
+        case .completed: return .green
+        case .blocked: return .red
+        }
     }
 }
 

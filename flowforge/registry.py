@@ -19,6 +19,13 @@ class FeatureStatus(str, Enum):
     BLOCKED = "blocked"
 
 
+# =============================================================================
+# Shipping Machine Constraints (Wave 4)
+# =============================================================================
+
+MAX_PLANNED_FEATURES = 3  # Enforce focus: max 3 planned features at a time
+
+
 class Complexity(str, Enum):
     """Estimated complexity/size of a feature."""
 
@@ -54,6 +61,7 @@ class Feature:
     # Timestamps
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    completed_at: Optional[str] = None  # When feature was shipped
 
     # Documentation
     spec_path: Optional[str] = None
@@ -92,6 +100,38 @@ class MergeQueueItem:
     conflict_files: list[str] = field(default_factory=list)
 
 
+@dataclass
+class ShippingStats:
+    """
+    Shipping streak statistics for gamification.
+
+    Inspired by BJ Fogg's tiny habits + Nir Eyal's variable rewards.
+    The streak creates positive reinforcement for daily shipping.
+    """
+
+    current_streak: int = 0
+    longest_streak: int = 0
+    total_shipped: int = 0
+    last_ship_date: Optional[str] = None  # ISO date string (YYYY-MM-DD)
+
+    def to_dict(self) -> dict:
+        return {
+            "current_streak": self.current_streak,
+            "longest_streak": self.longest_streak,
+            "total_shipped": self.total_shipped,
+            "last_ship_date": self.last_ship_date,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ShippingStats":
+        return cls(
+            current_streak=data.get("current_streak", 0),
+            longest_streak=data.get("longest_streak", 0),
+            total_shipped=data.get("total_shipped", 0),
+            last_ship_date=data.get("last_ship_date"),
+        )
+
+
 class FeatureRegistry:
     """
     Manages the feature registry for a project.
@@ -105,6 +145,7 @@ class FeatureRegistry:
         self.registry_path = project_root / ".flowforge" / "registry.json"
         self._features: dict[str, Feature] = {}
         self._merge_queue: list[MergeQueueItem] = []
+        self._shipping_stats: ShippingStats = ShippingStats()
 
     @classmethod
     def load(cls, project_root: Path) -> "FeatureRegistry":
@@ -120,6 +161,10 @@ class FeatureRegistry:
 
             for item in data.get("merge_queue", []):
                 registry._merge_queue.append(MergeQueueItem(**item))
+
+            # Load shipping stats
+            if "shipping_stats" in data:
+                registry._shipping_stats = ShippingStats.from_dict(data["shipping_stats"])
 
         return registry
 
@@ -138,6 +183,7 @@ class FeatureRegistry:
             "version": "1.0.0",
             "features": {fid: f.to_dict() for fid, f in self._features.items()},
             "merge_queue": [asdict(item) for item in self._merge_queue],
+            "shipping_stats": self._shipping_stats.to_dict(),
         }
 
         with open(self.registry_path, "w") as f:
@@ -292,3 +338,73 @@ class FeatureRegistry:
             "ready_to_start": len(self.get_ready_features()),
             "ready_to_merge": len(self.get_merge_candidates()),
         }
+
+    # Shipping Machine Constraints
+
+    def count_planned(self) -> int:
+        """Count features in planned status (for max constraint)."""
+        return len(self.list_features(status=FeatureStatus.PLANNED))
+
+    def can_add_planned(self) -> bool:
+        """Check if we can add another planned feature (max 3 constraint)."""
+        return self.count_planned() < MAX_PLANNED_FEATURES
+
+    def get_planned_feature_titles(self) -> list[str]:
+        """Get titles of planned features (for error messages)."""
+        return [f.title for f in self.list_features(status=FeatureStatus.PLANNED)]
+
+    # Shipping Streak
+
+    def get_shipping_stats(self) -> ShippingStats:
+        """Get current shipping stats."""
+        return self._shipping_stats
+
+    def record_ship(self) -> ShippingStats:
+        """
+        Record a ship event and update the streak.
+
+        Called when a feature is successfully merged.
+        Updates streak based on whether shipping happened today or yesterday.
+        """
+        today = datetime.now().date().isoformat()
+        yesterday = (datetime.now().date() - __import__('datetime').timedelta(days=1)).isoformat()
+
+        stats = self._shipping_stats
+
+        # Update total
+        stats.total_shipped += 1
+
+        # Update streak
+        if stats.last_ship_date == today:
+            # Already shipped today - no streak change
+            pass
+        elif stats.last_ship_date == yesterday:
+            # Shipped yesterday - extend streak
+            stats.current_streak += 1
+        elif stats.last_ship_date is None:
+            # First ship ever
+            stats.current_streak = 1
+        else:
+            # Streak broken - start fresh
+            stats.current_streak = 1
+
+        # Update longest streak
+        if stats.current_streak > stats.longest_streak:
+            stats.longest_streak = stats.current_streak
+
+        # Update last ship date
+        stats.last_ship_date = today
+
+        self.save()
+        return stats
+
+    def get_streak_display(self) -> str:
+        """Get a formatted streak display string for UI."""
+        stats = self._shipping_stats
+
+        if stats.current_streak == 0:
+            return "No streak yet"
+        elif stats.current_streak == 1:
+            return "🔥 1 day"
+        else:
+            return f"🔥 {stats.current_streak} days"

@@ -174,6 +174,87 @@ fix(worktree): Handle existing branch case
 refactor(registry): Simplify dependency tracking
 ```
 
+## macOS App (FlowForgeApp)
+
+The SwiftUI macOS app lives in `FlowForgeApp/`. Uses XcodeGen to manage the Xcode project.
+
+### Server (required for full features)
+
+The app connects to the FlowForge server for worktrees, prompts, git operations, etc.
+
+```bash
+# Start the server (run in background or separate terminal)
+cd /Users/Brian/Projects/Active/FlowForge
+source .venv/bin/activate
+FLOWFORGE_PROJECTS_PATH=/Users/Brian/Projects/Active FLOWFORGE_PORT=8081 forge-server
+
+# Or as one-liner to start in background:
+cd /Users/Brian/Projects/Active/FlowForge && source .venv/bin/activate && FLOWFORGE_PROJECTS_PATH=/Users/Brian/Projects/Active FLOWFORGE_PORT=8081 forge-server &
+```
+
+The app auto-connects to `http://localhost:8081`. When migrating to Pi, just update `PlatformConfig.swift` with the Tailscale hostname.
+
+### Build & Deploy (when user says "build the app", "deploy it", etc.)
+
+```bash
+cd /Users/Brian/Projects/Active/FlowForge/FlowForgeApp
+
+# 1. Regenerate Xcode project (picks up new files automatically)
+xcodegen generate
+
+# 2. Build Release
+xcodebuild -project FlowForgeApp.xcodeproj -scheme FlowForgeApp -configuration Release -derivedDataPath build ONLY_ACTIVE_ARCH=YES -quiet
+
+# 3. Install to Applications (replaces previous version)
+rm -rf /Applications/FlowForge.app && cp -R build/Build/Products/Release/FlowForge.app /Applications/
+
+# 4. Launch
+open /Applications/FlowForge.app
+```
+
+**One-liner for quick iteration:**
+```bash
+cd /Users/Brian/Projects/Active/FlowForge/FlowForgeApp && xcodegen generate && xcodebuild -project FlowForgeApp.xcodeproj -scheme FlowForgeApp -configuration Release -derivedDataPath build ONLY_ACTIVE_ARCH=YES -quiet && rm -rf /Applications/FlowForge.app && cp -R build/Build/Products/Release/FlowForge.app /Applications/ && open /Applications/FlowForge.app
+```
+
+### Adding New Swift Files
+
+Just create the file anywhere in these folders - XcodeGen picks them up automatically:
+- `App/` - macOS app entry point
+- `Models/` - Data models (Feature, AppState, etc.)
+- `Views/` - SwiftUI views
+- `Services/` - APIClient, CLIBridge, etc.
+- `Shared/` - Cross-platform utilities
+- `Design/` - Design system (tokens, animations, components)
+
+Then run `xcodegen generate` before building.
+
+### Project Structure
+
+```
+FlowForgeApp/
+├── project.yml              # XcodeGen config (defines targets, settings)
+├── App/                     # macOS entry point
+├── App-iOS/                 # iOS companion app entry point
+├── Models/                  # Feature, AppState, Project, Proposal
+├── Views/                   # ContentView, Kanban/, MissionControl/, etc.
+├── Services/                # APIClient, CLIBridge, WebSocketClient
+├── Shared/                  # Cross-platform code
+└── Design/                  # Design system
+    ├── DesignTokens.swift   # Colors, spacing, typography
+    ├── AnimationPrimitives.swift  # Spring physics, micro-interactions
+    └── Components/          # VibeInput, StreakBadge, ConfettiView, etc.
+```
+
+### Design System Philosophy
+
+Built with guidance from legendary designers (see plan file):
+- **Jony Ive**: Every pixel feels considered
+- **Dieter Rams**: Less, but better
+- **Bret Victor**: Immediate feedback, see the work
+- **Edward Tufte**: Show the data, eliminate chartjunk
+- **Mike Matas**: Physics-based, magical moments
+
 ## Additional Documentation
 
 - `docs/SESSION_CONTEXT.md` - Full development context, verified working features, what's next

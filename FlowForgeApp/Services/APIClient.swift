@@ -22,12 +22,65 @@ enum APIError: Error, LocalizedError {
 
 /// HTTP client for FlowForge server API
 actor APIClient {
-    private let baseURL: URL
+    private var baseURL: URL
     private let session: URLSession
 
-    init(baseURL: URL = URL(string: "http://localhost:8081")!) {
-        self.baseURL = baseURL
+    init(baseURL: URL? = nil) {
+        self.baseURL = baseURL ?? URL(string: PlatformConfig.defaultServerURL)!
         self.session = URLSession.shared
+    }
+
+    /// Update the server URL (for settings changes)
+    func setBaseURL(_ urlString: String) {
+        if let url = URL(string: urlString) {
+            self.baseURL = url
+        }
+    }
+
+    // MARK: - Projects
+
+    /// Get all projects from the server
+    func getProjects() async throws -> [Project] {
+        let url = baseURL.appendingPathComponent("api/projects")
+        let response: ProjectListResponse = try await get(url: url)
+        return response.projects.map { projectData in
+            Project(
+                name: projectData.name,
+                path: projectData.path,
+                isActive: true
+            )
+        }
+    }
+
+    // MARK: - Feature List
+
+    /// Get all features for a project
+    func getFeatures(project: String) async throws -> [Feature] {
+        let url = baseURL.appendingPathComponent("api/\(project)/features")
+        let response: FeatureListResponse = try await get(url: url)
+        return response.features
+    }
+
+    /// Add a new feature
+    func addFeature(project: String, title: String, description: String? = nil) async throws {
+        let url = baseURL.appendingPathComponent("api/\(project)/features")
+        var body: [String: Any] = ["title": title]
+        if let description = description {
+            body["description"] = description
+        }
+        let _: FeatureAddResponse = try await post(url: url, body: body)
+    }
+
+    /// Start a feature (creates worktree, generates prompt)
+    func startFeature(project: String, featureId: String) async throws {
+        let url = baseURL.appendingPathComponent("api/\(project)/features/\(featureId)/start")
+        let _: EmptyResponse = try await post(url: url, body: [:])
+    }
+
+    /// Stop a feature (cleans up worktree)
+    func stopFeature(project: String, featureId: String) async throws {
+        let url = baseURL.appendingPathComponent("api/\(project)/features/\(featureId)/stop")
+        let _: EmptyResponse = try await post(url: url, body: [:])
     }
 
     // MARK: - Prompt Generation
@@ -106,6 +159,14 @@ actor APIClient {
         let _: EmptyResponse = try await delete(url: url)
     }
 
+    // MARK: - Shipping Stats (Wave 4.4)
+
+    /// Get shipping streak statistics
+    func getShippingStats(project: String) async throws -> ShippingStats {
+        let url = baseURL.appendingPathComponent("api/\(project)/shipping-stats")
+        return try await get(url: url)
+    }
+
     // MARK: - Private HTTP Methods
 
     private func get<T: Decodable>(url: URL) async throws -> T {
@@ -160,3 +221,20 @@ actor APIClient {
 // MARK: - Helper Types
 
 private struct EmptyResponse: Decodable {}
+
+private struct ProjectListResponse: Decodable {
+    let projects: [ProjectData]
+}
+
+private struct ProjectData: Decodable {
+    let name: String
+    let path: String
+}
+
+private struct FeatureListResponse: Decodable {
+    let features: [Feature]
+}
+
+private struct FeatureAddResponse: Decodable {
+    let feature_id: String
+}

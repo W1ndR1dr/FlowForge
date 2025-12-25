@@ -15,16 +15,19 @@ from typing import Optional
 import json
 import os
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+import asyncio
 
 from .mcp_server import FlowForgeMCPServer, create_mcp_response
-from .brainstorm import parse_proposals, Proposal, ProposalStatus
+from .brainstorm import parse_proposals, Proposal, ProposalStatus, check_shippable
 from .prompt_builder import PromptBuilder
 from .registry import FeatureRegistry
 from .intelligence import IntelligenceEngine
+from .feature_analyzer import FeatureAnalyzer, Complexity as AnalyzerComplexity, ExpertDomain as AnalyzerDomain
+from .expert_router import ExpertRouter, ExpertDomain as RouterDomain
 
 
 # =============================================================================
@@ -46,6 +49,57 @@ def get_config() -> dict:
         "port": int(os.environ.get("FLOWFORGE_PORT", "8081")),
         "host": os.environ.get("FLOWFORGE_HOST", "0.0.0.0"),
     }
+
+
+# =============================================================================
+# WebSocket Connection Manager
+# =============================================================================
+
+
+class ConnectionManager:
+    """Manages WebSocket connections for real-time updates."""
+
+    def __init__(self):
+        self.active_connections: dict[str, list[WebSocket]] = {}  # project -> connections
+
+    async def connect(self, websocket: WebSocket, project: str):
+        await websocket.accept()
+        if project not in self.active_connections:
+            self.active_connections[project] = []
+        self.active_connections[project].append(websocket)
+
+    def disconnect(self, websocket: WebSocket, project: str):
+        if project in self.active_connections:
+            if websocket in self.active_connections[project]:
+                self.active_connections[project].remove(websocket)
+
+    async def broadcast(self, project: str, message: dict):
+        """Broadcast a message to all connections for a project."""
+        if project not in self.active_connections:
+            return
+
+        dead_connections = []
+        for connection in self.active_connections[project]:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                dead_connections.append(connection)
+
+        # Clean up dead connections
+        for conn in dead_connections:
+            self.disconnect(conn, project)
+
+    async def broadcast_feature_update(self, project: str, feature_id: str, action: str):
+        """Broadcast a feature update event."""
+        await self.broadcast(project, {
+            "type": "feature_update",
+            "project": project,
+            "feature_id": feature_id,
+            "action": action,  # created, updated, deleted, started, stopped
+        })
+
+
+ws_manager = ConnectionManager()
 
 
 # =============================================================================
@@ -168,6 +222,10 @@ async def start_feature(
     result = mcp_server._start_feature(project, feature_id, request.skip_experts)
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
+
+    # Broadcast update
+    await ws_manager.broadcast_feature_update(project, feature_id, "started")
+
     return result.data
 
 
@@ -177,6 +235,10 @@ async def stop_feature(project: str, feature_id: str):
     result = mcp_server._stop_feature(project, feature_id)
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
+
+    # Broadcast update
+    await ws_manager.broadcast_feature_update(project, feature_id, "stopped")
+
     return result.data
 
 
@@ -236,6 +298,12 @@ async def add_feature(project: str, request: AddFeatureRequest):
     )
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
+
+    # Broadcast update
+    feature_id = result.data.get("id") if isinstance(result.data, dict) else None
+    if feature_id:
+        await ws_manager.broadcast_feature_update(project, feature_id, "created")
+
     return result.data
 
 
@@ -267,6 +335,10 @@ async def update_feature(
     )
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
+
+    # Broadcast update
+    await ws_manager.broadcast_feature_update(project, feature_id, "updated")
+
     return result.data
 
 
@@ -284,6 +356,10 @@ async def delete_feature(
     result = mcp_server._delete_feature(project, feature_id, force)
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
+
+    # Broadcast update
+    await ws_manager.broadcast_feature_update(project, feature_id, "deleted")
+
     return {"success": True, "message": f"Feature {feature_id} deleted"}
 
 
@@ -359,6 +435,157 @@ async def parse_brainstorm_output(project: str, request: BrainstormParseRequest)
             for p in proposals
         ],
         "count": len(proposals),
+    }
+
+
+class ScopeCheckRequest(BaseModel):
+    """Request to check if a feature is shippable (scope creep detection)."""
+    title: str
+    description: str = ""
+    complexity: str = "medium"
+
+
+@app.post("/api/scope-check")
+async def scope_check(request: ScopeCheckRequest):
+    """
+    Check if a feature is shippable (no scope creep).
+
+    Returns warnings and suggestions if the feature is too broad.
+    """
+    result = check_shippable(
+        title=request.title,
+        description=request.description,
+        complexity=request.complexity,
+    )
+    return result
+
+
+# =============================================================================
+# Feature Intelligence Endpoints (AGI-pilled analysis)
+# =============================================================================
+
+
+class AnalyzeFeatureRequest(BaseModel):
+    """Request to analyze a feature with AI."""
+    title: str
+    description: str = ""
+
+
+@app.post("/api/{project}/analyze-feature")
+async def analyze_feature(project: str, request: AnalyzeFeatureRequest):
+    """
+    Analyze a feature using the AGI-pilled feature analyzer.
+
+    Returns complete intelligence about scope, complexity, expert needs,
+    and shippability.
+    """
+    config = get_config()
+    project_path = config["projects_base"] / project
+
+    if not (project_path / ".flowforge").exists():
+        raise HTTPException(status_code=404, detail=f"Project not found: {project}")
+
+    # Get existing features for context
+    registry = FeatureRegistry.load(project_path)
+    existing = [f.title for f in registry.list_features() if f.status.value == "in-progress"]
+
+    # Run the analyzer
+    analyzer = FeatureAnalyzer(project_path)
+    intelligence = analyzer.analyze_feature(
+        title=request.title,
+        description=request.description,
+        existing_features=existing,
+    )
+
+    return {
+        "title": intelligence.title,
+        "description": intelligence.description,
+        "complexity": intelligence.complexity.value,
+        "estimated_hours": intelligence.estimated_hours,
+        "confidence": intelligence.confidence,
+        "files_affected": intelligence.files_affected,
+        "foundation_score": intelligence.foundation_score,
+        "foundation_reasoning": intelligence.foundation_reasoning,
+        "parallelizable": intelligence.parallelizable,
+        "parallel_conflicts": intelligence.parallel_conflicts,
+        "needs_expert": intelligence.needs_expert,
+        "expert_domain": intelligence.expert_domain.value,
+        "expert_reasoning": intelligence.expert_reasoning,
+        "shippable_today": intelligence.shippable_today,
+        "scope_creep_detected": intelligence.scope_creep_detected,
+        "scope_creep_warning": intelligence.scope_creep_warning,
+        "suggested_breakdown": intelligence.suggested_breakdown,
+        "suggested_tags": intelligence.suggested_tags,
+    }
+
+
+class QuickScopeRequest(BaseModel):
+    """Request for quick (local) scope check."""
+    text: str
+
+
+@app.post("/api/quick-scope")
+async def quick_scope_check(request: QuickScopeRequest):
+    """
+    Quick, local-only scope check for as-you-type feedback.
+
+    This runs instantly without calling Claude, for the VibeInput component.
+    """
+    # Use a dummy analyzer (doesn't need project context for quick check)
+    analyzer = FeatureAnalyzer(Path("."))
+    result = analyzer.quick_scope_check(request.text)
+    return result
+
+
+@app.get("/api/experts")
+async def list_experts():
+    """List all available expert personas."""
+    return {
+        "experts": ExpertRouter.list_all_experts()
+    }
+
+
+@app.get("/api/experts/{domain}")
+async def get_experts_for_domain(domain: str):
+    """Get expert personas for a specific domain."""
+    try:
+        domain_enum = RouterDomain(domain)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid domain. Valid domains: {[d.value for d in RouterDomain]}"
+        )
+
+    experts = ExpertRouter.get_experts_for_domain(domain_enum)
+    return {
+        "domain": domain,
+        "experts": [
+            {
+                "name": e.name,
+                "title": e.title,
+                "philosophy": e.philosophy,
+                "key_principles": e.key_principles,
+            }
+            for e in experts
+        ]
+    }
+
+
+@app.get("/api/experts/panel/design")
+async def get_design_panel():
+    """Get the legendary design panel from the UI/UX consultation."""
+    panel = ExpertRouter.get_design_panel()
+    return {
+        "panel_name": "The Legendary Design Panel",
+        "experts": [
+            {
+                "name": e.name,
+                "title": e.title,
+                "philosophy": e.philosophy,
+                "key_principles": e.key_principles,
+            }
+            for e in panel
+        ]
     }
 
 
@@ -746,6 +973,74 @@ async def health():
         "projects_base": str(config["projects_base"]),
         "remote_host": config["remote_host"],
     }
+
+
+# =============================================================================
+# Shipping Stats Endpoints (Wave 4.4)
+# =============================================================================
+
+
+@app.get("/api/{project}/shipping-stats")
+async def get_shipping_stats(project: str):
+    """Get shipping streak statistics for a project."""
+    config = get_config()
+    project_path = config["projects_base"] / project
+
+    if not (project_path / ".flowforge").exists():
+        raise HTTPException(status_code=404, detail=f"Project not found: {project}")
+
+    registry = FeatureRegistry.load(project_path)
+    stats = registry.get_shipping_stats()
+
+    return {
+        "current_streak": stats.current_streak,
+        "longest_streak": stats.longest_streak,
+        "total_shipped": stats.total_shipped,
+        "last_ship_date": stats.last_ship_date,
+        "streak_display": registry.get_streak_display(),
+    }
+
+
+# =============================================================================
+# WebSocket Endpoint
+# =============================================================================
+
+
+@app.websocket("/ws/{project}")
+async def websocket_endpoint(websocket: WebSocket, project: str):
+    """
+    WebSocket endpoint for real-time updates.
+
+    Clients connect to /ws/{project} to receive updates for a specific project.
+
+    Message format (from server):
+    {
+        "type": "feature_update",
+        "project": "ProjectName",
+        "feature_id": "feature-id",
+        "action": "created" | "updated" | "deleted" | "started" | "stopped"
+    }
+
+    Clients can send ping messages to keep connection alive:
+    {"type": "ping"}
+
+    Server responds with:
+    {"type": "pong"}
+    """
+    await ws_manager.connect(websocket, project)
+
+    try:
+        while True:
+            # Wait for messages from client (e.g., ping)
+            data = await websocket.receive_json()
+
+            if data.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, project)
+    except Exception:
+        ws_manager.disconnect(websocket, project)
 
 
 # =============================================================================

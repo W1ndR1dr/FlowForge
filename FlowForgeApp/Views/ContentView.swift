@@ -1,14 +1,43 @@
 import SwiftUI
 
+enum DashboardView: String, CaseIterable {
+    case kanban = "Kanban"
+    case missionControl = "Mission Control"
+
+    var icon: String {
+        switch self {
+        case .kanban: return "rectangle.split.3x1"
+        case .missionControl: return "gauge.with.needle"
+        }
+    }
+}
+
 struct ContentView: View {
     @Environment(AppState.self) private var appState
+    @State private var showingAddFeature = false
+    @State private var newFeatureTitle = ""
+    @State private var selectedView: DashboardView = .missionControl  // Default to Mission Control
 
     var body: some View {
         @Bindable var state = appState
 
         NavigationSplitView {
-            ProjectListView()
-                .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
+            VStack(spacing: 0) {
+                ProjectListView()
+
+                Divider()
+
+                // View Switcher
+                Picker("View", selection: $selectedView) {
+                    ForEach(DashboardView.allCases, id: \.self) { view in
+                        Label(view.rawValue, systemImage: view.icon)
+                            .tag(view)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding()
+            }
+            .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
         } detail: {
             if appState.isLoading {
                 VStack {
@@ -36,7 +65,13 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if appState.selectedProject != nil {
-                KanbanView()
+                // Switch between views based on selection
+                switch selectedView {
+                case .kanban:
+                    KanbanView()
+                case .missionControl:
+                    MissionControlView()
+                }
             } else {
                 VStack(spacing: 16) {
                     Image(systemName: "tray")
@@ -49,6 +84,81 @@ struct ContentView: View {
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .sheet(isPresented: $showingAddFeature) {
+            QuickAddFeatureSheet(
+                isPresented: $showingAddFeature,
+                featureTitle: $newFeatureTitle
+            )
+        }
+    }
+
+    // MARK: - Keyboard Shortcut Actions
+
+    func addNewFeature() {
+        guard appState.selectedProject != nil else { return }
+        showingAddFeature = true
+    }
+
+    func refreshFeatures() {
+        Task {
+            await appState.loadFeatures()
+        }
+    }
+}
+
+// Quick add feature sheet for keyboard shortcut
+struct QuickAddFeatureSheet: View {
+    @Environment(AppState.self) private var appState
+    @Binding var isPresented: Bool
+    @Binding var featureTitle: String
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Quick Add Feature")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            TextField("Feature title", text: $featureTitle)
+                .textFieldStyle(.roundedBorder)
+                .focused($isFocused)
+                .onSubmit {
+                    addFeature()
+                }
+
+            HStack {
+                Button("Cancel") {
+                    isPresented = false
+                    featureTitle = ""
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Spacer()
+
+                Button("Add") {
+                    addFeature()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(featureTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding()
+        .frame(width: 400)
+        .onAppear {
+            isFocused = true
+        }
+    }
+
+    private func addFeature() {
+        guard !featureTitle.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+
+        Task {
+            await appState.addFeature(title: featureTitle)
+            await MainActor.run {
+                isPresented = false
+                featureTitle = ""
             }
         }
     }

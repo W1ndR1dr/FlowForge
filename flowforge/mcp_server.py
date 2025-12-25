@@ -344,17 +344,8 @@ class FlowForgeMCPServer:
 
         features = registry.list_features(status=status_filter)
 
-        feature_list = [
-            {
-                "id": f.id,
-                "title": f.title,
-                "status": f.status.value,
-                "priority": f.priority,
-                "has_worktree": f.worktree_path is not None,
-                "tags": f.tags,
-            }
-            for f in features
-        ]
+        # Return full feature data for GUI clients
+        feature_list = [f.to_dict() for f in features]
 
         return MCPToolResult(
             success=True,
@@ -629,7 +620,28 @@ class FlowForgeMCPServer:
         except ValueError as e:
             return MCPToolResult(success=False, message=str(e))
 
-        from .registry import Feature, Complexity
+        from .registry import Feature, Complexity, MAX_PLANNED_FEATURES
+
+        # =====================================================================
+        # Shipping Machine Constraint: Max 3 Planned Features
+        # =====================================================================
+        if not registry.can_add_planned():
+            planned_titles = registry.get_planned_feature_titles()
+            return MCPToolResult(
+                success=False,
+                message=(
+                    f"You have {MAX_PLANNED_FEATURES} planned features. "
+                    f"Finish or delete one first to stay focused!\n\n"
+                    f"Currently planned:\n"
+                    + "\n".join(f"  • {t}" for t in planned_titles[:MAX_PLANNED_FEATURES])
+                ),
+                data={
+                    "constraint": "max_planned_features",
+                    "limit": MAX_PLANNED_FEATURES,
+                    "current": registry.count_planned(),
+                    "planned_titles": planned_titles,
+                },
+            )
 
         # Generate ID
         feature_id = FeatureRegistry.generate_id(title)
@@ -654,13 +666,18 @@ class FlowForgeMCPServer:
         registry.add_feature(feature)
         self._invalidate_cache(project)
 
+        # Show remaining slots
+        remaining = MAX_PLANNED_FEATURES - registry.count_planned()
+
         return MCPToolResult(
             success=True,
-            message=f"Added feature: {title}",
+            message=f"Added feature: {title} ({remaining} slot{'s' if remaining != 1 else ''} remaining)",
             data={
                 "feature_id": feature_id,
                 "title": title,
                 "status": "planned",
+                "planned_count": registry.count_planned(),
+                "slots_remaining": remaining,
             },
         )
 

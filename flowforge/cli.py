@@ -45,7 +45,9 @@ from .brainstorm import (
     load_proposals,
     Proposal,
     ProposalStatus,
+    check_shippable,
 )
+from .registry import MAX_PLANNED_FEATURES
 
 app = typer.Typer(
     name="forge",
@@ -358,6 +360,315 @@ def add(
     console.print(f"   Status: {feature.status.value}")
     if parent:
         console.print(f"   Parent: {parent}")
+
+
+# ============================================================================
+# Shipping Machine Commands (Wave 4)
+# ============================================================================
+
+
+@app.command()
+def build(
+    idea: str = typer.Argument(..., help="Natural language description of what to build"),
+    today: bool = typer.Option(False, "--today", "-t", help="Lock focus: ship this or nothing"),
+    force: bool = typer.Option(False, "--force", "-f", help="Skip scope creep check"),
+    no_clipboard: bool = typer.Option(False, "--no-clipboard", help="Don't copy prompt to clipboard"),
+):
+    """
+    🚀 BUILD: The shipping machine command.
+
+    One command to go from idea → Claude Code working:
+      forge build "Add dark mode toggle"
+
+    This automatically:
+    1. Creates a feature from your idea
+    2. Checks for scope creep (too big? suggests split)
+    3. Enforces max 3 planned features (stay focused!)
+    4. Creates worktree for isolated work
+    5. Generates actionable implementation prompt
+    6. Copies prompt to clipboard
+    7. Shows instructions to launch Claude Code
+
+    Use --today to lock focus: this feature or nothing else until shipped.
+    """
+    project_root, config, registry = get_context()
+
+    console.print(f"\n🚀 [bold]BUILD[/bold]: {idea}\n")
+
+    # Step 1: Check max planned features constraint
+    planned_count = len(registry.list_features(status=FeatureStatus.PLANNED))
+    in_progress_count = len(registry.list_features(status=FeatureStatus.IN_PROGRESS))
+
+    if planned_count >= MAX_PLANNED_FEATURES:
+        console.print(f"[red]❌ You have {MAX_PLANNED_FEATURES} planned features.[/red]")
+        console.print(f"\n[yellow]Finish or delete one first to stay focused![/yellow]\n")
+
+        planned_features = registry.list_features(status=FeatureStatus.PLANNED)
+        console.print("Currently planned:")
+        for f in planned_features[:MAX_PLANNED_FEATURES]:
+            console.print(f"  • {f.title}")
+
+        console.print(f"\n[dim]Hint: Run 'forge delete <id>' or 'forge start <id>' to make room.[/dim]")
+        raise typer.Exit(1)
+
+    # Step 2: Check for scope creep
+    if not force:
+        result = check_shippable(idea)
+
+        if not result["shippable"] and result["warnings"]:
+            console.print("[yellow]⚠️  Scope creep detected![/yellow]\n")
+
+            for w in result["warnings"]:
+                console.print(f"   • {w['issue']}")
+                console.print(f"     [dim]{w['suggestion']}[/dim]\n")
+
+            if result["suggestions"]:
+                console.print("[yellow]Consider splitting into:[/yellow]")
+                for s in result["suggestions"]:
+                    console.print(f"   • {s}")
+
+            console.print("")
+            if not Confirm.ask("Continue anyway?"):
+                console.print("\n[dim]Break it down, then try again![/dim]")
+                raise typer.Exit(0)
+
+    # Step 3: Create the feature
+    feature_id = FeatureRegistry.generate_id(idea)
+
+    if registry.get_feature(feature_id):
+        console.print(f"[yellow]Feature already exists: {feature_id}[/yellow]")
+        feature = registry.get_feature(feature_id)
+    else:
+        feature = Feature(
+            id=feature_id,
+            title=idea,
+            description="",
+            tags=["shipping-machine"],
+            complexity=Complexity.MEDIUM,
+            priority=1,  # Building it now = high priority
+        )
+        registry.add_feature(feature)
+        console.print(f"✅ Created feature: [green]{feature_id}[/green]")
+
+    # Step 4: Create worktree
+    worktree_mgr = WorktreeManager(project_root, config.project.worktree_base)
+
+    worktree_path = worktree_mgr.get_worktree_path(feature_id)
+    if not worktree_path:
+        console.print("📁 Creating worktree...")
+        try:
+            worktree_path = worktree_mgr.create_for_feature(
+                feature_id,
+                config.project.main_branch,
+            )
+            console.print(f"   ✅ Created: [green]{worktree_path}[/green]")
+        except Exception as e:
+            console.print(f"   [red]Failed to create worktree: {e}[/red]")
+            raise typer.Exit(1)
+    else:
+        console.print(f"📁 Using existing worktree: [green]{worktree_path}[/green]")
+
+    # Step 5: Generate actionable prompt
+    console.print("📝 Generating implementation prompt...")
+
+    intelligence = IntelligenceEngine(project_root)
+    prompt_builder = PromptBuilder(project_root, registry, intelligence)
+
+    prompt = prompt_builder.build_for_feature(
+        feature_id,
+        config.project.claude_md_path,
+        include_experts=True,
+        include_research=False,  # Action, not research
+    )
+
+    # Save prompt
+    prompt_path = prompt_builder.save_prompt(feature_id, prompt)
+    console.print(f"   ✅ Saved: [green]{prompt_path}[/green]")
+
+    # Step 6: Copy to clipboard
+    if not no_clipboard:
+        try:
+            import pyperclip
+            pyperclip.copy(prompt)
+            console.print("   ✅ Copied to clipboard")
+        except Exception:
+            console.print("   [yellow]Could not copy to clipboard[/yellow]")
+
+    # Step 7: Update registry
+    registry.update_feature(
+        feature_id,
+        status=FeatureStatus.IN_PROGRESS,
+        branch=f"feature/{feature_id}",
+        worktree_path=str(worktree_path),
+        prompt_path=str(prompt_path),
+    )
+
+    # Step 8: Show launch instructions
+    remaining = MAX_PLANNED_FEATURES - (planned_count - 1)  # One less since we started it
+
+    console.print("\n" + "=" * 60)
+    console.print(f"\n[bold green]🚀 Ready to build![/bold green]")
+    console.print(f"\n[dim]Slots remaining: {remaining}/{MAX_PLANNED_FEATURES}[/dim]\n")
+
+    console.print("Launch Claude Code:\n")
+    console.print(f"  [cyan]cd {worktree_path}[/cyan]")
+    console.print(f"  [cyan]{config.project.claude_command} {' '.join(config.project.claude_flags)}[/cyan]")
+    console.print("\nPaste the prompt and start building!\n")
+
+    if today:
+        console.print("[yellow]🎯 TODAY MODE: Ship this or nothing![/yellow]")
+        console.print("[dim]Run 'forge ship' when done.[/dim]")
+
+    console.print("=" * 60)
+
+
+@app.command()
+def ship(
+    feature_id: Optional[str] = typer.Argument(None, help="Feature ID to ship (auto-detects if only one in-progress)"),
+    skip_validation: bool = typer.Option(False, "--skip-validation", "-s", help="Skip build validation"),
+    keep_worktree: bool = typer.Option(False, "--keep", "-k", help="Keep worktree after shipping"),
+):
+    """
+    🚢 SHIP: One-click merge and celebrate.
+
+    Completes the shipping machine workflow:
+      forge ship
+
+    This automatically:
+    1. Finds your in-progress feature
+    2. Marks it as review
+    3. Checks for conflicts (resolves if possible)
+    4. Merges into main
+    5. Cleans up worktree
+    6. Celebrates!
+
+    If you have multiple features in-progress, specify the ID.
+    """
+    project_root, config, registry = get_context()
+
+    # Find feature to ship
+    if feature_id:
+        feature = registry.get_feature(feature_id)
+        if not feature:
+            console.print(f"[red]Feature not found: {feature_id}[/red]")
+            raise typer.Exit(1)
+    else:
+        # Auto-detect: find in-progress features
+        in_progress = registry.list_features(status=FeatureStatus.IN_PROGRESS)
+        review_features = registry.list_features(status=FeatureStatus.REVIEW)
+
+        # Also consider review features as shippable
+        shippable = in_progress + review_features
+
+        if not shippable:
+            console.print("[yellow]No features in progress or review to ship.[/yellow]")
+            console.print("[dim]Run 'forge build \"your idea\"' to start one.[/dim]")
+            raise typer.Exit(1)
+
+        if len(shippable) == 1:
+            feature = shippable[0]
+            console.print(f"\n🚢 [bold]SHIP[/bold]: {feature.title}\n")
+        else:
+            console.print("[yellow]Multiple features in progress/review. Specify which to ship:[/yellow]\n")
+            for f in shippable:
+                console.print(f"  • [cyan]forge ship {f.id}[/cyan] - {f.title}")
+            raise typer.Exit(1)
+
+    # Ensure feature is shippable
+    if feature.status not in [FeatureStatus.IN_PROGRESS, FeatureStatus.REVIEW]:
+        console.print(f"[yellow]Feature is {feature.status.value}, not in-progress or review.[/yellow]")
+        raise typer.Exit(1)
+
+    # Step 1: Mark as review if in-progress
+    if feature.status == FeatureStatus.IN_PROGRESS:
+        registry.update_feature(feature.id, status=FeatureStatus.REVIEW)
+        console.print("✅ Marked as ready for review")
+
+    # Step 2: Check for conflicts
+    console.print("🔍 Checking for conflicts...")
+
+    orchestrator = MergeOrchestrator(
+        project_root,
+        registry,
+        config.project.main_branch,
+        config.project.build_command,
+    )
+
+    conflict_result = orchestrator.check_conflicts(feature.id)
+
+    if not conflict_result.success:
+        console.print(f"\n[yellow]⚠️  Conflicts detected in {len(conflict_result.conflict_files)} file(s).[/yellow]\n")
+
+        for cf in conflict_result.conflict_files:
+            console.print(f"   • {cf}")
+
+        console.print("\n[dim]Attempting auto-resolution...[/dim]")
+
+        # Try to sync (rebase onto main)
+        success, message = orchestrator.sync_feature(feature.id)
+
+        if not success:
+            console.print(f"\n[red]❌ Could not auto-resolve conflicts.[/red]")
+            console.print(f"[dim]{message}[/dim]")
+            console.print("\n[yellow]Manual resolution needed:[/yellow]")
+            console.print(f"  1. cd {feature.worktree_path}")
+            console.print(f"  2. Resolve conflicts in the files above")
+            console.print(f"  3. git add . && git rebase --continue")
+            console.print(f"  4. forge ship {feature.id}")
+            raise typer.Exit(1)
+
+        console.print("   ✅ Conflicts resolved!")
+
+    # Step 3: Merge
+    console.print(f"🔀 Merging into {config.project.main_branch}...")
+
+    merge_result = orchestrator.merge_feature(
+        feature.id,
+        validate=not skip_validation,
+        auto_cleanup=not keep_worktree,
+    )
+
+    if not merge_result.success:
+        console.print(f"\n[red]❌ Merge failed: {merge_result.message}[/red]")
+
+        if merge_result.validation_output:
+            console.print("\n[yellow]Build validation output:[/yellow]")
+            console.print(merge_result.validation_output[:500])
+
+        console.print("\n[dim]Fix the issue and try again with 'forge ship'[/dim]")
+        raise typer.Exit(1)
+
+    # Step 4: Record the ship and update streak!
+    stats = registry.record_ship()
+
+    # Step 5: Celebrate!
+    console.print("\n" + "=" * 60)
+    console.print("\n[bold green]🎉 SHIPPED![/bold green]\n")
+    console.print(f"   Feature: [cyan]{feature.title}[/cyan]")
+    console.print(f"   Branch:  merged into {config.project.main_branch}")
+
+    if not keep_worktree:
+        console.print("   Cleanup: worktree removed")
+
+    # Show streak (the dopamine hit!)
+    console.print(f"\n   {registry.get_streak_display()} (Best: {stats.longest_streak})")
+    console.print(f"   [dim]Total shipped: {stats.total_shipped}[/dim]")
+
+    # Show remaining planned
+    planned = registry.list_features(status=FeatureStatus.PLANNED)
+    completed = registry.list_features(status=FeatureStatus.COMPLETED)
+
+    console.print(f"\n   [dim]Completed: {len(completed)} | Planned: {len(planned)}[/dim]")
+
+    if planned:
+        console.print("\n[yellow]What's next?[/yellow]")
+        for p in planned[:3]:
+            console.print(f"   • forge build \"{p.title}\"")
+    else:
+        console.print("\n[green]🎊 Backlog clear! Time to brainstorm.[/green]")
+        console.print("   forge brainstorm")
+
+    console.print("\n" + "=" * 60)
 
 
 @app.command("list")
