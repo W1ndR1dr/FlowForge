@@ -199,11 +199,71 @@ APPCAST="$FLOWFORGE_DIR/appcast.xml"
 DOWNLOAD_URL="https://github.com/W1ndR1dr/FlowForge/releases/download/v$VERSION/$ZIP_NAME"
 PUB_DATE=$(date -R)
 
-# Generate release notes from recent commits
+# Generate release notes with LLM sanity check
+echo -e "\n${BLUE}🤖 Generating release notes...${NC}"
 if [ -n "$LAST_TAG" ]; then
-    RELEASE_NOTES=$(git log "$LAST_TAG"..HEAD --pretty=format:"• %s" | head -5)
+    COMMITS=$(git log "$LAST_TAG"..HEAD --oneline)
 else
-    RELEASE_NOTES=$(git log --oneline -5 --pretty=format:"• %s")
+    COMMITS=$(git log --oneline -10)
+fi
+CHANGED_FILES=$(git diff --name-only HEAD~10..HEAD -- FlowForgeApp/ 2>/dev/null | head -30)
+
+if command -v claude &> /dev/null; then
+    LLM_RESPONSE=$(cat << PROMPT | claude --print 2>/dev/null
+You are a release engineer for FlowForge, a vibecoder's development workflow tool.
+
+TASK: Analyze these commits and provide:
+1. macOS Sparkle release notes (2-4 friendly bullet points)
+2. Platform impact assessment
+3. Any concerns or sanity checks
+
+COMMITS:
+$COMMITS
+
+CHANGED FILES:
+$CHANGED_FILES
+
+RESPOND IN THIS EXACT FORMAT:
+---NOTES---
+• [bullet 1]
+• [bullet 2]
+• [etc]
+---PLATFORMS---
+ios: [yes/no] - [brief reason]
+macos: [yes/no] - [brief reason]
+---SANITY---
+[Any concerns, or 'All clear' if none. Check for: breaking changes, missing companion deploy, version mismatches, incomplete features]
+---END---
+
+Style for notes:
+- Friendly, encouraging (for indie devs who vibe-code)
+- Focus on user benefits, not technical details
+- Keep each bullet under 80 chars
+- Use emoji sparingly (1-2 max)
+- macOS-specific notes only (no iOS-only features)
+PROMPT
+)
+
+    # Parse LLM response
+    RELEASE_NOTES=$(echo "$LLM_RESPONSE" | sed -n '/---NOTES---/,/---PLATFORMS---/p' | grep -E '^•' | head -5)
+    DEPLOY_IOS_TOO=$(echo "$LLM_RESPONSE" | sed -n '/---PLATFORMS---/,/---SANITY---/p' | grep -i "ios: yes" | head -1)
+    SANITY_CHECK=$(echo "$LLM_RESPONSE" | sed -n '/---SANITY---/,/---END---/p' | grep -v "^---" | head -3)
+
+    # Show sanity check if there are concerns
+    if [[ -n "$SANITY_CHECK" ]] && ! echo "$SANITY_CHECK" | grep -qi "all clear"; then
+        echo -e "${YELLOW}🤔 Sanity Check:${NC}"
+        echo "$SANITY_CHECK"
+        echo ""
+    fi
+fi
+
+# Fallback if LLM failed
+if [ -z "$RELEASE_NOTES" ]; then
+    if [ -n "$LAST_TAG" ]; then
+        RELEASE_NOTES=$(git log "$LAST_TAG"..HEAD --pretty=format:"• %s" | head -5)
+    else
+        RELEASE_NOTES=$(git log --oneline -5 --pretty=format:"• %s")
+    fi
 fi
 
 cat > "$APPCAST" << EOF
@@ -276,11 +336,18 @@ echo ""
 echo "Sparkle will auto-update existing users!"
 echo "GitHub: https://github.com/W1ndR1dr/FlowForge/releases/tag/v$VERSION"
 
-# Check if iOS companion also needs deployment
-source "$FLOWFORGE_DIR/scripts/check-deploy-scope.sh" 2>/dev/null || true
-COMPANION=$(check_companion_deploy "macos" 2>/dev/null || echo "")
-if [ "$COMPANION" = "ios" ]; then
+# Check if iOS companion also needs deployment (from LLM analysis)
+if [[ -n "$DEPLOY_IOS_TOO" ]]; then
     echo ""
-    echo -e "${YELLOW}📱 Shared code changed - iOS app may need update too${NC}"
+    echo -e "${YELLOW}📱 LLM recommends iOS update: ${NC}${DEPLOY_IOS_TOO#*- }"
     echo "   Run: ./scripts/deploy-to-testflight.sh --auto"
+else
+    # Fallback to simple check if LLM didn't run
+    source "$FLOWFORGE_DIR/scripts/check-deploy-scope.sh" 2>/dev/null || true
+    COMPANION=$(check_companion_deploy "macos" 2>/dev/null || echo "")
+    if [ "$COMPANION" = "ios" ]; then
+        echo ""
+        echo -e "${YELLOW}📱 Shared code changed - iOS app may need update too${NC}"
+        echo "   Run: ./scripts/deploy-to-testflight.sh --auto"
+    fi
 fi

@@ -211,26 +211,59 @@ generate_changelog() {
         return
     fi
 
-    local prompt="You are writing TestFlight release notes for FlowForge, a development workflow tool.
+    local prompt="You are a release engineer for FlowForge, a vibecoder's development workflow tool.
 
-Based on these git commits, write 2-4 bullet points for users. Be:
-- Friendly and encouraging (for indie developers)
+TASK: Analyze these commits and provide:
+1. iOS TestFlight release notes (2-4 friendly bullet points)
+2. Platform impact assessment
+3. Any concerns or sanity checks
+
+COMMITS:
+$commits
+
+CHANGED FILES (for platform analysis):
+$(git diff --name-only HEAD~10..HEAD -- FlowForgeApp/ 2>/dev/null | head -30)
+
+RESPOND IN THIS EXACT FORMAT:
+---NOTES---
+• [bullet 1]
+• [bullet 2]
+• [etc]
+---PLATFORMS---
+ios: [yes/no] - [brief reason]
+macos: [yes/no] - [brief reason]
+---SANITY---
+[Any concerns, or 'All clear' if none. Check for: breaking changes, missing companion deploy, version mismatches, incomplete features]
+---END---
+
+Style for notes:
+- Friendly, encouraging (for indie devs who vibe-code)
 - Focus on user benefits, not technical details
-- Keep each bullet under 80 characters
+- Keep each bullet under 80 chars
 - Use emoji sparingly (1-2 max)
+- iOS-specific notes only (no Mac-only features)"
 
-Format: Just the bullet points, no intro text.
+    local response
+    response=$(echo "$prompt" | claude --print 2>/dev/null)
 
-Example style:
-• Feature tracking now syncs faster between devices
-• Added quick capture for those shower-thought ideas
-• Fixed that bug where prompts occasionally vanished
-
-Commits:
-$commits"
-
+    # Parse the response
     local changelog
-    changelog=$(echo "$prompt" | claude --print 2>/dev/null | head -10)
+    changelog=$(echo "$response" | sed -n '/---NOTES---/,/---PLATFORMS---/p' | grep -E '^•' | head -5)
+
+    # Extract platform recommendation
+    DEPLOY_MACOS_TOO=$(echo "$response" | sed -n '/---PLATFORMS---/,/---SANITY---/p' | grep -i "macos: yes" | head -1)
+
+    # Extract sanity check
+    local sanity
+    sanity=$(echo "$response" | sed -n '/---SANITY---/,/---END---/p' | grep -v "^---" | head -3)
+
+    # Show sanity check if there are concerns
+    if [[ -n "$sanity" ]] && ! echo "$sanity" | grep -qi "all clear"; then
+        echo ""
+        echo -e "${YELLOW}🤔 Sanity Check:${NC}"
+        echo "$sanity"
+        echo ""
+    fi
 
     if [[ -z "$changelog" ]]; then
         echo "• Bug fixes and performance improvements"
@@ -463,11 +496,18 @@ echo "  2. Check App Store Connect for status"
 echo ""
 echo "App Store Connect: https://appstoreconnect.apple.com"
 
-# Check if macOS companion also needs deployment
-source "$PROJECT_DIR/scripts/check-deploy-scope.sh" 2>/dev/null || true
-COMPANION=$(check_companion_deploy "ios" 2>/dev/null || echo "")
-if [ "$COMPANION" = "macos" ]; then
+# Check if macOS companion also needs deployment (from LLM analysis)
+if [[ -n "$DEPLOY_MACOS_TOO" ]]; then
     echo ""
-    echo -e "${YELLOW}💻 Shared code changed - macOS app may need update too${NC}"
+    echo -e "${YELLOW}💻 LLM recommends macOS update: ${NC}${DEPLOY_MACOS_TOO#*- }"
     echo "   Run: ./scripts/release-macos.sh --auto"
+else
+    # Fallback to simple check if LLM didn't run
+    source "$PROJECT_DIR/scripts/check-deploy-scope.sh" 2>/dev/null || true
+    COMPANION=$(check_companion_deploy "ios" 2>/dev/null || echo "")
+    if [ "$COMPANION" = "macos" ]; then
+        echo ""
+        echo -e "${YELLOW}💻 Shared code changed - macOS app may need update too${NC}"
+        echo "   Run: ./scripts/release-macos.sh --auto"
+    fi
 fi
