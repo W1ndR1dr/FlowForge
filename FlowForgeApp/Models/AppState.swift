@@ -282,62 +282,68 @@ class AppState {
     private func discoverProjects() async -> [Project] {
         #if os(macOS)
         // macOS: Scan local filesystem for FlowForge projects AND uninitialized Git repos
+        // ONLY scans top-level directories (no recursion into subdirectories)
         return await Task.detached {
-            // Check common project locations
             let homeDir = FileManager.default.homeDirectoryForCurrentUser
-            let projectsPaths = [
-                homeDir.appendingPathComponent("Projects/Active"),
-                homeDir.appendingPathComponent("Projects"),
-                homeDir.appendingPathComponent("Developer"),
-            ]
+
+            // Only scan the primary projects location - no nested paths
+            let projectsBase = homeDir.appendingPathComponent("Projects/Active")
 
             var discoveredProjects: [Project] = []
-            var seenPaths: Set<String> = []  // Deduplicate by path
+            var seenPaths: Set<String> = []
 
-            for basePath in projectsPaths {
-                guard let enumerator = FileManager.default.enumerator(
-                    at: basePath,
-                    includingPropertiesForKeys: [.isDirectoryKey],
-                    options: [.skipsHiddenFiles, .skipsPackageDescendants]
-                ) else { continue }
+            // Only scan IMMEDIATE children of projects base (no recursion)
+            guard let contents = try? FileManager.default.contentsOfDirectory(
+                at: projectsBase,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) else {
+                return []
+            }
 
-                for case let url as URL in enumerator {
-                    let flowforgeDir = url.appendingPathComponent(".flowforge")
-                    let gitDir = url.appendingPathComponent(".git")
-                    var isFlowforgeDir: ObjCBool = false
-                    var isGitDir: ObjCBool = false
+            for url in contents {
+                // Skip if not a directory
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                      isDirectory.boolValue else {
+                    continue
+                }
 
-                    let hasFlowforge = FileManager.default.fileExists(
-                        atPath: flowforgeDir.path,
-                        isDirectory: &isFlowforgeDir
-                    ) && isFlowforgeDir.boolValue
+                let flowforgeDir = url.appendingPathComponent(".flowforge")
+                let gitDir = url.appendingPathComponent(".git")
 
-                    let hasGit = FileManager.default.fileExists(
-                        atPath: gitDir.path,
-                        isDirectory: &isGitDir
-                    ) && isGitDir.boolValue
+                var isFlowforgeDir: ObjCBool = false
+                var isGitDir: ObjCBool = false
 
-                    // Include both initialized FlowForge projects AND uninitialized Git repos
-                    if hasFlowforge || hasGit {
-                        let resolvedPath = url.standardizedFileURL.path
-                        if !seenPaths.contains(resolvedPath) {
-                            seenPaths.insert(resolvedPath)
+                let hasFlowforge = FileManager.default.fileExists(
+                    atPath: flowforgeDir.path,
+                    isDirectory: &isFlowforgeDir
+                ) && isFlowforgeDir.boolValue
 
-                            let status: ProjectInitializationStatus = hasFlowforge
-                                ? .initialized
-                                : .uninitialized
+                let hasGit = FileManager.default.fileExists(
+                    atPath: gitDir.path,
+                    isDirectory: &isGitDir
+                ) && isGitDir.boolValue
 
-                            let project = Project(
-                                name: url.lastPathComponent,
-                                path: resolvedPath,
-                                isActive: hasFlowforge,
-                                initializationStatus: status
-                            )
-                            discoveredProjects.append(project)
-                        }
+                // Must have .flowforge OR (.git + looks like a real project)
+                let looksLikeProject = hasFlowforge || (hasGit && Self.looksLikeRealProject(url))
 
-                        // Don't recurse into project directories
-                        enumerator.skipDescendants()
+                if looksLikeProject {
+                    let resolvedPath = url.standardizedFileURL.path
+                    if !seenPaths.contains(resolvedPath) {
+                        seenPaths.insert(resolvedPath)
+
+                        let status: ProjectInitializationStatus = hasFlowforge
+                            ? .initialized
+                            : .uninitialized
+
+                        let project = Project(
+                            name: url.lastPathComponent,
+                            path: resolvedPath,
+                            isActive: hasFlowforge,
+                            initializationStatus: status
+                        )
+                        discoveredProjects.append(project)
                     }
                 }
             }
@@ -368,6 +374,49 @@ class AppState {
             return []
         }
         #endif
+    }
+
+    /// Check if a directory looks like a real project (not a tool/dependency)
+    /// Looks for common project markers like package.json, pyproject.toml, etc.
+    private static nonisolated func looksLikeRealProject(_ url: URL) -> Bool {
+        let projectMarkers = [
+            "package.json",       // Node.js
+            "pyproject.toml",     // Python (modern)
+            "setup.py",           // Python (legacy)
+            "Cargo.toml",         // Rust
+            "go.mod",             // Go
+            "build.gradle",       // Java/Kotlin
+            "pom.xml",            // Java/Maven
+            "Gemfile",            // Ruby
+            "*.xcodeproj",        // Xcode (checked separately)
+            "*.xcworkspace",      // Xcode workspace
+            "project.yml",        // XcodeGen
+            "Makefile",           // Make-based
+            "CMakeLists.txt",     // CMake
+            "CLAUDE.md",          // Claude Code project
+            "README.md",          // Most real projects have this
+        ]
+
+        let fm = FileManager.default
+
+        for marker in projectMarkers {
+            if marker.contains("*") {
+                // Wildcard pattern - check for any matching file
+                let pattern = marker.replacingOccurrences(of: "*", with: "")
+                if let contents = try? fm.contentsOfDirectory(atPath: url.path) {
+                    if contents.contains(where: { $0.hasSuffix(pattern) }) {
+                        return true
+                    }
+                }
+            } else {
+                // Exact file check
+                if fm.fileExists(atPath: url.appendingPathComponent(marker).path) {
+                    return true
+                }
+            }
+        }
+
+        return false
     }
 
     // MARK: - Project Initialization
