@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 // MARK: - Workspace Card
 // Shows an active workspace (feature being worked on)
@@ -10,6 +13,7 @@ struct WorkspaceCard: View {
     let onStop: () -> Void
 
     @State private var isHovered = false
+    @State private var isLaunching = false
 
     /// Status indicator color
     private var statusColor: Color {
@@ -27,7 +31,11 @@ struct WorkspaceCard: View {
     private var statusMessage: String {
         switch feature.status {
         case .inProgress:
-            return "Claude is working"
+            if let path = feature.worktreePath {
+                let folder = URL(fileURLWithPath: path).lastPathComponent
+                return "Worktree: \(folder)"
+            }
+            return "In worktree"
         case .review:
             return "Ready for review"
         default:
@@ -75,25 +83,43 @@ struct WorkspaceCard: View {
                 }
             }
 
-            // Status message
-            HStack(spacing: Spacing.small) {
-                if feature.status == .inProgress {
-                    InlineLoader(message: statusMessage)
-                } else {
-                    Text(statusMessage)
-                        .font(Typography.caption)
-                        .foregroundColor(.secondary)
+            // Status message and worktree path
+            VStack(alignment: .leading, spacing: Spacing.micro) {
+                Text(statusMessage)
+                    .font(Typography.caption)
+                    .foregroundColor(.secondary)
+
+                // Clickable worktree path
+                #if os(macOS)
+                if let path = feature.worktreePath {
+                    Button(action: { openInFinder(path) }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder")
+                                .font(.system(size: 10))
+                            Text(path)
+                                .font(.system(size: 10, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .foregroundColor(.secondary.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open in Finder")
                 }
+                #endif
             }
 
             // Actions
             HStack(spacing: Spacing.small) {
-                Button(action: onResume) {
-                    Label("Resume", systemImage: "arrow.right.circle")
+                #if os(macOS)
+                Button(action: { Task { await openInTerminal() } }) {
+                    Label(isLaunching ? "Opening..." : "Open in Terminal", systemImage: "terminal")
                         .font(Typography.caption)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .disabled(isLaunching || feature.worktreePath == nil)
+                #endif
 
                 if feature.status == .inProgress {
                     Button(action: onStop) {
@@ -116,6 +142,31 @@ struct WorkspaceCard: View {
         .hoverable(isHovered: isHovered)
         .onHover { isHovered = $0 }
     }
+
+    // MARK: - Actions
+
+    #if os(macOS)
+    /// Open Claude Code in the worktree directory
+    @MainActor
+    private func openInTerminal() async {
+        guard let worktreePath = feature.worktreePath else { return }
+
+        isLaunching = true
+        defer { isLaunching = false }
+
+        // Launch Claude Code in terminal without prompt (resume mode)
+        let _ = await TerminalLauncher.launchClaudeCode(
+            worktreePath: worktreePath,
+            prompt: nil,  // No auto-paste on resume
+            launchCommand: "claude --dangerously-skip-permissions"
+        )
+    }
+
+    /// Open the worktree folder in Finder
+    private func openInFinder(_ path: String) {
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+    }
+    #endif
 }
 
 // MARK: - Active Workspaces Section
@@ -182,7 +233,9 @@ struct ActiveWorkspacesSection: View {
                         WorkspaceCard(
                             feature: feature,
                             onResume: {
-                                resumeWorkspace(feature)
+                                Task {
+                                    await resumeWorkspace(feature)
+                                }
                             },
                             onStop: {
                                 Task {
@@ -196,17 +249,18 @@ struct ActiveWorkspacesSection: View {
         }
     }
 
-    private func resumeWorkspace(_ feature: Feature) {
-        // For now, copy the prompt to clipboard if available
-        if let promptPath = feature.promptPath {
-            #if os(macOS)
-            // Try to open the worktree in Claude Code
-            if let worktreePath = feature.worktreePath {
-                let url = URL(fileURLWithPath: worktreePath)
-                NSWorkspace.shared.open(url)
-            }
-            #endif
-        }
+    @MainActor
+    private func resumeWorkspace(_ feature: Feature) async {
+        #if os(macOS)
+        guard let worktreePath = feature.worktreePath else { return }
+
+        // Launch Claude Code in terminal (resume mode - no prompt auto-paste)
+        let _ = await TerminalLauncher.launchClaudeCode(
+            worktreePath: worktreePath,
+            prompt: nil,
+            launchCommand: "claude --dangerously-skip-permissions"
+        )
+        #endif
     }
 }
 

@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 // MARK: - Mission Control V2
 // The redesigned shipping-focused dashboard
@@ -421,6 +424,7 @@ struct ActiveMissionCardV2: View {
 
     @State private var isHovered = false
     @State private var isVisible = false
+    @State private var isLaunchingTerminal = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.standard) {
@@ -451,21 +455,50 @@ struct ActiveMissionCardV2: View {
 
             // Worktree indicator (shows feature is actively being built)
             if feature.status == .inProgress, let worktreePath = feature.worktreePath {
-                HStack(spacing: Spacing.small) {
-                    Image(systemName: "folder.fill")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 12))
+                VStack(spacing: Spacing.small) {
+                    HStack(spacing: Spacing.small) {
+                        Image(systemName: "folder.fill")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 12))
 
-                    Text("Working in worktree")
-                        .font(Typography.caption)
-                        .foregroundColor(.secondary)
+                        Text("Working in worktree")
+                            .font(Typography.caption)
+                            .foregroundColor(.secondary)
 
-                    Spacer()
+                        Spacer()
 
-                    // Show abbreviated path
-                    Text(URL(fileURLWithPath: worktreePath).lastPathComponent)
-                        .font(Typography.caption)
-                        .foregroundColor(.secondary)
+                        // Clickable path to open in Finder
+                        #if os(macOS)
+                        Button(action: { openInFinder(worktreePath) }) {
+                            Text(URL(fileURLWithPath: worktreePath).lastPathComponent)
+                                .font(Typography.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Open in Finder")
+                        #else
+                        Text(URL(fileURLWithPath: worktreePath).lastPathComponent)
+                            .font(Typography.caption)
+                            .foregroundColor(.secondary)
+                        #endif
+                    }
+
+                    // Open in Terminal button
+                    #if os(macOS)
+                    Button(action: { Task { await openInTerminal(worktreePath) } }) {
+                        HStack {
+                            Image(systemName: "terminal")
+                            Text(isLaunchingTerminal ? "Opening..." : "Open in Claude Code")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(Spacing.small)
+                        .background(Accent.primary.opacity(0.1))
+                        .foregroundColor(Accent.primary)
+                        .cornerRadius(CornerRadius.small)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isLaunchingTerminal)
+                    #endif
                 }
                 .padding(Spacing.small)
                 .background(Surface.highlighted)
@@ -507,6 +540,28 @@ struct ActiveMissionCardV2: View {
             }
         }
     }
+
+    // MARK: - Actions
+
+    #if os(macOS)
+    /// Open Claude Code in the worktree directory
+    @MainActor
+    private func openInTerminal(_ worktreePath: String) async {
+        isLaunchingTerminal = true
+        defer { isLaunchingTerminal = false }
+
+        let _ = await TerminalLauncher.launchClaudeCode(
+            worktreePath: worktreePath,
+            prompt: nil,  // No auto-paste on resume
+            launchCommand: "claude --dangerously-skip-permissions"
+        )
+    }
+
+    /// Open the worktree folder in Finder
+    private func openInFinder(_ path: String) {
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+    }
+    #endif
 }
 
 // MARK: - Start Mission Card V2
