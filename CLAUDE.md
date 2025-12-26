@@ -310,6 +310,8 @@ The macOS app checks `appcast.xml` on GitHub for updates and auto-installs new v
 
 ## Additional Documentation
 
+- `docs/WORKFLOW.md` - AGI-pilled development philosophy and workflow loop (project-agnostic)
+- `docs/WORKFLOW_TEMPLATE.md` - Template snippet for other projects' CLAUDE.md files
 - `docs/SESSION_CONTEXT.md` - Full development context, verified working features, what's next
 - `docs/RASPBERRY_PI_SETUP.md` - Step-by-step Pi deployment guide (Tailscale, systemd, SSH keys)
 - `docs/PLAN.md` - Original development plan with architecture diagrams
