@@ -1224,6 +1224,73 @@ async def health():
 
 
 # =============================================================================
+# Session Memory Endpoints (Welcome Back)
+# =============================================================================
+
+
+# Global session memory instance
+_session_memory = None
+
+
+def get_session_memory():
+    """Get or create the session memory instance."""
+    global _session_memory
+    if _session_memory is None:
+        from .session_memory import SessionMemory
+        config = get_config()
+        data_dir = config["projects_base"] / ".flowforge-memory"
+        _session_memory = SessionMemory(data_dir)
+    return _session_memory
+
+
+@app.get("/api/{project}/session")
+async def get_session_state(project: str):
+    """Get session state for welcome-back experience."""
+    memory = get_session_memory()
+
+    # Also fetch current feature status
+    config = get_config()
+    project_path = config["projects_base"] / project
+
+    if (project_path / ".flowforge").exists():
+        registry = FeatureRegistry.load(project_path)
+
+        # Update in-progress and ready-to-ship
+        in_progress = [f.title for f in registry.list_features() if f.status.value == "in-progress"]
+        ready = [f.title for f in registry.list_features() if f.status.value == "review"]
+
+        memory.update_in_progress(project, in_progress)
+        memory.update_ready_to_ship(project, ready)
+
+        # Update streak
+        stats = registry.get_shipping_stats()
+        memory.update_streak(project, stats.current_streak)
+
+    session = memory.get_session(project)
+    return session.to_dict()
+
+
+@app.get("/api/{project}/welcome")
+async def get_welcome_message(project: str):
+    """Get a welcome-back message summarizing what happened."""
+    memory = get_session_memory()
+    message = memory.generate_welcome_message(project)
+
+    return {
+        "message": message,
+        "project": project,
+    }
+
+
+@app.post("/api/{project}/session/visit")
+async def record_visit(project: str):
+    """Record that user visited this project (clears pending changes)."""
+    memory = get_session_memory()
+    memory.record_visit(project)
+    return {"success": True}
+
+
+# =============================================================================
 # Shipping Stats Endpoints (Wave 4.4)
 # =============================================================================
 
@@ -1289,6 +1356,135 @@ async def websocket_endpoint(websocket: WebSocket, project: str):
         ws_manager.disconnect(websocket, project)
     except Exception:
         ws_manager.disconnect(websocket, project)
+
+
+# =============================================================================
+# Brainstorm WebSocket Endpoint (Chat-to-Spec)
+# =============================================================================
+
+
+# Store active brainstorm sessions (project -> BrainstormAgent)
+brainstorm_sessions: dict = {}
+
+
+@app.websocket("/ws/{project}/brainstorm")
+async def brainstorm_websocket(websocket: WebSocket, project: str):
+    """
+    WebSocket endpoint for real-time brainstorming with Claude.
+
+    This enables the Chat-to-Spec experience where users have a conversation
+    with Claude to crystallize feature ideas into implementable specs.
+
+    Message format (from client):
+    {
+        "type": "message",
+        "content": "I want to add dark mode..."
+    }
+
+    Message format (from server):
+    {
+        "type": "chunk",           # Streaming response chunk
+        "content": "text..."
+    }
+    {
+        "type": "message_complete", # Full message done
+        "content": "full response"
+    }
+    {
+        "type": "spec_ready",       # Spec has crystallized
+        "spec": { ... }
+    }
+    """
+    await websocket.accept()
+
+    try:
+        # Get project context
+        config = get_config()
+        project_path = config["projects_base"] / project
+
+        project_context = ""
+        context_path = project_path / ".flowforge" / "project-context.md"
+        if context_path.exists():
+            project_context = context_path.read_text()
+
+        existing_features = []
+        if (project_path / ".flowforge").exists():
+            registry = FeatureRegistry.load(project_path)
+            existing_features = [f.title for f in registry.list_features()]
+
+        # Create or get existing brainstorm session
+        from .agents.brainstorm import BrainstormAgent
+
+        if project not in brainstorm_sessions:
+            brainstorm_sessions[project] = BrainstormAgent(
+                project_name=project,
+                project_context=project_context,
+                existing_features=existing_features,
+            )
+
+        agent = brainstorm_sessions[project]
+
+        # Send session state on connect
+        await websocket.send_json({
+            "type": "session_state",
+            "state": agent.get_conversation_state(),
+        })
+
+        while True:
+            data = await websocket.receive_json()
+
+            if data.get("type") == "message":
+                user_message = data.get("content", "")
+
+                # Stream the response
+                full_response = []
+                async for chunk in agent.send_message(user_message):
+                    full_response.append(chunk)
+                    await websocket.send_json({
+                        "type": "chunk",
+                        "content": chunk,
+                    })
+
+                # Send message complete
+                await websocket.send_json({
+                    "type": "message_complete",
+                    "content": "".join(full_response),
+                })
+
+                # Check if spec is ready
+                if agent.is_spec_ready():
+                    spec = agent.get_spec()
+                    await websocket.send_json({
+                        "type": "spec_ready",
+                        "spec": spec.to_dict() if spec else None,
+                    })
+
+            elif data.get("type") == "reset":
+                # Reset the session
+                brainstorm_sessions[project] = BrainstormAgent(
+                    project_name=project,
+                    project_context=project_context,
+                    existing_features=existing_features,
+                )
+                agent = brainstorm_sessions[project]
+                await websocket.send_json({
+                    "type": "session_reset",
+                    "state": agent.get_conversation_state(),
+                })
+
+            elif data.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": str(e),
+            })
+        except Exception:
+            pass
 
 
 # =============================================================================
