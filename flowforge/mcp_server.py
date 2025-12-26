@@ -582,6 +582,31 @@ class FlowForgeMCPServer:
                 message=f"Feature not found: {feature_id}",
             )
 
+        # Execute remotely when in remote mode (Pi → Mac)
+        if self.is_remote:
+            result = self.remote_executor.run_command(
+                ["forge", "stop", feature_id],
+                cwd=project_path
+            )
+            if result.returncode != 0:
+                return MCPToolResult(
+                    success=False,
+                    message=f"Failed to stop feature: {result.stderr or result.stdout}",
+                )
+            self._invalidate_cache(project)
+            return MCPToolResult(
+                success=True,
+                message=f"Feature '{feature.title}' marked as ready for review",
+                data={
+                    "feature_id": feature_id,
+                    "next_steps": [
+                        f"Run merge-check to verify no conflicts",
+                        f"Run merge to merge into {config.project.main_branch}",
+                    ],
+                },
+            )
+
+        # Local mode - direct registry update
         registry.update_feature(feature_id, status=FeatureStatus.REVIEW)
         self._invalidate_cache(project)
 

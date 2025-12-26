@@ -29,9 +29,10 @@ enum PlatformConfig {
         return "http://\(tailscaleHostname):\(serverPort)"
     }
 
-    /// Current server URL (may be overridden by user)
+    /// Current server URL (may be overridden by user, always normalized)
     static var currentServerURL: String {
-        UserDefaults.standard.string(forKey: "serverURL") ?? defaultServerURL
+        let stored = UserDefaults.standard.string(forKey: "serverURL") ?? defaultServerURL
+        return normalizeServerURL(stored)
     }
 
     /// Server URL (configurable)
@@ -39,9 +40,46 @@ enum PlatformConfig {
         return URL(string: currentServerURL)!
     }
 
-    /// Save custom server URL
+    /// Save custom server URL (auto-normalizes)
     static func setServerURL(_ urlString: String) {
-        UserDefaults.standard.set(urlString, forKey: "serverURL")
+        let normalized = normalizeServerURL(urlString)
+        UserDefaults.standard.set(normalized, forKey: "serverURL")
+    }
+
+    /// Normalize a server URL to ensure it's valid
+    /// Handles: "raspberrypi" → "http://raspberrypi:8081"
+    ///          "192.168.1.1" → "http://192.168.1.1:8081"
+    ///          "http://host" → "http://host:8081"
+    ///          "http://host:9000" → "http://host:9000" (keeps custom port)
+    static func normalizeServerURL(_ input: String) -> String {
+        var url = input.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Empty → default
+        guard !url.isEmpty else { return defaultServerURL }
+
+        // Add http:// if no scheme
+        if !url.hasPrefix("http://") && !url.hasPrefix("https://") {
+            url = "http://" + url
+        }
+
+        // Parse to check for port
+        if let components = URLComponents(string: url) {
+            // Add default port if missing
+            if components.port == nil {
+                var mutable = components
+                mutable.port = serverPort
+                return mutable.string ?? url
+            }
+        }
+
+        return url
+    }
+
+    /// Validate a URL string (after normalization)
+    static func isValidServerURL(_ input: String) -> Bool {
+        let normalized = normalizeServerURL(input)
+        guard let url = URL(string: normalized) else { return false }
+        return url.scheme != nil && url.host != nil
     }
 }
 

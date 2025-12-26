@@ -168,15 +168,30 @@ class AppState {
     }
 
     /// Test connection to server
-    func testConnection() async -> (success: Bool, message: String) {
+    /// - Parameter url: Optional URL to test (defaults to current server URL)
+    func testConnection(url: String? = nil) async -> (success: Bool, message: String) {
         do {
-            let projects = try await apiClient.getProjects()
-            isConnectedToServer = true
-            connectionError = nil
+            // If testing a custom URL, create a temporary client
+            let client: APIClient
+            if let testURL = url, let baseURL = URL(string: testURL) {
+                client = APIClient(baseURL: baseURL)
+            } else {
+                client = apiClient
+            }
+
+            let projects = try await client.getProjects()
+            // Only update state if testing current URL
+            if url == nil {
+                isConnectedToServer = true
+                connectionError = nil
+            }
             return (true, "Connected! Found \(projects.count) project(s)")
         } catch {
-            isConnectedToServer = false
-            connectionError = error.localizedDescription
+            // Only update state if testing current URL
+            if url == nil {
+                isConnectedToServer = false
+                connectionError = error.localizedDescription
+            }
             return (false, error.localizedDescription)
         }
     }

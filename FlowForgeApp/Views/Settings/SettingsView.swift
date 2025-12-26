@@ -60,17 +60,38 @@ struct ConnectionSettingsTab: View {
     @State private var isTestingConnection = false
     @State private var connectionResult: ConnectionTestResult?
 
+    /// Normalized URL preview (what will actually be used)
+    private var normalizedURL: String {
+        PlatformConfig.normalizeServerURL(serverURL)
+    }
+
+    /// Show preview if input differs from normalized
+    private var showNormalizedPreview: Bool {
+        !serverURL.isEmpty && serverURL != normalizedURL
+    }
+
     var body: some View {
         Form {
             Section {
                 HStack {
-                    TextField("Server URL", text: $serverURL)
+                    TextField("hostname or IP", text: $serverURL)
                         .textFieldStyle(.roundedBorder)
 
                     Button("Test") {
                         testConnection()
                     }
                     .disabled(isTestingConnection)
+                }
+
+                // Show normalized URL preview if different from input
+                if showNormalizedPreview {
+                    HStack(spacing: Spacing.small) {
+                        Image(systemName: "arrow.right.circle")
+                            .foregroundColor(.secondary)
+                        Text(normalizedURL)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
 
                 // Connection status
@@ -100,6 +121,9 @@ struct ConnectionSettingsTab: View {
                 }
             } header: {
                 Text("FlowForge Server")
+            } footer: {
+                Text("Just enter hostname (e.g., \"raspberrypi\") — http:// and port added automatically")
+                    .font(.caption2)
             }
 
             Section {
@@ -107,7 +131,7 @@ struct ConnectionSettingsTab: View {
                     applyChanges()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(serverURL == PlatformConfig.defaultServerURL)
+                .disabled(normalizedURL == PlatformConfig.currentServerURL)
             }
 
             Section {
@@ -162,7 +186,8 @@ struct ConnectionSettingsTab: View {
         connectionResult = nil
 
         Task {
-            let result = await appState.testConnection()
+            // Test using the normalized URL
+            let result = await appState.testConnection(url: normalizedURL)
             await MainActor.run {
                 connectionResult = ConnectionTestResult(
                     success: result.success,
@@ -174,8 +199,12 @@ struct ConnectionSettingsTab: View {
     }
 
     private func applyChanges() {
-        appState.updateServerURL(serverURL)
-        PlatformConfig.setServerURL(serverURL)
+        // Apply the normalized URL
+        let normalized = normalizedURL
+        appState.updateServerURL(normalized)
+        PlatformConfig.setServerURL(normalized)
+        // Update display to show normalized
+        serverURL = normalized
     }
 }
 
