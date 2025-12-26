@@ -7,25 +7,21 @@
         <language>en</language>
 
         <item>
-            <title>FlowForge 1.0.0</title>
+            <title>FlowForge </title>
             <description><![CDATA[
-                <h2>Initial Release</h2>
+                <h2>What's New in </h2>
                 <ul>
-                    <li>Kanban board for feature management</li>
-                    <li>Git worktree automation</li>
-                    <li>Claude Code integration</li>
-                    <li>iOS companion app with brainstorm mode</li>
-                    <li>Auto-updates via Sparkle</li>
+
                 </ul>
             ]]></description>
-            <pubDate>Wed, 25 Dec 2024 22:00:00 -0800</pubDate>
+            <pubDate>Fri, 26 Dec 2025 08:59:37 -0800</pubDate>
             <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+            <sparkle:shortVersionString></sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure
-                url="https://github.com/W1ndR1dr/FlowForge/releases/download/v1.0.0/FlowForge-1.0.0.zip"
-                sparkle:edSignature="Bx0bXnZNEqgFzdgxpLtKOvP7T+II2IHRNJBhP06DDvYvM5xl33wbhJz/0qzsYhFhqy/oRwbXdxuk0RwOzIkfBw=="
-                length="2515060"
+                url="https://github.com/W1ndR1dr/FlowForge/releases/download/v/FlowForge-.zip"
+                sparkle:edSignature="sparkle:edSignature="nhptGnJG9eyaPgEuanW5JNYSWZgLVLCsoOi7noIHpDnoZ7XJdnIf8ZGyvPX8VEHAclcnl9u6iROTNht/mJsnDw==" length="2375742""
+                length="2375742"
                 type="application/octet-stream"/>
         </item>
 
