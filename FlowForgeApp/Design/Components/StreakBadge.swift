@@ -1,10 +1,8 @@
 import SwiftUI
 
 // MARK: - Streak Badge
-// The motivational element — shipping streak with celebration
-//
-// Influenced by: Mike Matas (magical moments), Julie Zhuo (emotional design)
-// "Shipping should feel good"
+// Minimal, tasteful shipping streak indicator
+// Shows the number, animates on change, no noise
 
 struct StreakBadge: View {
     let currentStreak: Int
@@ -12,9 +10,8 @@ struct StreakBadge: View {
     let totalShipped: Int
     let showDetails: Bool
 
-    @State private var isAnimating = false
-    @State private var showingMilestone = false
     @State private var displayedStreak: Int = 0
+    @State private var didJustIncrement = false
 
     init(
         currentStreak: Int,
@@ -28,51 +25,16 @@ struct StreakBadge: View {
         self.showDetails = showDetails
     }
 
-    private var streakEmoji: String {
-        switch currentStreak {
-        case 0: return ""
-        case 1...2: return "🔥"
-        case 3...6: return "🔥"
-        case 7...13: return "🔥"
-        case 14...29: return "🔥"
-        case 30...: return "🔥"
-        default: return "🔥"
-        }
-    }
-
-    private var streakIntensity: Double {
-        // Intensity increases with streak length
-        switch currentStreak {
-        case 0: return 0
-        case 1...2: return 0.6
-        case 3...6: return 0.8
-        case 7...13: return 1.0
-        case 14...29: return 1.2
-        case 30...: return 1.5
-        default: return 0.6
-        }
-    }
-
-    private var isMilestone: Bool {
-        [7, 14, 30, 50, 100].contains(currentStreak)
-    }
-
     var body: some View {
         HStack(spacing: Spacing.small) {
-            // Fire emoji with pulse
+            // Fire emoji - static, no animation
             if currentStreak > 0 {
-                Text(streakEmoji)
+                Text("🔥")
                     .font(.system(size: 20))
-                    .scaleEffect(isAnimating ? 1.1 * streakIntensity : 1.0)
-                    .animation(
-                        Animation
-                            .easeInOut(duration: 0.8)
-                            .repeatForever(autoreverses: true),
-                        value: isAnimating
-                    )
+                    .scaleEffect(didJustIncrement ? 1.15 : 1.0)
             }
 
-            // Streak number with spring animation
+            // Streak number with spring animation on change
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: Spacing.micro) {
                     Text("\(displayedStreak)")
@@ -120,29 +82,25 @@ struct StreakBadge: View {
                 .stroke(Accent.streak.opacity(currentStreak > 0 ? 0.2 : 0), lineWidth: 1)
         )
         .onAppear {
-            isAnimating = currentStreak > 0
-            withAnimation(SpringPreset.bouncy) {
-                displayedStreak = currentStreak
-            }
+            displayedStreak = currentStreak
         }
         .onChange(of: currentStreak) { oldValue, newValue in
             // Animate the number change
-            withAnimation(SpringPreset.celebration) {
+            withAnimation(SpringPreset.snappy) {
                 displayedStreak = newValue
             }
 
-            // Check for milestone
-            if newValue > oldValue && isMilestone {
-                triggerMilestoneAnimation()
+            // Single pulse on increment
+            if newValue > oldValue {
+                withAnimation(SpringPreset.snappy) {
+                    didJustIncrement = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    withAnimation(SpringPreset.smooth) {
+                        didJustIncrement = false
+                    }
+                }
             }
-        }
-    }
-
-    private func triggerMilestoneAnimation() {
-        // This would trigger confetti or other celebration
-        showingMilestone = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            showingMilestone = false
         }
     }
 }
@@ -169,84 +127,6 @@ struct CompactStreakBadge: View {
         .padding(.vertical, Spacing.micro)
         .background(Accent.streak.opacity(currentStreak > 0 ? 0.15 : 0.05))
         .cornerRadius(CornerRadius.small)
-    }
-}
-
-// MARK: - Streak Milestone Banner
-// Shows when user hits a milestone
-
-struct StreakMilestoneBanner: View {
-    let milestone: Int
-    let onDismiss: () -> Void
-
-    @State private var isVisible = false
-
-    private var milestoneMessage: String {
-        switch milestone {
-        case 7: return "One week streak! You're building momentum."
-        case 14: return "Two weeks! You're a shipping machine."
-        case 30: return "30 days! Legendary shipper status."
-        case 50: return "50 days! Unstoppable."
-        case 100: return "100 DAYS! You are a force of nature."
-        default: return "\(milestone) day streak!"
-        }
-    }
-
-    private var milestoneEmoji: String {
-        switch milestone {
-        case 7: return "🌟"
-        case 14: return "⭐"
-        case 30: return "🏆"
-        case 50: return "👑"
-        case 100: return "🚀"
-        default: return "🔥"
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: Spacing.medium) {
-            Text(milestoneEmoji)
-                .font(.system(size: 32))
-                .scaleEffect(isVisible ? 1.0 : 0.5)
-
-            VStack(alignment: .leading, spacing: Spacing.micro) {
-                Text("\(milestone) Day Streak!")
-                    .font(Typography.featureTitle)
-                    .foregroundColor(.primary)
-
-                Text(milestoneMessage)
-                    .font(Typography.body)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(Spacing.standard)
-        .background(
-            LinearGradient(
-                colors: [Accent.streak.opacity(0.2), Accent.success.opacity(0.1)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        )
-        .cornerRadius(CornerRadius.large)
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.large)
-                .stroke(Accent.streak.opacity(0.3), lineWidth: 1)
-        )
-        .scaleEffect(isVisible ? 1.0 : 0.9)
-        .opacity(isVisible ? 1.0 : 0)
-        .onAppear {
-            withAnimation(SpringPreset.celebration) {
-                isVisible = true
-            }
-        }
     }
 }
 
@@ -289,16 +169,9 @@ struct StreakBadgePreview: View {
                     Button("Reset") { streak = 0 }
                 }
             }
-
-            Divider()
-
-            // Milestone banner
-            StreakMilestoneBanner(milestone: 7) {
-                print("Dismissed")
-            }
         }
         .padding(Spacing.large)
-        .frame(width: 600, height: 500)
+        .frame(width: 600, height: 400)
         .background(Surface.window)
     }
 }

@@ -24,7 +24,6 @@ class AppState {
 
     // Shipping stats (Wave 4.4)
     var shippingStats: ShippingStats = ShippingStats()
-    var showingMilestone: Int? = nil  // Track which milestone to show (7, 14, 30, etc.)
 
     // Project initialization state
     var showingProjectSetup = false
@@ -677,7 +676,7 @@ class AppState {
 
             // Check for milestone (only if streak increased)
             if stats.currentStreak > oldStreak {
-                checkForMilestone(newStreak: stats.currentStreak)
+                // Milestone celebrations removed - minimal design
             }
         } catch {
             // Silent fail - stats are optional
@@ -685,18 +684,6 @@ class AppState {
         }
     }
 
-    /// Check if we hit a milestone and show celebration
-    private func checkForMilestone(newStreak: Int) {
-        let milestones = [7, 14, 30, 50, 100]
-        if milestones.contains(newStreak) {
-            showingMilestone = newStreak
-        }
-    }
-
-    /// Dismiss the milestone banner
-    func dismissMilestone() {
-        showingMilestone = nil
-    }
 }
 
 // MARK: - FlowForge Errors

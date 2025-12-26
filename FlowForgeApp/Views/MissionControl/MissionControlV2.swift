@@ -15,9 +15,6 @@ struct MissionControlV2: View {
 
     @State private var vibeText = ""
     @State private var isAnalyzing = false
-    @State private var showConfetti = false
-    @State private var showCelebration = false
-    @State private var lastShippedTitle = ""
 
     // MARK: - Computed Properties
 
@@ -71,21 +68,6 @@ struct MissionControlV2: View {
                 .padding(Spacing.large)
             }
             .background(Surface.window)
-
-            // Confetti overlay
-            ConfettiView(isActive: $showConfetti)
-                .ignoresSafeArea()
-
-            // Celebration modal
-            if showCelebration {
-                ShipCelebrationView(
-                    isShowing: $showCelebration,
-                    featureTitle: lastShippedTitle,
-                    onDismiss: {
-                        // Reset for next celebration
-                    }
-                )
-            }
         }
     }
 
@@ -365,18 +347,10 @@ struct MissionControlV2: View {
     }
 
     private func shipFeature(_ feature: Feature) {
-        lastShippedTitle = feature.title
-
         Task {
             let success = await appState.shipFeature(feature)
-
-            if success {
-                await MainActor.run {
-                    showConfetti = true
-                    showCelebration = true
-                }
-            }
-            // If failed, appState.errorMessage is already set with friendly message
+            // Success/failure handled via appState.successMessage/errorMessage
+            _ = success
         }
     }
 }

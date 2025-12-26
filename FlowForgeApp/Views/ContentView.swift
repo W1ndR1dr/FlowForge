@@ -1,122 +1,85 @@
 import SwiftUI
 
-enum DashboardView: String, CaseIterable {
-    case kanban = "Kanban"
-    case missionControl = "Mission Control"
-
-    var icon: String {
-        switch self {
-        case .kanban: return "rectangle.split.3x1"
-        case .missionControl: return "gauge.with.needle"
-        }
-    }
-}
-
 struct ContentView: View {
     @Environment(AppState.self) private var appState
     @State private var showingAddFeature = false
     @State private var showingBrainstorm = false
     @State private var newFeatureTitle = ""
-    @State private var selectedView: DashboardView = .missionControl  // Default to Mission Control
 
     var body: some View {
         @Bindable var state = appState
 
         NavigationSplitView {
-            VStack(spacing: 0) {
-                ProjectListView()
-
-                Divider()
-
-                // View Switcher
-                Picker("View", selection: $selectedView) {
-                    ForEach(DashboardView.allCases, id: \.self) { view in
-                        Label(view.rawValue, systemImage: view.icon)
-                            .tag(view)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding()
-            }
-            .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
+            ProjectListView()
+                .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
         } detail: {
-            ZStack(alignment: .bottom) {
-                // Main content
-                Group {
-                    if appState.isLoading {
-                        LoadingFeaturesView(cardCount: 4)
-                            .padding(Spacing.large)
-                    } else if let project = appState.selectedProject {
-                        // Check if project needs initialization
-                        if project.needsInitialization {
-                            UninitializedProjectView(project: project)
-                        } else {
-                            // Switch between views based on selection
-                            switch selectedView {
-                            case .kanban:
-                                KanbanView()
-                            case .missionControl:
+            ZStack {
+                // Main content - Mission Control only
+                VStack(spacing: 0) {
+                    // Connection status bar at top
+                    if !appState.isConnectedToServer {
+                        ConnectionStatusBar(
+                            state: appState.isLoading ? .connecting : .disconnected,
+                            serverURL: PlatformConfig.defaultServerURL
+                        )
+                        .padding(.horizontal, Spacing.medium)
+                        .padding(.top, Spacing.small)
+                    }
+
+                    // Content
+                    Group {
+                        if appState.isLoading {
+                            LoadingFeaturesView(cardCount: 4)
+                                .padding(Spacing.large)
+                        } else if let project = appState.selectedProject {
+                            if project.needsInitialization {
+                                UninitializedProjectView(project: project)
+                            } else {
                                 MissionControlV2()
                             }
+                        } else {
+                            VStack(spacing: Spacing.standard) {
+                                Image(systemName: "tray")
+                                    .font(.system(size: 64))
+                                    .foregroundColor(.secondary)
+                                Text("No Project Selected")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                                Text("Select a project from the sidebar")
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                    } else {
-                        VStack(spacing: 16) {
-                            Image(systemName: "tray")
-                                .font(.system(size: 64))
-                                .foregroundColor(.secondary)
-                            Text("No Project Selected")
-                                .font(.title2)
-                                .foregroundColor(.secondary)
-                            Text("Select a project from the sidebar to view its features")
-                                .foregroundColor(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
 
-                // Toast notifications overlay
-                VStack(spacing: Spacing.small) {
-                    // Milestone celebration banner
-                    if let milestone = appState.showingMilestone {
-                        StreakMilestoneBanner(
-                            milestone: milestone,
-                            onDismiss: {
-                                appState.dismissMilestone()
-                            }
-                        )
-                        .padding(.horizontal, Spacing.large)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
+                // Toast notifications overlay (error/success only)
+                VStack {
+                    Spacer()
+                    VStack(spacing: Spacing.small) {
+                        if let error = appState.errorMessage {
+                            ErrorBanner(
+                                message: error,
+                                onDismiss: { appState.clearError() }
+                            )
+                            .padding(.horizontal, Spacing.large)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
 
-                    // Error banner
-                    if let error = appState.errorMessage {
-                        ErrorBanner(
-                            message: error,
-                            onDismiss: {
-                                appState.clearError()
-                            }
-                        )
-                        .padding(.horizontal, Spacing.large)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        if let success = appState.successMessage {
+                            SuccessBanner(
+                                message: success,
+                                autoDismissAfter: 3.0,
+                                onDismiss: { appState.clearSuccess() }
+                            )
+                            .padding(.horizontal, Spacing.large)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
                     }
-
-                    // Success banner
-                    if let success = appState.successMessage {
-                        SuccessBanner(
-                            message: success,
-                            autoDismissAfter: 3.0,
-                            onDismiss: {
-                                appState.clearSuccess()
-                            }
-                        )
-                        .padding(.horizontal, Spacing.large)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
+                    .padding(.bottom, Spacing.large)
                 }
-                .padding(.bottom, Spacing.large)
                 .animation(SpringPreset.snappy, value: appState.errorMessage)
                 .animation(SpringPreset.snappy, value: appState.successMessage)
-                .animation(SpringPreset.celebration, value: appState.showingMilestone)
             }
         }
         .sheet(isPresented: $showingAddFeature) {
