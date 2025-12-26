@@ -95,13 +95,13 @@ class SyncManager:
             result = await asyncio.wait_for(
                 asyncio.get_event_loop().run_in_executor(
                     None,
-                    lambda: self.remote.run_command("echo ok")
+                    lambda: self.remote.run_command(["echo", "ok"])
                 ),
                 timeout=5.0
             )
 
             was_online = self._mac_online
-            self._mac_online = result.strip() == "ok"
+            self._mac_online = result.returncode == 0 and result.stdout.strip() == "ok"
             self._last_check = datetime.utcnow()
 
             # Notify on status change
