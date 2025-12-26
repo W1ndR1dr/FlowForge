@@ -110,6 +110,12 @@ actor APIClient {
         return try await get(url: url)
     }
 
+    /// Check if a feature has merge conflicts with main
+    func checkMergeConflicts(project: String, featureId: String) async throws -> MergeCheckResult {
+        let url = baseURL.appendingPathComponent("api/\(project)/features/\(featureId)/merge-check")
+        return try await get(url: url)
+    }
+
     // MARK: - Brainstorm / Proposals
 
     /// Parse Claude brainstorm output into proposals
@@ -424,6 +430,35 @@ struct MergeCheckResponse: Decodable {
         case canMerge = "can_merge"
         case conflicts
         case message
+    }
+}
+
+/// Result from checking merge conflicts for a feature
+struct MergeCheckResult: Decodable {
+    let ready: Bool
+    let message: String?
+    let data: MergeCheckData?
+
+    /// Whether there are conflicts with main
+    var hasConflicts: Bool {
+        !(data?.conflictFiles?.isEmpty ?? true)
+    }
+
+    /// List of conflicting files
+    var conflictFiles: [String] {
+        data?.conflictFiles ?? []
+    }
+}
+
+struct MergeCheckData: Decodable {
+    let featureId: String?
+    let ready: Bool?
+    let conflictFiles: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case featureId = "feature_id"
+        case ready
+        case conflictFiles = "conflict_files"
     }
 }
 

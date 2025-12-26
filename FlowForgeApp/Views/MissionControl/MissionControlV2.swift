@@ -57,6 +57,16 @@ struct MissionControlV2: View {
             // Main content
             ScrollView {
                 VStack(spacing: Spacing.xl) {
+                    // Offline mode banner
+                    if !appState.isConnectedToServer {
+                        OfflineBanner(
+                            connectionState: appState.connectionState,
+                            onRetry: {
+                                Task { await appState.refreshSystemStatus() }
+                            }
+                        )
+                    }
+
                     // Level 0: The Vibe Input
                     vibeInputSection
 
@@ -1047,6 +1057,135 @@ struct IdeaCardV2: View {
         .cornerRadius(CornerRadius.medium)
         .onHover { isHovered = $0 }
         .animation(SpringPreset.snappy, value: isHovered)
+    }
+}
+
+// MARK: - Offline Banner
+
+struct OfflineBanner: View {
+    let connectionState: ConnectionState
+    let onRetry: () -> Void
+
+    @State private var isRetrying = false
+
+    var body: some View {
+        HStack(spacing: Spacing.medium) {
+            // Icon
+            Image(systemName: iconName)
+                .font(.system(size: 16))
+                .foregroundColor(iconColor)
+
+            // Message
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(Typography.body)
+                    .fontWeight(.medium)
+                Text(subtitle)
+                    .font(Typography.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            // Retry button
+            Button(action: retry) {
+                if isRetrying {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                } else {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                        .font(Typography.caption)
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(isRetrying)
+        }
+        .padding(Spacing.medium)
+        .background(backgroundColor)
+        .cornerRadius(CornerRadius.medium)
+        .overlay(
+            RoundedRectangle(cornerRadius: CornerRadius.medium)
+                .stroke(borderColor, lineWidth: 1)
+        )
+    }
+
+    private var iconName: String {
+        switch connectionState {
+        case .connected:
+            return "checkmark.circle.fill"
+        case .piOnlyMode:
+            return "exclamationmark.triangle.fill"
+        case .offline:
+            return "wifi.slash"
+        }
+    }
+
+    private var iconColor: Color {
+        switch connectionState {
+        case .connected:
+            return Accent.success
+        case .piOnlyMode:
+            return Accent.warning
+        case .offline:
+            return .secondary
+        }
+    }
+
+    private var title: String {
+        switch connectionState {
+        case .connected:
+            return "Connected"
+        case .piOnlyMode:
+            return "Limited Mode"
+        case .offline:
+            return "Offline"
+        }
+    }
+
+    private var subtitle: String {
+        switch connectionState {
+        case .connected:
+            return "All features available"
+        case .piOnlyMode(let pending):
+            if pending > 0 {
+                return "Mac offline • \(pending) pending operation(s)"
+            }
+            return "Mac offline • Can view and add features"
+        case .offline:
+            return "Can't reach server • Showing cached data"
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch connectionState {
+        case .connected:
+            return Accent.success.opacity(0.1)
+        case .piOnlyMode:
+            return Accent.warning.opacity(0.1)
+        case .offline:
+            return Color.secondary.opacity(0.1)
+        }
+    }
+
+    private var borderColor: Color {
+        switch connectionState {
+        case .connected:
+            return Accent.success.opacity(0.3)
+        case .piOnlyMode:
+            return Accent.warning.opacity(0.3)
+        case .offline:
+            return Color.secondary.opacity(0.3)
+        }
+    }
+
+    private func retry() {
+        isRetrying = true
+        onRetry()
+        // Reset after a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            isRetrying = false
+        }
     }
 }
 

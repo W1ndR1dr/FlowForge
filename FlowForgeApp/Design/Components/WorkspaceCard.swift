@@ -8,12 +8,18 @@ import AppKit
 // For vibecoders: "Each workspace is isolated — changes can't interfere!"
 
 struct WorkspaceCard: View {
+    @Environment(AppState.self) private var appState
     let feature: Feature
     let onResume: () -> Void
     let onStop: () -> Void
 
     @State private var isHovered = false
     @State private var isLaunching = false
+    @State private var hasConflicts = false
+    @State private var conflictFiles: [String] = []
+    @State private var isCheckingConflicts = false
+
+    private let apiClient = APIClient()
 
     /// Status indicator color
     private var statusColor: Color {
@@ -109,6 +115,27 @@ struct WorkspaceCard: View {
                 #endif
             }
 
+            // Conflict warning
+            if hasConflicts {
+                HStack(spacing: Spacing.small) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(Accent.warning)
+                        .font(.system(size: 12))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Conflicts with main")
+                            .font(Typography.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(Accent.warning)
+                        Text("\(conflictFiles.count) file(s) - sync before shipping")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(Spacing.small)
+                .background(Accent.warning.opacity(0.1))
+                .cornerRadius(CornerRadius.small)
+            }
+
             // Actions
             HStack(spacing: Spacing.small) {
                 #if os(macOS)
@@ -137,10 +164,13 @@ struct WorkspaceCard: View {
         .cornerRadius(CornerRadius.medium)
         .overlay(
             RoundedRectangle(cornerRadius: CornerRadius.medium)
-                .stroke(statusColor.opacity(isHovered ? 0.5 : 0.2), lineWidth: 1)
+                .stroke(hasConflicts ? Accent.warning.opacity(0.5) : statusColor.opacity(isHovered ? 0.5 : 0.2), lineWidth: hasConflicts ? 2 : 1)
         )
         .hoverable(isHovered: isHovered)
         .onHover { isHovered = $0 }
+        .onAppear {
+            Task { await checkConflicts() }
+        }
     }
 
     // MARK: - Actions
@@ -167,6 +197,28 @@ struct WorkspaceCard: View {
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
     }
     #endif
+
+    /// Check if this feature has conflicts with main
+    @MainActor
+    private func checkConflicts() async {
+        guard let project = appState.selectedProject,
+              feature.worktreePath != nil else { return }
+
+        isCheckingConflicts = true
+        defer { isCheckingConflicts = false }
+
+        do {
+            let result = try await apiClient.checkMergeConflicts(
+                project: project.name,
+                featureId: feature.id
+            )
+            hasConflicts = result.hasConflicts
+            conflictFiles = result.conflictFiles
+        } catch {
+            // Silently fail - conflict check is optional
+            print("Failed to check conflicts: \(error)")
+        }
+    }
 }
 
 // MARK: - Active Workspaces Section
