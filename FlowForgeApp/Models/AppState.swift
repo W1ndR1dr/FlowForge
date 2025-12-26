@@ -247,8 +247,17 @@ class AppState {
         #else
         // iOS: Fetch projects from API
         do {
-            return try await apiClient.getProjects()
+            let projects = try await apiClient.getProjects()
+            await MainActor.run {
+                isConnectedToServer = true
+                connectionError = nil
+            }
+            return projects
         } catch {
+            await MainActor.run {
+                isConnectedToServer = false
+                connectionError = "Cannot connect to \(PlatformConfig.defaultServerURL)"
+            }
             print("Failed to fetch projects: \(error)")
             return []
         }

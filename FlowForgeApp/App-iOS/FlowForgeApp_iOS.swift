@@ -58,6 +58,10 @@ struct iOSContentView: View {
                 Label("Settings", systemImage: "gear")
             }
         }
+        .task {
+            // Auto-connect on launch
+            await appState.loadProjects()
+        }
     }
 }
 
@@ -744,70 +748,36 @@ struct StatusPill: View {
     }
 }
 
-/// iOS Settings view
+/// iOS Settings view - simplified, auto-connects via Tailscale
 struct iOSSettingsView: View {
     @Environment(AppState.self) private var appState
-    @AppStorage("serverURL") private var serverURL = "http://localhost:8081"
-
-    @State private var isTesting = false
-    @State private var testResult: String?
-    @State private var testSuccess: Bool?
+    @State private var showAdvanced = false
 
     var body: some View {
         Form {
+            // Connection status - the main thing that matters
             Section {
-                TextField("Server URL", text: $serverURL)
-                    .textContentType(.URL)
-                    .autocapitalization(.none)
-                    .keyboardType(.URL)
-                    .onChange(of: serverURL) { _, newValue in
-                        appState.updateServerURL(newValue)
-                    }
-
-                Button {
-                    testConnection()
-                } label: {
-                    HStack {
-                        if isTesting {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Image(systemName: "network")
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(appState.isConnectedToServer ? Color.green : Color.red)
+                                .frame(width: 12, height: 12)
+                            Text(appState.isConnectedToServer ? "Connected" : "Connecting...")
+                                .font(.headline)
                         }
-                        Text("Test Connection")
-                    }
-                }
-                .disabled(isTesting)
-
-                if let result = testResult {
-                    HStack {
-                        Image(systemName: testSuccess == true ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundColor(testSuccess == true ? .green : .red)
-                        Text(result)
+                        Text(PlatformConfig.defaultServerURL)
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                }
-            } header: {
-                Text("Server")
-            } footer: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Enter your FlowForge server URL.")
-                    Text("For Tailscale: http://hostname.tailnet-name.ts.net:8081")
-                        .font(.caption2)
-                }
-            }
 
-            Section("Connection Status") {
-                HStack {
-                    Circle()
-                        .fill(appState.isConnectedToServer ? Color.green : Color.red)
-                        .frame(width: 12, height: 12)
-                    Text(appState.isConnectedToServer ? "Connected to server" : "Not connected")
                     Spacer()
-                    if appState.isLoading {
-                        ProgressView()
-                            .scaleEffect(0.8)
+
+                    if !appState.isConnectedToServer {
+                        Button("Retry") {
+                            Task { await appState.loadProjects() }
+                        }
+                        .buttonStyle(.bordered)
                     }
                 }
 
@@ -816,30 +786,35 @@ struct iOSSettingsView: View {
                         .font(.caption)
                         .foregroundColor(.red)
                 }
+            } header: {
+                Text("Server")
+            } footer: {
+                Text("Connects to your Pi via Tailscale automatically.")
             }
 
+            // Projects - simple list
             Section("Projects") {
-                if appState.projects.isEmpty {
-                    Text("No projects found")
+                if appState.projects.isEmpty && !appState.isConnectedToServer {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Loading projects...")
+                            .foregroundColor(.secondary)
+                    }
+                } else if appState.projects.isEmpty {
+                    Text("No projects found on server")
                         .foregroundColor(.secondary)
                 } else {
                     ForEach(appState.projects) { project in
                         Button {
-                            Task {
-                                await appState.selectProject(project)
-                            }
+                            Task { await appState.selectProject(project) }
                         } label: {
                             HStack {
-                                VStack(alignment: .leading) {
-                                    Text(project.name)
-                                        .foregroundColor(.primary)
-                                    Text(project.path)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
+                                Text(project.name)
+                                    .foregroundColor(.primary)
                                 Spacer()
                                 if appState.selectedProject?.id == project.id {
-                                    Image(systemName: "checkmark")
+                                    Image(systemName: "checkmark.circle.fill")
                                         .foregroundColor(.accentColor)
                                 }
                             }
@@ -848,24 +823,27 @@ struct iOSSettingsView: View {
                 }
             }
 
+            // About
             Section("About") {
-                LabeledContent("Version", value: "1.0.0")
-                LabeledContent("Build", value: "1")
+                LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
+            }
+
+            // Advanced - hidden by default
+            Section {
+                DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Server: \(PlatformConfig.tailscaleHostname):\(PlatformConfig.serverPort)")
+                            .font(.caption.monospaced())
+                        Text("To change, edit PlatformConfig.swift")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
             }
         }
-    }
-
-    private func testConnection() {
-        isTesting = true
-        testResult = nil
-
-        Task {
-            let result = await appState.testConnection()
-            await MainActor.run {
-                isTesting = false
-                testSuccess = result.success
-                testResult = result.message
-            }
+        .refreshable {
+            await appState.loadProjects()
         }
     }
 }
