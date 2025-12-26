@@ -1,0 +1,171 @@
+#!/bin/bash
+# FlowForge Ship Script
+# One command to rule them all: builds and deploys whatever needs deploying
+#
+# USAGE:
+#   ./scripts/ship.sh              # Check what needs deploying, do it
+#   ./scripts/ship.sh --dry-run    # Just show what would happen
+#   ./scripts/ship.sh --force      # Deploy even if nothing changed
+
+set -e
+
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$PROJECT_DIR"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+DRY_RUN=false
+FORCE=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --dry-run) DRY_RUN=true; shift ;;
+        --force) FORCE=true; shift ;;
+        --help)
+            echo "Usage: ./scripts/ship.sh [--dry-run] [--force]"
+            echo ""
+            echo "Checks what platforms need updates and deploys them."
+            echo ""
+            echo "Options:"
+            echo "  --dry-run   Show what would be deployed without doing it"
+            echo "  --force     Deploy both platforms even if no changes detected"
+            exit 0
+            ;;
+        *) echo "Unknown option: $1"; exit 1 ;;
+    esac
+done
+
+echo ""
+echo -e "${BLUE}🚢 FlowForge Ship${NC}"
+echo "=================="
+echo ""
+
+# Check git status
+UNCOMMITTED=$(git status --porcelain 2>/dev/null | grep -v "^??" | head -1)
+if [[ -n "$UNCOMMITTED" ]]; then
+    echo -e "${YELLOW}⚠️  Uncommitted changes detected${NC}"
+    git status --short | head -10
+    echo ""
+    echo "Commit your changes first, or they won't be in the deploy."
+    echo ""
+    read -p "Continue anyway? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
+
+# Source the scope checker
+source "$PROJECT_DIR/scripts/check-deploy-scope.sh"
+
+# Check what needs deploying
+changed=$(get_changed_files "")
+ios_needed=$(check_platform_changes "$changed" "ios")
+macos_needed=$(check_platform_changes "$changed" "macos")
+
+if [[ "$FORCE" == true ]]; then
+    ios_needed="yes"
+    macos_needed="yes"
+fi
+
+echo -e "📱 iOS needs deploy:   ${ios_needed}"
+echo -e "💻 macOS needs deploy: ${macos_needed}"
+echo ""
+
+if [[ "$ios_needed" == "no" ]] && [[ "$macos_needed" == "no" ]]; then
+    echo -e "${GREEN}✅ Everything is up to date!${NC}"
+    echo ""
+    echo "No FlowForgeApp/ changes since last deploy."
+    echo "Use --force to deploy anyway."
+    exit 0
+fi
+
+if [[ "$DRY_RUN" == true ]]; then
+    echo -e "${YELLOW}🔍 Dry run - would deploy:${NC}"
+    [[ "$macos_needed" == "yes" ]] && echo "   • macOS app (release-macos.sh)"
+    [[ "$ios_needed" == "yes" ]] && echo "   • iOS to TestFlight (deploy-to-testflight.sh)"
+    echo ""
+    echo "Run without --dry-run to actually deploy."
+    exit 0
+fi
+
+# Deploy macOS first (faster, good sanity check)
+if [[ "$macos_needed" == "yes" ]]; then
+    echo ""
+    echo -e "${BLUE}💻 Deploying macOS...${NC}"
+    echo "─────────────────────────────────────"
+
+    cd "$PROJECT_DIR/FlowForgeApp"
+
+    # Regenerate project
+    if command -v xcodegen &> /dev/null; then
+        xcodegen generate
+    fi
+
+    # Build
+    xcodebuild -project FlowForgeApp.xcodeproj \
+        -scheme FlowForgeApp \
+        -configuration Release \
+        -derivedDataPath build \
+        ONLY_ACTIVE_ARCH=YES \
+        -quiet
+
+    # Install
+    rm -rf /Applications/FlowForge.app
+    cp -R build/Build/Products/Release/FlowForge.app /Applications/
+
+    echo -e "${GREEN}✅ macOS app installed to /Applications${NC}"
+
+    cd "$PROJECT_DIR"
+fi
+
+# Deploy iOS
+if [[ "$ios_needed" == "yes" ]]; then
+    echo ""
+    echo -e "${BLUE}📱 Deploying iOS to TestFlight...${NC}"
+    echo "─────────────────────────────────────"
+
+    ./scripts/deploy-to-testflight.sh --auto
+
+    # Commit the version bump
+    if [[ -n $(git status --porcelain FlowForgeApp/App-iOS/Info.plist 2>/dev/null) ]]; then
+        VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" FlowForgeApp/App-iOS/Info.plist)
+        BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" FlowForgeApp/App-iOS/Info.plist)
+        git add FlowForgeApp/App-iOS/Info.plist
+        git commit -m "chore: Bump iOS to $VERSION ($BUILD) for TestFlight"
+        git push
+    fi
+fi
+
+# Restart server if Python files changed
+PYTHON_CHANGED=$(echo "$changed" | grep -E "\.py$" | head -1)
+if [[ -n "$PYTHON_CHANGED" ]] || [[ "$FORCE" == true ]]; then
+    echo ""
+    echo -e "${BLUE}🔄 Restarting FlowForge server...${NC}"
+    pkill -f "forge-server" 2>/dev/null || true
+    sleep 1
+    cd "$PROJECT_DIR"
+    source .venv/bin/activate
+    FLOWFORGE_PROJECTS_PATH=/Users/Brian/Projects/Active FLOWFORGE_PORT=8081 nohup forge-server > /tmp/flowforge-server.log 2>&1 &
+    sleep 2
+    if curl -s http://localhost:8081/health > /dev/null; then
+        echo -e "${GREEN}✅ Server restarted${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Server may not have started - check /tmp/flowforge-server.log${NC}"
+    fi
+fi
+
+echo ""
+echo -e "${GREEN}🎉 Ship complete!${NC}"
+echo ""
+[[ "$macos_needed" == "yes" ]] && echo "   💻 macOS: Installed to /Applications"
+[[ "$ios_needed" == "yes" ]] && echo "   📱 iOS: Uploaded to TestFlight (check App Store Connect in ~10 min)"
+echo ""
+
+# Launch the app
+open /Applications/FlowForge.app 2>/dev/null || true

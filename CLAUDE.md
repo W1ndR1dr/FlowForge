@@ -194,28 +194,28 @@ cd /Users/Brian/Projects/Active/FlowForge && source .venv/bin/activate && FLOWFO
 
 The app auto-connects to `http://localhost:8081`. When migrating to Pi, just update `PlatformConfig.swift` with the Tailscale hostname.
 
-### Build & Deploy (when user says "build the app", "deploy it", etc.)
+### Deploy Everything (when user says "ship it", "deploy", "update all the things", etc.)
 
 ```bash
-cd /Users/Brian/Projects/Active/FlowForge/FlowForgeApp
-
-# 1. Regenerate Xcode project (picks up new files automatically)
-xcodegen generate
-
-# 2. Build Release
-xcodebuild -project FlowForgeApp.xcodeproj -scheme FlowForgeApp -configuration Release -derivedDataPath build ONLY_ACTIVE_ARCH=YES -quiet
-
-# 3. Install to Applications (replaces previous version)
-rm -rf /Applications/FlowForge.app && cp -R build/Build/Products/Release/FlowForge.app /Applications/
-
-# 4. Launch
-open /Applications/FlowForge.app
+./scripts/ship.sh           # Checks what changed, deploys macOS + iOS + restarts server
+./scripts/ship.sh --dry-run # See what would be deployed without doing it
+./scripts/ship.sh --force   # Deploy everything even if no changes detected
 ```
 
-**One-liner for quick iteration:**
+This is the **primary deploy command**. It automatically:
+1. Checks which platforms have changes (macOS, iOS, or both)
+2. Builds and installs macOS app to `/Applications`
+3. Uploads iOS to TestFlight with auto-versioning
+4. Restarts the FlowForge server if Python files changed
+5. Commits and pushes version bumps
+
+### Manual Build (for quick macOS-only iteration)
+
 ```bash
 cd /Users/Brian/Projects/Active/FlowForge/FlowForgeApp && xcodegen generate && xcodebuild -project FlowForgeApp.xcodeproj -scheme FlowForgeApp -configuration Release -derivedDataPath build ONLY_ACTIVE_ARCH=YES -quiet && rm -rf /Applications/FlowForge.app && cp -R build/Build/Products/Release/FlowForge.app /Applications/ && open /Applications/FlowForge.app
 ```
+
+Note: This skips iOS TestFlight. Use `./scripts/ship.sh` for full deployment.
 
 ### Adding New Swift Files
 
