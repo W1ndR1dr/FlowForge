@@ -1,6 +1,6 @@
 # AGI-Pilled Development Workflow
 
-A philosophy and system for working with AI coding assistants (Claude Code, Cursor, etc.) that embraces the non-linear nature of LLM conversations while maintaining engineering discipline at the boundaries.
+A philosophy and system for working with AI coding assistants (Claude Code, Gemini CLI, OpenAI Codex CLI etc.) that embraces the non-linear nature of LLM conversations while maintaining engineering discipline at the boundaries.
 
 ## Core Philosophy
 

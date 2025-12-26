@@ -206,6 +206,17 @@ class PromptBuilder:
         sections.append(f"# Implement: {context.feature.title}")
         sections.append("")
 
+        # Workflow context (situational awareness, not prescriptive)
+        sections.append("## Workflow Context")
+        sections.append("")
+        sections.append("You're in a FlowForge-managed worktree for this feature.")
+        if context.worktree_path:
+            sections.append(f"- **Worktree:** `{context.worktree_path}`")
+        sections.append(f"- **Branch:** Isolated from main (changes don't affect main until merge)")
+        sections.append("- **When finished:** Human clicks \"Stop\" in FlowForge → build validation → merge")
+        sections.append("- **Your focus:** Implement the feature. Human decides when it's done.")
+        sections.append("")
+
         # Feature description
         sections.append("## Feature")
         sections.append(context.feature.description or "(No description provided)")
@@ -334,6 +345,13 @@ class QuickPromptBuilder:
         claude_content = claude_md.read_text() if claude_md.exists() else ""
 
         return f"""# Implement: {title}
+
+## Workflow Context
+
+You're in a FlowForge-managed worktree for this feature.
+- **Branch:** Isolated from main (changes don't affect main until merge)
+- **When finished:** Human clicks "Stop" in FlowForge → build validation → merge
+- **Your focus:** Implement the feature. Human decides when it's done.
 
 ## Feature
 {description}
