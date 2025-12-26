@@ -45,5 +45,9 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+
+	<!-- Skip "Does your app use encryption?" dialog - we only use standard HTTPS -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

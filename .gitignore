@@ -34,3 +34,4 @@ DerivedData/
 *.perspectivev3
 xcuserdata/
 FlowForgeApp/build/
+releases/

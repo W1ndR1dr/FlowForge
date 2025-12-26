@@ -255,6 +255,59 @@ Built with guidance from legendary designers (see plan file):
 - **Edward Tufte**: Show the data, eliminate chartjunk
 - **Mike Matas**: Physics-based, magical moments
 
+## iOS TestFlight Deployment
+
+### Deploy to TestFlight
+```bash
+./scripts/deploy-to-testflight.sh --auto             # [RECOMMENDED] Claude decides version
+./scripts/deploy-to-testflight.sh --bump-build       # Build number only (1.0 build 1 → 2)
+./scripts/deploy-to-testflight.sh --bump-version     # Force version bump
+```
+
+Archives, exports, and uploads to TestFlight. `--auto` uses Claude to analyze commits and determine if version bump is needed (MAJOR/MINOR/PATCH or BUILD-only).
+
+**Prerequisites:**
+- Credentials in `~/.appstore/credentials` (shared with AirFit)
+- App exists in App Store Connect (bundle ID: `com.flowforge.app.ios`)
+
+### TestFlight Release Workflow
+
+When the user says **"push to TestFlight"**, **"deploy iOS"**, or similar:
+
+1. **Pre-flight**: Ensure git working tree is clean (commit pending changes first)
+2. **Deploy**: Run `./scripts/deploy-to-testflight.sh --auto`
+3. **Post-deploy**: Report version/build number, remind to check App Store Connect in ~10 minutes
+
+### If deployment fails
+- Verify `~/.appstore/credentials` exists with valid API keys
+- Verify signing certificates in Xcode → Settings → Accounts
+- Check App Store Connect for compliance issues
+
+## macOS Release (Sparkle Auto-Updates)
+
+### Release a new macOS version
+```bash
+./scripts/release-macos.sh              # Build, sign, update appcast
+./scripts/release-macos.sh 1.2.0        # Specify version
+```
+
+This script:
+1. Generates Sparkle EdDSA keys (first run only, saved to `~/.flowforge-keys/`)
+2. Builds Release archive
+3. Signs with Sparkle
+4. Updates `appcast.xml`
+5. Installs to `/Applications`
+
+**After running**, create a GitHub release and push:
+```bash
+git add appcast.xml
+git commit -m "Release v1.x.x"
+git push
+gh release create v1.x.x releases/FlowForge-1.x.x.zip --title "FlowForge 1.x.x"
+```
+
+The macOS app checks `appcast.xml` on GitHub for updates and auto-installs new versions.
+
 ## Additional Documentation
 
 - `docs/SESSION_CONTEXT.md` - Full development context, verified working features, what's next

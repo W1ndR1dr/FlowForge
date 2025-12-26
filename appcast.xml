@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>FlowForge Updates</title>
+        <link>https://github.com/W1ndR1dr/FlowForge</link>
+        <description>FlowForge auto-update feed</description>
+        <language>en</language>
+
+        <item>
+            <title>FlowForge 1.0.0</title>
+            <description><![CDATA[
+                <h2>Initial Release</h2>
+                <ul>
+                    <li>Kanban board for feature management</li>
+                    <li>Git worktree automation</li>
+                    <li>Claude Code integration</li>
+                    <li>iOS companion app with brainstorm mode</li>
+                    <li>Auto-updates via Sparkle</li>
+                </ul>
+            ]]></description>
+            <pubDate>Wed, 25 Dec 2024 22:00:00 -0800</pubDate>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure
+                url="https://github.com/W1ndR1dr/FlowForge/releases/download/v1.0.0/FlowForge-1.0.0.zip"
+                sparkle:edSignature="Bx0bXnZNEqgFzdgxpLtKOvP7T+II2IHRNJBhP06DDvYvM5xl33wbhJz/0qzsYhFhqy/oRwbXdxuk0RwOzIkfBw=="
+                length="2515060"
+                type="application/octet-stream"/>
+        </item>
+
+    </channel>
+</rss>

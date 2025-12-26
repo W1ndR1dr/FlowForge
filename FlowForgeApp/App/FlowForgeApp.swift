@@ -1,7 +1,27 @@
 import SwiftUI
+import Sparkle
+
+/// Sparkle updater controller for auto-updates
+final class UpdaterController: ObservableObject {
+    let updater: SPUUpdater
+
+    init() {
+        // Create the standard Sparkle updater
+        updater = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        ).updater
+    }
+
+    func checkForUpdates() {
+        updater.checkForUpdates()
+    }
+}
 
 @main
 struct FlowForgeApp: App {
+    @StateObject private var updaterController = UpdaterController()
     @State private var appState = AppState()
     @State private var showingAddFeature = false
     @State private var newFeatureTitle = ""
@@ -20,6 +40,13 @@ struct FlowForgeApp: App {
                 }
         }
         .commands {
+            // App menu - Check for Updates
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates...") {
+                    updaterController.checkForUpdates()
+                }
+            }
+
             // Help menu
             CommandGroup(replacing: .help) {
                 Button("FlowForge Help") {
