@@ -19,18 +19,23 @@ enum TerminalLauncher {
     /// - Parameters:
     ///   - worktreePath: Absolute path to the worktree directory
     ///   - prompt: Optional prompt to copy to clipboard (user can paste into Claude)
+    ///   - launchCommand: Full command from server config (e.g., "claude --dangerously-skip-permissions")
     /// - Returns: LaunchResult indicating success/failure
     @MainActor
     static func launchClaudeCode(
         worktreePath: String,
-        prompt: String? = nil
+        prompt: String? = nil,
+        launchCommand: String? = nil
     ) async -> LaunchResult {
         // Copy prompt to clipboard first (as backup/convenience)
         if let prompt = prompt, !prompt.isEmpty {
             copyToClipboard(prompt)
         }
 
-        // AppleScript to open Warp, create new tab, cd to worktree, run claude
+        // Use server-configured command or default to claude with skip-permissions
+        let claudeCommand = launchCommand ?? "claude --dangerously-skip-permissions"
+
+        // AppleScript to open Warp, create new tab, cd to worktree, run claude, and paste prompt
         let script = """
         tell application "Warp"
             activate
@@ -43,8 +48,14 @@ enum TerminalLauncher {
                 keystroke "t" using command down
                 delay 0.5
 
-                -- cd to worktree and run claude
-                keystroke "cd '\(worktreePath.escapedForAppleScript)' && claude"
+                -- cd to worktree and run claude with configured flags
+                keystroke "cd '\(worktreePath.escapedForAppleScript)' && \(claudeCommand.escapedForAppleScript)"
+                keystroke return
+
+                -- Wait for Claude to start, then paste the prompt
+                delay 2.0
+                keystroke "v" using command down
+                delay 0.2
                 keystroke return
             end tell
         end tell

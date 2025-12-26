@@ -625,10 +625,11 @@ class AppState {
                 // macOS API mode: Start feature AND launch Warp terminal
                 let response = try await apiClient.startFeature(project: project.name, featureId: feature.id)
 
-                // Launch Claude Code in Warp terminal
+                // Launch Claude Code in Warp terminal with configured command
                 let launchResult = await TerminalLauncher.launchClaudeCode(
                     worktreePath: response.worktreePath,
-                    prompt: response.prompt
+                    prompt: response.prompt,
+                    launchCommand: response.launchCommand
                 )
 
                 if launchResult.success {
