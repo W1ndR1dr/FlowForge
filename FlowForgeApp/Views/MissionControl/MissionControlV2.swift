@@ -43,6 +43,10 @@ struct MissionControlV2: View {
         appState.features.filter { $0.status == .blocked }
     }
 
+    private var ideaFeatures: [Feature] {
+        appState.features.filter { $0.status == .idea }
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -61,6 +65,11 @@ struct MissionControlV2: View {
 
                     // Level 2: The Pipeline (peripheral awareness)
                     pipelineSection
+
+                    // Level 2.5: Idea Inbox (quick captures)
+                    if !ideaFeatures.isEmpty {
+                        ideaInboxSection
+                    }
 
                     // Level 3: Shipped This Week
                     shippedSection
@@ -271,6 +280,43 @@ struct MissionControlV2: View {
         .cornerRadius(CornerRadius.large)
     }
 
+    // MARK: - Idea Inbox Section
+
+    private var ideaInboxSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.medium) {
+            HStack {
+                HStack(spacing: Spacing.small) {
+                    Image(systemName: "lightbulb.fill")
+                        .foregroundColor(.purple)
+                    Text("IDEA INBOX")
+                        .sectionHeaderStyle()
+                }
+
+                Text("\(ideaFeatures.count)")
+                    .badgeStyle(color: .purple)
+
+                Spacer()
+            }
+
+            VStack(spacing: Spacing.small) {
+                ForEach(ideaFeatures) { feature in
+                    IdeaCardV2(
+                        feature: feature,
+                        onCrystallize: {
+                            crystallizeIdea(feature)
+                        },
+                        onArchive: {
+                            archiveIdea(feature)
+                        }
+                    )
+                }
+            }
+        }
+        .padding(Spacing.standard)
+        .background(Color.purple.opacity(0.05))
+        .cornerRadius(CornerRadius.large)
+    }
+
     // MARK: - Shipped Section
 
     private var shippedSection: some View {
@@ -353,6 +399,18 @@ struct MissionControlV2: View {
             _ = success
         }
     }
+
+    private func crystallizeIdea(_ feature: Feature) {
+        Task {
+            await appState.crystallizeFeature(feature)
+        }
+    }
+
+    private func archiveIdea(_ feature: Feature) {
+        Task {
+            await appState.deleteFeature(feature)
+        }
+    }
 }
 
 // MARK: - Active Mission Card V2
@@ -391,15 +449,21 @@ struct ActiveMissionCardV2: View {
                     .lineLimit(2)
             }
 
-            // Claude activity indicator (Bret Victor - see the work)
-            if feature.status == .inProgress {
+            // Worktree indicator (shows feature is actively being built)
+            if feature.status == .inProgress, let worktreePath = feature.worktreePath {
                 HStack(spacing: Spacing.small) {
-                    InlineLoader(message: "Claude is working...")
+                    Image(systemName: "folder.fill")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 12))
+
+                    Text("Working in worktree")
+                        .font(Typography.caption)
+                        .foregroundColor(.secondary)
 
                     Spacer()
 
-                    // Would show actual file being edited
-                    Text("src/components/...")
+                    // Show abbreviated path
+                    Text(URL(fileURLWithPath: worktreePath).lastPathComponent)
                         .font(Typography.caption)
                         .foregroundColor(.secondary)
                 }
@@ -632,6 +696,67 @@ struct ShippedCardV2: View {
         .onAppear {
             isVisible = true
         }
+    }
+}
+
+// MARK: - Idea Card V2
+
+struct IdeaCardV2: View {
+    let feature: Feature
+    let onCrystallize: () -> Void
+    let onArchive: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: Spacing.medium) {
+            // Lightbulb icon
+            Image(systemName: "lightbulb")
+                .foregroundColor(.purple)
+                .font(.system(size: 14))
+
+            // Title
+            Text(feature.title)
+                .font(Typography.body)
+                .lineLimit(1)
+
+            Spacer()
+
+            // Actions (show on hover)
+            if isHovered {
+                HStack(spacing: Spacing.small) {
+                    Button(action: onCrystallize) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                            Text("Crystallize")
+                        }
+                        .font(Typography.caption)
+                        .padding(.horizontal, Spacing.small)
+                        .padding(.vertical, Spacing.micro)
+                        .background(Color.purple.opacity(0.2))
+                        .foregroundColor(.purple)
+                        .cornerRadius(CornerRadius.small)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Refine this idea into a shippable feature")
+
+                    Button(action: onArchive) {
+                        Image(systemName: "archivebox")
+                            .font(Typography.caption)
+                            .padding(Spacing.micro)
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Archive this idea")
+                }
+                .transition(.opacity)
+            }
+        }
+        .padding(Spacing.medium)
+        .background(isHovered ? Color.purple.opacity(0.1) : Color.clear)
+        .cornerRadius(CornerRadius.medium)
+        .onHover { isHovered = $0 }
+        .animation(SpringPreset.snappy, value: isHovered)
     }
 }
 

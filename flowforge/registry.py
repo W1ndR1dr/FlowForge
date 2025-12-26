@@ -12,7 +12,8 @@ import re
 class FeatureStatus(str, Enum):
     """Status of a feature in the development lifecycle."""
 
-    PLANNED = "planned"
+    IDEA = "idea"  # Rough sketch, quick capture - not counted in 3-slot limit
+    PLANNED = "planned"  # Crystallized, ready to build
     IN_PROGRESS = "in-progress"
     REVIEW = "review"
     COMPLETED = "completed"

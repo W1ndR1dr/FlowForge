@@ -121,6 +121,7 @@ struct FeatureEditSheet: View {
 
     private func statusColor(for status: FeatureStatus) -> Color {
         switch status {
+        case .idea: return .purple
         case .planned: return .gray
         case .inProgress: return .blue
         case .review: return .orange

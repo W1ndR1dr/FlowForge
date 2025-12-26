@@ -123,6 +123,7 @@ struct StatusCard<Content: View>: View {
 
     private var statusColor: Color {
         switch status {
+        case .idea: return StatusColor.idea
         case .planned: return StatusColor.planned
         case .inProgress: return StatusColor.inProgress
         case .review: return StatusColor.review

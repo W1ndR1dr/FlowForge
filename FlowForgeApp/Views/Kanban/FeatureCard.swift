@@ -214,6 +214,7 @@ struct FeatureCard: View {
 
     private var statusColor: Color {
         switch feature.status {
+        case .idea: return .purple
         case .planned: return .gray
         case .inProgress: return .blue
         case .review: return .orange

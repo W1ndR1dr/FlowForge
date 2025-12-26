@@ -755,6 +755,7 @@ class AddFeatureRequest(BaseModel):
     description: Optional[str] = None
     tags: Optional[list[str]] = None
     priority: int = 5
+    status: str = "idea"  # Default to idea for quick capture
 
 
 @app.post("/api/{project}/features")
@@ -763,6 +764,7 @@ async def add_feature(project: str, request: AddFeatureRequest):
     Add a new feature.
 
     If Mac is offline, queues the operation for later sync.
+    Default status is 'idea' for quick capture (not counted in 3-slot limit).
     """
     # Check if Mac is offline
     if sync_manager and not sync_manager.mac_online:
@@ -775,6 +777,7 @@ async def add_feature(project: str, request: AddFeatureRequest):
                 "description": request.description,
                 "tags": request.tags,
                 "priority": request.priority,
+                "status": request.status,
             }
         )
 
@@ -785,6 +788,7 @@ async def add_feature(project: str, request: AddFeatureRequest):
         return {
             "id": temp_id,
             "title": request.title,
+            "status": request.status,
             "queued": True,
             "operation_id": op_id,
             "message": "Feature queued - will be created when Mac comes online",
@@ -798,6 +802,7 @@ async def add_feature(project: str, request: AddFeatureRequest):
         request.description,
         request.tags,
         request.priority,
+        request.status,
     )
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
@@ -845,6 +850,63 @@ async def update_feature(
     await ws_manager.broadcast_feature_update(project, feature_id, "updated")
 
     return result.data
+
+
+@app.post("/api/{project}/features/{feature_id}/crystallize")
+async def crystallize_feature(project: str, feature_id: str):
+    """
+    Crystallize an idea into a planned feature.
+
+    Takes a feature from 'idea' status to 'planned' status.
+    Checks the 3-slot constraint before crystallizing.
+    """
+    from .registry import FeatureStatus, MAX_PLANNED_FEATURES
+
+    # Get project context
+    try:
+        project_path, config, registry = mcp_server._get_project_context(project)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Get the feature
+    feature = registry.get_feature(feature_id)
+    if not feature:
+        raise HTTPException(status_code=404, detail=f"Feature not found: {feature_id}")
+
+    # Check it's an idea
+    if feature.status != FeatureStatus.IDEA:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Feature is not an idea (status: {feature.status.value})"
+        )
+
+    # Check 3-slot constraint
+    if not registry.can_add_planned():
+        planned_titles = registry.get_planned_feature_titles()
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"You have {MAX_PLANNED_FEATURES} planned features. "
+                f"Finish or delete one first: {', '.join(planned_titles[:MAX_PLANNED_FEATURES])}"
+            )
+        )
+
+    # Crystallize: idea → planned
+    registry.update_feature(feature_id, status=FeatureStatus.PLANNED)
+
+    # Broadcast update
+    await ws_manager.broadcast_feature_update(project, feature_id, "updated")
+
+    remaining = MAX_PLANNED_FEATURES - registry.count_planned()
+
+    return {
+        "feature_id": feature_id,
+        "title": feature.title,
+        "status": "planned",
+        "planned_count": registry.count_planned(),
+        "slots_remaining": remaining,
+        "message": f"Crystallized: {feature.title} ({remaining} slot{'s' if remaining != 1 else ''} remaining)",
+    }
 
 
 class DeleteFeatureRequest(BaseModel):

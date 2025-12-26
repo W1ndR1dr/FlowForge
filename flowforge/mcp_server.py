@@ -756,6 +756,7 @@ class FlowForgeMCPServer:
         description: Optional[str] = None,
         tags: Optional[list[str]] = None,
         priority: int = 5,
+        status: str = "idea",  # Default to idea for quick capture
     ) -> MCPToolResult:
         """Add a new feature to a project."""
         try:
@@ -763,12 +764,19 @@ class FlowForgeMCPServer:
         except ValueError as e:
             return MCPToolResult(success=False, message=str(e))
 
-        from .registry import Feature, Complexity, MAX_PLANNED_FEATURES
+        from .registry import Feature, FeatureStatus, Complexity, MAX_PLANNED_FEATURES
+
+        # Convert status string to enum
+        try:
+            feature_status = FeatureStatus(status)
+        except ValueError:
+            feature_status = FeatureStatus.IDEA
 
         # =====================================================================
         # Shipping Machine Constraint: Max 3 Planned Features
+        # Only applies when adding as "planned" (not "idea")
         # =====================================================================
-        if not registry.can_add_planned():
+        if feature_status == FeatureStatus.PLANNED and not registry.can_add_planned():
             planned_titles = registry.get_planned_feature_titles()
             return MCPToolResult(
                 success=False,
@@ -804,21 +812,27 @@ class FlowForgeMCPServer:
             tags=tags or [],
             priority=priority,
             complexity=Complexity.MEDIUM,
+            status=feature_status,
         )
 
         registry.add_feature(feature)
         self._invalidate_cache(project)
 
-        # Show remaining slots
+        # Show remaining slots (only relevant for planned features)
         remaining = MAX_PLANNED_FEATURES - registry.count_planned()
+
+        if feature_status == FeatureStatus.IDEA:
+            message = f"Idea captured: {title}"
+        else:
+            message = f"Added feature: {title} ({remaining} slot{'s' if remaining != 1 else ''} remaining)"
 
         return MCPToolResult(
             success=True,
-            message=f"Added feature: {title} ({remaining} slot{'s' if remaining != 1 else ''} remaining)",
+            message=message,
             data={
                 "feature_id": feature_id,
                 "title": title,
-                "status": "planned",
+                "status": feature_status.value,
                 "planned_count": registry.count_planned(),
                 "slots_remaining": remaining,
             },

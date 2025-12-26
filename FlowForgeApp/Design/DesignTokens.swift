@@ -10,6 +10,10 @@ import SwiftUI
 
 /// Semantic status colors — the color IS the information (Tufte)
 enum StatusColor {
+    /// Idea: Quick capture, rough sketch — creative purple
+    static let idea = Color("StatusIdea", bundle: nil)
+    static let ideaFallback = Color(light: .purple.opacity(0.8), dark: .purple)
+
     /// Planned: Waiting, not urgent — subdued, patient
     static let planned = Color("StatusPlanned", bundle: nil)
     static let plannedFallback = Color(light: .init(white: 0.45), dark: .init(white: 0.55))
@@ -32,6 +36,7 @@ enum StatusColor {
 
     static func color(for status: FeatureStatus) -> Color {
         switch status {
+        case .idea: return ideaFallback
         case .planned: return plannedFallback
         case .inProgress: return inProgressFallback
         case .review: return reviewFallback

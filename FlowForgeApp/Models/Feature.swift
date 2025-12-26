@@ -1,7 +1,8 @@
 import Foundation
 
 enum FeatureStatus: String, Codable, CaseIterable {
-    case planned = "planned"
+    case idea = "idea"  // Quick capture, not counted in 3-slot limit
+    case planned = "planned"  // Crystallized, ready to build
     case inProgress = "in-progress"
     case review = "review"
     case completed = "completed"
@@ -9,6 +10,7 @@ enum FeatureStatus: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
+        case .idea: return "Idea"
         case .planned: return "Planned"
         case .inProgress: return "In Progress"
         case .review: return "Review"
@@ -19,6 +21,7 @@ enum FeatureStatus: String, Codable, CaseIterable {
 
     var color: String {
         switch self {
+        case .idea: return "purple"  // Distinct color for ideas
         case .planned: return "gray"
         case .inProgress: return "blue"
         case .review: return "orange"

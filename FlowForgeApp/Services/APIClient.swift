@@ -61,14 +61,25 @@ actor APIClient {
         return response.features
     }
 
-    /// Add a new feature
-    func addFeature(project: String, title: String, description: String? = nil) async throws {
+    /// Add a new feature (defaults to idea status for quick capture)
+    func addFeature(
+        project: String,
+        title: String,
+        description: String? = nil,
+        status: String = "idea"
+    ) async throws {
         let url = baseURL.appendingPathComponent("api/\(project)/features")
-        var body: [String: Any] = ["title": title]
+        var body: [String: Any] = ["title": title, "status": status]
         if let description = description {
             body["description"] = description
         }
         let _: FeatureAddResponse = try await post(url: url, body: body)
+    }
+
+    /// Crystallize an idea into a planned feature
+    func crystallizeFeature(project: String, featureId: String) async throws {
+        let url = baseURL.appendingPathComponent("api/\(project)/features/\(featureId)/crystallize")
+        let _: EmptyResponse = try await post(url: url, body: [:])
     }
 
     /// Start a feature (creates worktree, generates prompt)

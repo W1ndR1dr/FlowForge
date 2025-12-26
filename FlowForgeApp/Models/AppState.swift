@@ -684,6 +684,24 @@ class AppState {
         }
     }
 
+    // MARK: - Crystallize Feature (Idea → Planned)
+
+    /// Crystallize an idea into a planned feature
+    func crystallizeFeature(_ feature: Feature) async {
+        guard let project = selectedProject else { return }
+
+        do {
+            try await apiClient.crystallizeFeature(project: project.name, featureId: feature.id)
+            // Update local state
+            if let index = features.firstIndex(where: { $0.id == feature.id }) {
+                features[index].status = .planned
+            }
+            self.successMessage = "Crystallized: \(feature.title)"
+        } catch {
+            self.errorMessage = "Failed to crystallize: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - Ship Feature (Merge)
 
     /// Ship a feature - merges it and triggers celebration
