@@ -181,6 +181,26 @@ actor APIClient {
         return try await post(url: url, body: [:])
     }
 
+    // MARK: - Project Initialization
+
+    /// Initialize FlowForge in a project directory
+    func initializeProject(
+        project: String,
+        quick: Bool = true,
+        projectName: String? = nil,
+        description: String? = nil,
+        vision: String? = nil
+    ) async throws -> InitProjectResponse {
+        let url = baseURL.appendingPathComponent("api/\(project)/init")
+
+        var body: [String: Any] = ["quick": quick]
+        if let projectName = projectName { body["project_name"] = projectName }
+        if let description = description { body["description"] = description }
+        if let vision = vision { body["vision"] = vision }
+
+        return try await post(url: url, body: body)
+    }
+
     // MARK: - Feature Intelligence
 
     /// Analyze a feature for complexity, scope, expert suggestions
@@ -282,6 +302,26 @@ private struct FeatureAddResponse: Decodable {
 }
 
 // MARK: - Merge Response Types
+
+// MARK: - Project Initialization Response
+
+struct InitProjectResponse: Decodable {
+    let success: Bool
+    let projectName: String
+    let mainBranch: String
+    let configPath: String?
+    let registryPath: String?
+    let message: String?
+
+    enum CodingKeys: String, CodingKey {
+        case success
+        case projectName = "project_name"
+        case mainBranch = "main_branch"
+        case configPath = "config_path"
+        case registryPath = "registry_path"
+        case message
+    }
+}
 
 struct MergeCheckResponse: Decodable {
     let canMerge: Bool

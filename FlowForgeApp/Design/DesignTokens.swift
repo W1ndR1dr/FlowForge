@@ -270,6 +270,34 @@ extension View {
     }
 }
 
+// MARK: - Unified DesignTokens Namespace
+// Provides a consistent interface for accessing design tokens
+
+enum DesignTokens {
+    enum Colors {
+        static let primary = Accent.primary
+        static let success = Accent.success
+        static let warning = Accent.warning
+        static let danger = Accent.danger
+        static let surface = Surface.elevated
+        static let background = Surface.window
+    }
+
+    enum Spacing {
+        static let xs: CGFloat = 4
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 12
+        static let lg: CGFloat = 16
+        static let xl: CGFloat = 24
+    }
+
+    enum Radius {
+        static let sm: CGFloat = 4
+        static let md: CGFloat = 8
+        static let lg: CGFloat = 12
+    }
+}
+
 // MARK: - Preview
 
 #if DEBUG

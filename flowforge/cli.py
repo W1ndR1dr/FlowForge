@@ -26,6 +26,7 @@ from typing import Optional
 import json
 
 from . import __version__
+from .github_health import GitHubHealthChecker, HealthStatus
 from .config import (
     FlowForgeConfig,
     ProjectConfig,
@@ -34,6 +35,7 @@ from .config import (
 )
 from .registry import Feature, FeatureRegistry, FeatureStatus, Complexity
 from .worktree import WorktreeManager, ClaudeCodeLauncher
+from .terminal import start_feature_in_terminal, detect_terminal
 from .intelligence import IntelligenceEngine
 from .prompt_builder import PromptBuilder
 from .merge import MergeOrchestrator
@@ -136,6 +138,9 @@ def init(
     console.print(f"✅ Project context: [green]{context_path}[/green]")
     if detected.build_command:
         console.print(f"✅ Build command: [green]{detected.build_command}[/green]")
+
+    # Run GitHub health check
+    _run_github_health_check(project_root, detected.name, auto_fix=not quick)
 
     # Import from roadmap if specified
     if from_roadmap:
@@ -856,6 +861,8 @@ def start(
     deep_research: bool = typer.Option(False, "--deep-research", "-r", help="Force deep research"),
     skip_experts: bool = typer.Option(False, "--skip-experts", help="Skip expert suggestion"),
     no_clipboard: bool = typer.Option(False, "--no-clipboard", help="Don't copy prompt to clipboard"),
+    open_terminal: bool = typer.Option(True, "--open/--no-open", help="Auto-open terminal with Claude Code"),
+    terminal: str = typer.Option("auto", "--terminal", "-t", help="Terminal to use: warp, iterm, terminal, auto"),
 ):
     """
     Start working on a feature.
@@ -975,19 +982,31 @@ def start(
         prompt_path=str(prompt_path),
     )
 
-    # Step 5: Show launch instructions
-    launcher = ClaudeCodeLauncher(
-        config.project.claude_command,
-        config.project.claude_flags,
-    )
-
+    # Step 5: Launch terminal or show instructions
     console.print("\n" + "=" * 60)
     console.print("\n[bold green]Ready to implement![/bold green]\n")
-    console.print("Launch Claude Code with:\n")
-    console.print(f"  [cyan]cd {worktree_path}[/cyan]")
-    console.print(f"  [cyan]{config.project.claude_command} {' '.join(config.project.claude_flags)}[/cyan]")
-    console.print("\nThen paste the prompt from your clipboard.\n")
-    console.print("=" * 60)
+
+    if open_terminal:
+        console.print("🖥️  Opening terminal with Claude Code...")
+        success, message = start_feature_in_terminal(
+            worktree_path=worktree_path,
+            feature_title=feature.title,
+            claude_command=config.project.claude_command,
+            claude_flags=config.project.claude_flags,
+            terminal=terminal,
+        )
+        if success:
+            console.print(f"   ✅ {message}")
+            console.print("\n[bold]Just paste the prompt from your clipboard to begin![/bold]")
+        else:
+            console.print(f"   [yellow]{message}[/yellow]")
+    else:
+        console.print("Launch Claude Code with:\n")
+        console.print(f"  [cyan]cd {worktree_path}[/cyan]")
+        console.print(f"  [cyan]{config.project.claude_command} {' '.join(config.project.claude_flags)}[/cyan]")
+        console.print("\nThen paste the prompt from your clipboard.")
+
+    console.print("\n" + "=" * 60)
 
 
 @app.command()
@@ -1375,6 +1394,57 @@ def import_features_from_roadmap(
         count += 1
 
     return count
+
+
+def _run_github_health_check(project_root: Path, project_name: str, auto_fix: bool = True) -> None:
+    """
+    Run GitHub health check and optionally auto-fix issues.
+
+    Integrated into forge init to catch git/GitHub issues early.
+    """
+    console.print("\n🔍 [bold]Checking GitHub health...[/bold]")
+
+    checker = GitHubHealthChecker(project_root)
+    report = checker.run_all_checks()
+
+    # Display check results
+    for check in report.checks:
+        if check.status == HealthStatus.OK:
+            console.print(f"  ✅ {check.name}: {check.message}")
+        elif check.status == HealthStatus.WARNING:
+            console.print(f"  ⚠️  [yellow]{check.name}[/yellow]: {check.message}")
+        else:
+            console.print(f"  ❌ [red]{check.name}[/red]: {check.message}")
+
+    # Auto-fix if requested
+    if auto_fix and report.auto_fix_available:
+        console.print(f"\n🔧 Auto-fixing: {', '.join(report.auto_fix_available)}")
+        results = checker.auto_fix(report.auto_fix_available)
+        for issue, success in results.items():
+            if success:
+                console.print(f"  ✅ Fixed: {issue}")
+            else:
+                console.print(f"  ❌ Could not fix: {issue}")
+
+    # Check for similar repos
+    similar = checker.find_similar_repos()
+    if similar:
+        console.print(f"\n📋 [yellow]Found {len(similar)} similar repos on GitHub:[/yellow]")
+        for repo in similar[:5]:  # Show top 5
+            console.print(f"  • [cyan]{repo.full_name}[/cyan] - {repo.similarity_reason}")
+            if repo.description:
+                console.print(f"    {repo.description[:60]}...")
+        console.print("  [dim]Consider archiving old/duplicate repos.[/dim]")
+
+    # Final status
+    if report.overall_status == HealthStatus.OK:
+        console.print("\n✅ GitHub health: [green]Good[/green]")
+    elif report.overall_status == HealthStatus.WARNING:
+        console.print("\n⚠️  GitHub health: [yellow]Needs attention[/yellow]")
+        console.print("  [dim]Worktrees may not work correctly. Fix issues above.[/dim]")
+    else:
+        console.print("\n❌ GitHub health: [red]Issues detected[/red]")
+        console.print("  [dim]Fix issues above before using forge start.[/dim]")
 
 
 if __name__ == "__main__":

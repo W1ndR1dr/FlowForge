@@ -46,13 +46,18 @@ struct ContentView: View {
                     if appState.isLoading {
                         LoadingFeaturesView(cardCount: 4)
                             .padding(Spacing.large)
-                    } else if appState.selectedProject != nil {
-                        // Switch between views based on selection
-                        switch selectedView {
-                        case .kanban:
-                            KanbanView()
-                        case .missionControl:
-                            MissionControlV2()
+                    } else if let project = appState.selectedProject {
+                        // Check if project needs initialization
+                        if project.needsInitialization {
+                            UninitializedProjectView(project: project)
+                        } else {
+                            // Switch between views based on selection
+                            switch selectedView {
+                            case .kanban:
+                                KanbanView()
+                            case .missionControl:
+                                MissionControlV2()
+                            }
                         }
                     } else {
                         VStack(spacing: 16) {
@@ -138,6 +143,11 @@ struct ContentView: View {
                         appState.showingProposalReview = false
                     }
                 )
+            }
+        }
+        .sheet(isPresented: $state.showingProjectSetup) {
+            if let project = appState.projectToInitialize {
+                ProjectSetupSheet(project: project)
             }
         }
         .toolbar {

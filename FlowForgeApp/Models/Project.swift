@@ -1,23 +1,50 @@
 import Foundation
 
+// MARK: - Project Initialization Status
+
+enum ProjectInitializationStatus: String, Codable {
+    case initialized       // Has .flowforge directory, ready to use
+    case uninitialized     // Git repo but no FlowForge setup
+}
+
+// MARK: - Project
+
 struct Project: Identifiable, Codable, Hashable {
     let id: UUID
     var name: String
     var path: String
     var isActive: Bool
+    var initializationStatus: ProjectInitializationStatus
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
         case path
         case isActive = "is_active"
+        case initializationStatus = "initialization_status"
     }
 
-    init(id: UUID = UUID(), name: String, path: String, isActive: Bool = true) {
+    init(
+        id: UUID = UUID(),
+        name: String,
+        path: String,
+        isActive: Bool = true,
+        initializationStatus: ProjectInitializationStatus = .initialized
+    ) {
         self.id = id
         self.name = name
         self.path = path
         self.isActive = isActive
+        self.initializationStatus = initializationStatus
+    }
+
+    // Convenience computed properties
+    var isInitialized: Bool {
+        initializationStatus == .initialized
+    }
+
+    var needsInitialization: Bool {
+        initializationStatus == .uninitialized
     }
 
     var configPath: String {

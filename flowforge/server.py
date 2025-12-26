@@ -408,6 +408,54 @@ async def get_status(project: str):
     return result.data
 
 
+@app.get("/api/{project}/github-health")
+async def get_github_health(project: str):
+    """
+    Get GitHub health check for a project.
+
+    Checks:
+    - Git repository exists
+    - Origin remote configured
+    - SSH authentication works
+    - Main branch exists
+    - Similar repos on GitHub
+    """
+    from .github_health import GitHubHealthChecker
+
+    project_path = mcp_server.projects_base / project
+    if not project_path.exists():
+        raise HTTPException(status_code=404, detail=f"Project not found: {project}")
+
+    checker = GitHubHealthChecker(project_path)
+    report = checker.run_all_checks()
+    similar = checker.find_similar_repos()
+    report.similar_repos = similar
+
+    return report.to_dict()
+
+
+class FixGitHubRequest(BaseModel):
+    issues: list[str] = []
+
+
+@app.post("/api/{project}/github-health/fix")
+async def fix_github_issues(project: str, request: FixGitHubRequest):
+    """Auto-fix GitHub issues for a project."""
+    from .github_health import GitHubHealthChecker
+
+    project_path = mcp_server.projects_base / project
+    if not project_path.exists():
+        raise HTTPException(status_code=404, detail=f"Project not found: {project}")
+
+    checker = GitHubHealthChecker(project_path)
+    results = checker.auto_fix(request.issues)
+
+    return {
+        "fixed": [k for k, v in results.items() if v],
+        "failed": [k for k, v in results.items() if not v],
+    }
+
+
 class StartFeatureRequest(BaseModel):
     skip_experts: bool = False
 

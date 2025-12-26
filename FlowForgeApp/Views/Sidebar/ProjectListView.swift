@@ -37,16 +37,39 @@ struct ProjectRow: View {
     let project: Project
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(project.name)
-                .font(.headline)
-            Text(project.path)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(project.name)
+                        .font(.headline)
+
+                    if project.needsInitialization {
+                        Text("Setup")
+                            .font(.caption2.weight(.medium))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(DesignTokens.Colors.warning.opacity(0.15))
+                            .foregroundStyle(DesignTokens.Colors.warning)
+                            .clipShape(Capsule())
+                    }
+                }
+                Text(project.path)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer()
+
+            if project.needsInitialization {
+                Image(systemName: "bolt.badge.clock")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
         }
         .padding(.vertical, 4)
+        .opacity(project.needsInitialization ? 0.8 : 1.0)
     }
 }
 

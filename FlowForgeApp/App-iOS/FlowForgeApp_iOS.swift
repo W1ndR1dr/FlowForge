@@ -23,6 +23,9 @@ struct iOSContentView: View {
                 iOSRoadmapView()
                     .navigationTitle(appState.selectedProject?.name ?? "FlowForge")
                     .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            iOSStreakBadge(streak: appState.shippingStats.currentStreak)
+                        }
                         ToolbarItem(placement: .topBarTrailing) {
                             ConnectionStatusBadge()
                         }
@@ -77,30 +80,121 @@ struct ConnectionStatusBadge: View {
 /// iOS Roadmap view - list-based instead of Kanban
 struct iOSRoadmapView: View {
     @Environment(AppState.self) private var appState
+    @State private var showingQuickCapture = false
+    @State private var quickCaptureText = ""
 
     var body: some View {
-        List {
-            ForEach(FeatureStatus.allCases, id: \.self) { status in
-                Section(status.displayName) {
-                    let features = appState.features(for: status)
-                    if features.isEmpty {
-                        Text("No features")
-                            .foregroundColor(.secondary)
-                    } else {
-                        ForEach(features) { feature in
-                            iOSFeatureRow(feature: feature)
+        ZStack(alignment: .bottomTrailing) {
+            List {
+                ForEach(FeatureStatus.allCases, id: \.self) { status in
+                    Section(status.displayName) {
+                        let features = appState.features(for: status)
+                        if features.isEmpty {
+                            Text("No features")
+                                .foregroundColor(.secondary)
+                        } else {
+                            ForEach(features) { feature in
+                                iOSFeatureRow(feature: feature)
+                            }
                         }
                     }
                 }
             }
+            .listStyle(.insetGrouped)
+            .refreshable {
+                await appState.loadFeatures()
+            }
+            .overlay {
+                if appState.isLoading {
+                    ProgressView()
+                }
+            }
+
+            // Quick Capture FAB
+            Button {
+                showingQuickCapture = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title2.bold())
+                    .foregroundColor(.white)
+                    .frame(width: 56, height: 56)
+                    .background(Color.accentColor)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+            }
+            .padding(.trailing, 20)
+            .padding(.bottom, 20)
         }
-        .listStyle(.insetGrouped)
-        .refreshable {
+        .sheet(isPresented: $showingQuickCapture) {
+            QuickCaptureSheet(
+                text: $quickCaptureText,
+                isPresented: $showingQuickCapture
+            )
+        }
+    }
+}
+
+/// Quick Capture sheet for fast idea entry
+struct QuickCaptureSheet: View {
+    @Environment(AppState.self) private var appState
+    @Binding var text: String
+    @Binding var isPresented: Bool
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                TextField("What's the feature idea?", text: $text, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.title3)
+                    .focused($isFocused)
+                    .lineLimit(3...6)
+                    .padding()
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(12)
+
+                Text("Quick capture adds the idea immediately. You can refine details later on Mac.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Quick Capture")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        text = ""
+                        isPresented = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        addFeature()
+                    }
+                    .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+        .onAppear {
+            isFocused = true
+        }
+    }
+
+    private func addFeature() {
+        let title = text.trimmingCharacters(in: .whitespaces)
+        guard !title.isEmpty else { return }
+
+        Task {
+            await appState.addFeature(title: title)
             await appState.loadFeatures()
-        }
-        .overlay {
-            if appState.isLoading {
-                ProgressView()
+            await MainActor.run {
+                text = ""
+                isPresented = false
             }
         }
     }
@@ -323,6 +417,13 @@ struct BrainstormInputView: View {
     @State private var parseError: String?
     @State private var showingReview = false
 
+    // Feature counts by status
+    private var plannedCount: Int { appState.features(for: .planned).count }
+    private var inProgressCount: Int { appState.features(for: .inProgress).count }
+    private var reviewCount: Int { appState.features(for: .review).count }
+    private var completedCount: Int { appState.features(for: .completed).count }
+    private var totalCount: Int { appState.features.count }
+
     var body: some View {
         VStack(spacing: 0) {
             if appState.selectedProject == nil {
@@ -334,6 +435,38 @@ struct BrainstormInputView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
+                        // Project Context Header
+                        if let project = appState.selectedProject {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Brainstorming for")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+
+                                Text(project.name)
+                                    .font(.title.bold())
+
+                                // Feature stats
+                                HStack(spacing: 16) {
+                                    StatBadge(count: totalCount, label: "Total", color: .primary)
+                                    StatBadge(count: plannedCount, label: "Planned", color: .gray)
+                                    StatBadge(count: inProgressCount, label: "Active", color: .blue)
+                                    StatBadge(count: completedCount, label: "Shipped", color: .green)
+                                }
+
+                                if totalCount > 0 {
+                                    ProgressView(value: Double(completedCount), total: Double(totalCount))
+                                        .tint(.green)
+
+                                    Text("\(Int(Double(completedCount) / Double(totalCount) * 100))% complete")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding()
+                            .background(Color(.secondarySystemBackground))
+                            .cornerRadius(12)
+                        }
+
                         // Instructions
                         GroupBox {
                             VStack(alignment: .leading, spacing: 12) {
@@ -733,6 +866,45 @@ struct iOSSettingsView: View {
                 testSuccess = result.success
                 testResult = result.message
             }
+        }
+    }
+}
+
+/// Stat badge for brainstorm context
+struct StatBadge: View {
+    let count: Int
+    let label: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text("\(count)")
+                .font(.title3.bold())
+                .foregroundColor(color)
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+/// Streak badge for iOS toolbar
+struct iOSStreakBadge: View {
+    let streak: Int
+
+    var body: some View {
+        if streak > 0 {
+            HStack(spacing: 4) {
+                Image(systemName: "flame.fill")
+                    .foregroundColor(.orange)
+                Text("\(streak)")
+                    .fontWeight(.bold)
+            }
+            .font(.subheadline)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.orange.opacity(0.15))
+            .cornerRadius(8)
         }
     }
 }

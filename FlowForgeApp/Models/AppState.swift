@@ -26,6 +26,13 @@ class AppState {
     var shippingStats: ShippingStats = ShippingStats()
     var showingMilestone: Int? = nil  // Track which milestone to show (7, 14, 30, etc.)
 
+    // Project initialization state
+    var showingProjectSetup = false
+    var projectToInitialize: Project?
+
+    // Offline caching
+    private let featureCache = FeatureCache()
+
     #if os(macOS)
     private let cliBridge = CLIBridge()
     private var fileWatcher: FileWatcher?
@@ -169,7 +176,7 @@ class AppState {
 
     private func discoverProjects() async -> [Project] {
         #if os(macOS)
-        // macOS: Scan local filesystem for FlowForge projects
+        // macOS: Scan local filesystem for FlowForge projects AND uninitialized Git repos
         return await Task.detached {
             // Check common project locations
             let homeDir = FileManager.default.homeDirectoryForCurrentUser
@@ -190,20 +197,36 @@ class AppState {
                 ) else { continue }
 
                 for case let url as URL in enumerator {
-                    // Check if this directory has a .flowforge folder
                     let flowforgeDir = url.appendingPathComponent(".flowforge")
-                    var isDirectory: ObjCBool = false
+                    let gitDir = url.appendingPathComponent(".git")
+                    var isFlowforgeDir: ObjCBool = false
+                    var isGitDir: ObjCBool = false
 
-                    if FileManager.default.fileExists(atPath: flowforgeDir.path, isDirectory: &isDirectory),
-                       isDirectory.boolValue {
-                        // Deduplicate - only add if we haven't seen this path
+                    let hasFlowforge = FileManager.default.fileExists(
+                        atPath: flowforgeDir.path,
+                        isDirectory: &isFlowforgeDir
+                    ) && isFlowforgeDir.boolValue
+
+                    let hasGit = FileManager.default.fileExists(
+                        atPath: gitDir.path,
+                        isDirectory: &isGitDir
+                    ) && isGitDir.boolValue
+
+                    // Include both initialized FlowForge projects AND uninitialized Git repos
+                    if hasFlowforge || hasGit {
                         let resolvedPath = url.standardizedFileURL.path
                         if !seenPaths.contains(resolvedPath) {
                             seenPaths.insert(resolvedPath)
+
+                            let status: ProjectInitializationStatus = hasFlowforge
+                                ? .initialized
+                                : .uninitialized
+
                             let project = Project(
                                 name: url.lastPathComponent,
                                 path: resolvedPath,
-                                isActive: true
+                                isActive: hasFlowforge,
+                                initializationStatus: status
                             )
                             discoveredProjects.append(project)
                         }
@@ -214,7 +237,13 @@ class AppState {
                 }
             }
 
-            return discoveredProjects
+            // Sort: initialized projects first, then by name
+            return discoveredProjects.sorted { p1, p2 in
+                if p1.isInitialized != p2.isInitialized {
+                    return p1.isInitialized
+                }
+                return p1.name.localizedCaseInsensitiveCompare(p2.name) == .orderedAscending
+            }
         }.value
         #else
         // iOS: Fetch projects from API
@@ -225,6 +254,31 @@ class AppState {
             return []
         }
         #endif
+    }
+
+    // MARK: - Project Initialization
+
+    /// Initialize FlowForge in an uninitialized project
+    func initializeProject(_ project: Project, quick: Bool = true) async throws {
+        guard project.needsInitialization else {
+            throw FlowForgeError.alreadyInitialized
+        }
+
+        let result = try await apiClient.initializeProject(
+            project: project.name,
+            quick: quick
+        )
+
+        // Update local state
+        if let index = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[index].initializationStatus = .initialized
+            projects[index].isActive = true
+        }
+
+        successMessage = "Initialized \(result.projectName)!"
+
+        // Reload projects to get fresh data
+        await loadProjects()
     }
 
     // MARK: - Feature Management
@@ -240,6 +294,13 @@ class AppState {
         fileWatcher?.stop()
         #endif
 
+        // Load cached features first (instant display while fetching)
+        #if os(iOS)
+        if let cached = featureCache.load(for: project.name) {
+            self.features = cached
+        }
+        #endif
+
         do {
             let features: [Feature]
 
@@ -247,6 +308,9 @@ class AppState {
             // iOS always uses API mode
             features = try await apiClient.getFeatures(project: project.name)
             self.isConnectedToServer = true
+
+            // Cache the fresh data
+            featureCache.save(features, for: project.name)
             #else
             if useAPIMode {
                 // API mode: fetch from server
@@ -276,7 +340,16 @@ class AppState {
             }
 
         } catch {
+            #if os(iOS)
+            // On iOS, if fetch fails but we have cache, show cached data
+            if !self.features.isEmpty {
+                self.errorMessage = "Showing cached data (offline)"
+            } else {
+                self.errorMessage = "Failed to load features: \(error.localizedDescription)"
+            }
+            #else
             self.errorMessage = "Failed to load features: \(error.localizedDescription)"
+            #endif
             self.isLoading = false
             self.isConnectedToServer = false
         }
@@ -623,5 +696,68 @@ class AppState {
     /// Dismiss the milestone banner
     func dismissMilestone() {
         showingMilestone = nil
+    }
+}
+
+// MARK: - FlowForge Errors
+
+enum FlowForgeError: LocalizedError {
+    case alreadyInitialized
+    case projectNotFound
+    case initializationFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .alreadyInitialized:
+            return "This project is already initialized with FlowForge."
+        case .projectNotFound:
+            return "Project not found."
+        case .initializationFailed(let reason):
+            return "Failed to initialize project: \(reason)"
+        }
+    }
+}
+
+// MARK: - Offline Feature Cache
+
+/// Simple feature cache for offline browsing on iOS
+class FeatureCache {
+    private let defaults = UserDefaults.standard
+    private let cachePrefix = "flowforge.features."
+
+    /// Save features to cache for a project
+    func save(_ features: [Feature], for projectName: String) {
+        let key = cachePrefix + projectName
+        do {
+            let data = try JSONEncoder().encode(features)
+            defaults.set(data, forKey: key)
+        } catch {
+            print("Failed to cache features: \(error)")
+        }
+    }
+
+    /// Load cached features for a project
+    func load(for projectName: String) -> [Feature]? {
+        let key = cachePrefix + projectName
+        guard let data = defaults.data(forKey: key) else { return nil }
+
+        do {
+            return try JSONDecoder().decode([Feature].self, from: data)
+        } catch {
+            print("Failed to load cached features: \(error)")
+            return nil
+        }
+    }
+
+    /// Clear cache for a project
+    func clear(for projectName: String) {
+        let key = cachePrefix + projectName
+        defaults.removeObject(forKey: key)
+    }
+
+    /// Clear all cached features
+    func clearAll() {
+        let keys = defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix(cachePrefix) }
+        keys.forEach { defaults.removeObject(forKey: $0) }
     }
 }
