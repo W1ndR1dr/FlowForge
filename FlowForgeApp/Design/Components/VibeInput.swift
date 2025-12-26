@@ -279,18 +279,6 @@ struct VibeInputPreview: View {
                 slotsRemaining: 2
             )
 
-            Divider()
-
-            // Full state
-            VibeInput(
-                text: .constant(""),
-                placeholder: "Slots full...",
-                isAnalyzing: false,
-                slotsRemaining: 0,
-                onSubmit: { _ in }
-            )
-            .disabled(true)
-
             Spacer()
         }
         .padding(Spacing.large)
