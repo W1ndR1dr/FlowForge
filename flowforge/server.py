@@ -278,6 +278,62 @@ async def list_projects():
 
 
 # =============================================================================
+# System Status Endpoints (Offline-First)
+# IMPORTANT: These must come BEFORE /api/{project} routes
+# =============================================================================
+
+
+@app.get("/api/system/status")
+async def get_system_status():
+    """
+    Get system status including Mac connectivity and pending operations.
+
+    Returns:
+        mac_online: Whether Mac is currently reachable
+        last_check: Timestamp of last health check
+        last_sync: Timestamp of last successful sync
+        pending_operations: Number of queued operations
+        cache_stats: Cache database statistics
+    """
+    if sync_manager:
+        mac_status = sync_manager.get_status()
+        return {
+            "mac_online": mac_status.online,
+            "last_check": mac_status.last_check,
+            "last_sync": mac_status.last_successful_sync,
+            "pending_operations": mac_status.pending_operations,
+            "cache_stats": cache_manager.get_cache_stats() if cache_manager else None,
+        }
+    else:
+        # Running in local mode (on Mac directly)
+        return {
+            "mac_online": True,
+            "last_check": None,
+            "last_sync": None,
+            "pending_operations": 0,
+            "cache_stats": cache_manager.get_cache_stats() if cache_manager else None,
+        }
+
+
+@app.post("/api/system/sync")
+async def force_sync():
+    """Force an immediate sync with Mac."""
+    if not sync_manager:
+        return {"success": True, "message": "Running in local mode, no sync needed"}
+
+    if not sync_manager.mac_online:
+        raise HTTPException(status_code=503, detail="Mac is offline")
+
+    result = await sync_manager.sync_all_projects()
+    return {
+        "success": result.success,
+        "message": result.message,
+        "synced_projects": result.synced_projects,
+        "failed_operations": result.failed_operations,
+    }
+
+
+# =============================================================================
 # Project Initialization Endpoint
 # =============================================================================
 
@@ -1421,61 +1477,6 @@ async def health():
         "status": "healthy",
         "projects_base": str(config["projects_base"]),
         "remote_host": config["remote_host"],
-    }
-
-
-# =============================================================================
-# System Status Endpoint (Offline-First)
-# =============================================================================
-
-
-@app.get("/api/system/status")
-async def get_system_status():
-    """
-    Get system status including Mac connectivity and pending operations.
-
-    Returns:
-        mac_online: Whether Mac is currently reachable
-        last_check: Timestamp of last health check
-        last_sync: Timestamp of last successful sync
-        pending_operations: Number of queued operations
-        cache_stats: Cache database statistics
-    """
-    if sync_manager:
-        mac_status = sync_manager.get_status()
-        return {
-            "mac_online": mac_status.online,
-            "last_check": mac_status.last_check,
-            "last_sync": mac_status.last_successful_sync,
-            "pending_operations": mac_status.pending_operations,
-            "cache_stats": cache_manager.get_cache_stats() if cache_manager else None,
-        }
-    else:
-        # Running in local mode (on Mac directly)
-        return {
-            "mac_online": True,
-            "last_check": None,
-            "last_sync": None,
-            "pending_operations": 0,
-            "cache_stats": cache_manager.get_cache_stats() if cache_manager else None,
-        }
-
-
-@app.post("/api/system/sync")
-async def force_sync():
-    """Force an immediate sync with Mac."""
-    if not sync_manager:
-        return {"success": True, "message": "Running in local mode, no sync needed"}
-
-    if not sync_manager.mac_online:
-        raise HTTPException(status_code=503, detail="Mac is offline")
-
-    result = await sync_manager.sync_all_projects()
-    return {
-        "success": result.success,
-        "message": result.message,
-        "synced_projects": result.synced_projects,
-        "failed_operations": result.failed_operations,
     }
 
 
