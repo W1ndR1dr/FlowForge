@@ -31,7 +31,8 @@ struct MissionControlV2: View {
     }
 
     private var slotsRemaining: Int {
-        max(0, 3 - upNextFeatures.count)
+        // Ideas are unlimited - always allow adding
+        99
     }
 
     private var shippedThisWeek: [Feature] {
