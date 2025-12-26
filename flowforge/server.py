@@ -190,6 +190,206 @@ async def list_projects():
     return result.data
 
 
+# =============================================================================
+# Project Initialization Endpoint
+# =============================================================================
+
+
+class InitProjectRequest(BaseModel):
+    """Request to initialize FlowForge in a project."""
+    quick: bool = True
+    project_name: Optional[str] = None
+    description: Optional[str] = None
+    vision: Optional[str] = None
+    target_users: Optional[str] = None
+    coding_philosophy: Optional[str] = None
+    ai_guidance: Optional[str] = None
+    roadmap_path: Optional[str] = None
+
+
+@app.post("/api/{project}/init")
+async def init_project(project: str, request: InitProjectRequest):
+    """
+    Initialize FlowForge in a project directory.
+
+    Creates:
+    - .flowforge/config.json
+    - .flowforge/registry.json
+    - .flowforge/project-context.md
+    - .flowforge/prompts/ directory
+    - .flowforge/research/ directory
+
+    Optionally imports features from roadmap markdown/RTF files.
+    """
+    config = get_config()
+    project_path = config["projects_base"] / project
+    flowforge_dir = project_path / ".flowforge"
+
+    # Handle remote mode - delegate to MCP server
+    if mcp_server.is_remote:
+        result = mcp_server._init_project(
+            project,
+            quick=request.quick,
+            project_name=request.project_name,
+            description=request.description,
+            vision=request.vision,
+            target_users=request.target_users,
+            coding_philosophy=request.coding_philosophy,
+            ai_guidance=request.ai_guidance,
+            roadmap_path=request.roadmap_path,
+        )
+        if not result.success:
+            raise HTTPException(status_code=400, detail=result.message)
+        return result.data
+
+    # Local mode - initialize directly
+    if not project_path.exists():
+        raise HTTPException(status_code=404, detail=f"Project directory not found: {project}")
+
+    # Check if already initialized
+    if flowforge_dir.exists():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Project already initialized. Delete .flowforge to reinitialize."
+        )
+
+    # Use the init module
+    from .init import EnhancedInitializer, ProjectContext
+    from .config import FlowForgeConfig, ProjectConfig, detect_project_settings
+    from .registry import FeatureRegistry, Feature, Complexity
+
+    initializer = EnhancedInitializer(project_path)
+
+    # Detect tech stack and settings
+    tech_stack = initializer.detect_tech_stack()
+    detected = detect_project_settings(project_path)
+
+    # Apply overrides
+    if request.project_name:
+        detected.name = request.project_name
+
+    # Create config
+    forge_config = FlowForgeConfig(project=detected)
+    forge_config.save(project_path)
+
+    # Create registry
+    registry = FeatureRegistry.create_new(project_path)
+
+    # Create directories
+    (project_path / ".flowforge" / "prompts").mkdir(parents=True, exist_ok=True)
+    (project_path / ".flowforge" / "research").mkdir(parents=True, exist_ok=True)
+
+    # Create project context
+    context = ProjectContext(
+        name=request.project_name or detected.name,
+        description=request.description or "",
+        vision=request.vision or "",
+        target_users=request.target_users or "",
+        tech_stack=tech_stack,
+        coding_philosophy=request.coding_philosophy or "",
+        ai_guidance=request.ai_guidance or "Engage plan mode and ultrathink before implementing.",
+    )
+    context_path = context.save(project_path)
+
+    # Import features from roadmap if specified
+    features_imported = 0
+    if request.roadmap_path:
+        roadmap_full_path = project_path / request.roadmap_path
+        if roadmap_full_path.exists():
+            features_imported = _import_features_from_roadmap(
+                project_path,
+                roadmap_full_path,
+                registry,
+            )
+
+    return {
+        "success": True,
+        "project_name": detected.name,
+        "main_branch": detected.main_branch,
+        "tech_stack": tech_stack,
+        "features_imported": features_imported,
+        "config_path": str(project_path / ".flowforge" / "config.json"),
+        "registry_path": str(project_path / ".flowforge" / "registry.json"),
+        "context_path": str(context_path),
+    }
+
+
+def _import_features_from_roadmap(
+    project_root: Path,
+    roadmap_dir: Path,
+    registry: FeatureRegistry,
+) -> int:
+    """Import features from markdown/RTF files in a roadmap directory."""
+    from .registry import Feature, Complexity
+    import subprocess
+
+    count = 0
+
+    # Support both .md and .rtf files
+    for pattern in ["**/*.md", "**/*.rtf"]:
+        for file_path in roadmap_dir.glob(pattern):
+            # Read content (convert RTF if needed)
+            if file_path.suffix == ".rtf":
+                try:
+                    result = subprocess.run(
+                        ["textutil", "-convert", "txt", "-stdout", str(file_path)],
+                        capture_output=True,
+                        text=True,
+                    )
+                    if result.returncode == 0:
+                        content = result.stdout
+                    else:
+                        continue
+                except Exception:
+                    continue
+            else:
+                content = file_path.read_text()
+
+            lines = content.split("\n")
+
+            # First heading is the title
+            title = None
+            for line in lines:
+                if line.startswith("# "):
+                    title = line[2:].strip()
+                    break
+
+            if not title:
+                title = file_path.stem.replace("-", " ").replace("_", " ").title()
+
+            feature_id = FeatureRegistry.generate_id(title)
+
+            # Skip if exists
+            if registry.get_feature(feature_id):
+                continue
+
+            # Extract description (first paragraph after title)
+            description = ""
+            in_description = False
+            for line in lines:
+                if line.startswith("# "):
+                    in_description = True
+                    continue
+                if in_description:
+                    if line.startswith("#"):
+                        break
+                    if line.strip():
+                        description += line + " "
+            description = description.strip()[:500]
+
+            feature = Feature(
+                id=feature_id,
+                title=title,
+                description=description,
+                complexity=Complexity.MEDIUM,
+                spec_path=str(file_path.relative_to(project_root)),
+            )
+            registry.add_feature(feature)
+            count += 1
+
+    return count
+
+
 @app.get("/api/{project}/features")
 async def list_features(project: str, status: Optional[str] = None):
     """List features in a project."""

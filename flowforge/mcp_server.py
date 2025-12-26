@@ -343,6 +343,33 @@ class FlowForgeMCPServer:
                     "required": ["project", "title"],
                 },
             },
+            {
+                "name": "flowforge_init_project",
+                "description": "Initialize FlowForge in a project directory. Creates .flowforge config and enables feature tracking.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": {
+                            "type": "string",
+                            "description": "Project name (directory name in projects base)",
+                        },
+                        "quick": {
+                            "type": "boolean",
+                            "description": "Use quick initialization (skip interactive questions)",
+                            "default": True,
+                        },
+                        "project_name": {
+                            "type": "string",
+                            "description": "Override project name (defaults to directory name)",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "Brief project description",
+                        },
+                    },
+                    "required": ["project"],
+                },
+            },
         ]
 
     def call_tool(self, tool_name: str, arguments: dict) -> MCPToolResult:
@@ -356,6 +383,7 @@ class FlowForgeMCPServer:
             "flowforge_merge_check": self._merge_check,
             "flowforge_merge": self._merge_feature,
             "flowforge_add_feature": self._add_feature,
+            "flowforge_init_project": self._init_project,
         }
 
         handler = tool_handlers.get(tool_name)
@@ -864,6 +892,141 @@ class FlowForgeMCPServer:
             )
         except ValueError as e:
             return MCPToolResult(success=False, message=str(e))
+
+    def _init_project(
+        self,
+        project: str,
+        quick: bool = True,
+        project_name: Optional[str] = None,
+        description: Optional[str] = None,
+        vision: Optional[str] = None,
+        target_users: Optional[str] = None,
+        coding_philosophy: Optional[str] = None,
+        ai_guidance: Optional[str] = None,
+        roadmap_path: Optional[str] = None,
+    ) -> MCPToolResult:
+        """
+        Initialize FlowForge in a project directory.
+
+        For remote mode, runs forge init via SSH on the Mac.
+        """
+        project_path = self.projects_base / project
+        flowforge_dir = project_path / ".flowforge"
+
+        if self.is_remote:
+            # Check if project exists on remote Mac
+            if not self.remote_executor.dir_exists(project_path):
+                return MCPToolResult(
+                    success=False,
+                    message=f"Project directory not found on Mac: {project}",
+                )
+
+            # Check if already initialized
+            if self.remote_executor.dir_exists(flowforge_dir):
+                return MCPToolResult(
+                    success=False,
+                    message=f"Project already initialized: {project}",
+                )
+
+            # Run forge init via SSH
+            args = ["init"]
+            if quick:
+                args.append("--quick")
+            if project_name:
+                args.extend(["--name", project_name])
+
+            result = self.remote_executor.run_forge_command(
+                project_path,
+                args,
+                timeout=60,
+            )
+
+            if not result.success:
+                return MCPToolResult(
+                    success=False,
+                    message=f"Remote initialization failed: {result.stderr}",
+                )
+
+            # Verify initialization
+            if not self.remote_executor.dir_exists(flowforge_dir):
+                return MCPToolResult(
+                    success=False,
+                    message="Initialization command succeeded but .flowforge not created",
+                )
+
+            return MCPToolResult(
+                success=True,
+                message=f"Initialized FlowForge in {project} (remote)",
+                data={
+                    "project": project,
+                    "path": str(project_path),
+                },
+            )
+
+        # Local mode
+        if not project_path.exists():
+            return MCPToolResult(
+                success=False,
+                message=f"Project directory not found: {project}",
+            )
+
+        if flowforge_dir.exists():
+            return MCPToolResult(
+                success=False,
+                message=f"Project already initialized: {project}",
+            )
+
+        # Use the init module
+        from .init import EnhancedInitializer, ProjectContext
+        from .config import FlowForgeConfig, detect_project_settings
+
+        initializer = EnhancedInitializer(project_path)
+
+        # Detect tech stack and settings
+        tech_stack = initializer.detect_tech_stack()
+        detected = detect_project_settings(project_path)
+
+        # Apply overrides
+        if project_name:
+            detected.name = project_name
+
+        # Create config
+        forge_config = FlowForgeConfig(project=detected)
+        forge_config.save(project_path)
+
+        # Create registry
+        registry = FeatureRegistry(project_path)
+        registry.save()
+
+        # Create directories
+        (project_path / ".flowforge" / "prompts").mkdir(parents=True, exist_ok=True)
+        (project_path / ".flowforge" / "research").mkdir(parents=True, exist_ok=True)
+
+        # Create project context
+        context = ProjectContext(
+            name=project_name or detected.name,
+            description=description or "",
+            vision=vision or "",
+            target_users=target_users or "",
+            tech_stack=tech_stack,
+            coding_philosophy=coding_philosophy or "",
+            ai_guidance=ai_guidance or "Engage plan mode and ultrathink before implementing.",
+        )
+        context.save(project_path)
+
+        self._invalidate_cache(project)
+
+        return MCPToolResult(
+            success=True,
+            message=f"Initialized FlowForge in {detected.name}",
+            data={
+                "project_name": detected.name,
+                "main_branch": detected.main_branch,
+                "tech_stack": tech_stack,
+                "config_path": str(project_path / ".flowforge" / "config.json"),
+                "registry_path": str(project_path / ".flowforge" / "registry.json"),
+            },
+        )
 
 
 # =============================================================================
