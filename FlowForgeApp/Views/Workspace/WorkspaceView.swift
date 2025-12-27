@@ -83,9 +83,6 @@ struct WorkspaceView: View {
                     }
 
                     // Level 3: Active Work - what you're building now
-                    todaysMissionSection
-
-                    // Active Workspaces (parallel development)
                     ActiveWorkspacesSection()
 
                     // Level 4: Done - shipped features
@@ -140,37 +137,6 @@ struct WorkspaceView: View {
                     existingFeature: feature  // Feature being refined
                 )
                 .environment(appState)
-            }
-        }
-    }
-
-    // MARK: - Today's Mission Section
-
-    private var todaysMissionSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.medium) {
-            Text("TODAY'S MISSION")
-                .sectionHeaderStyle()
-
-            if let feature = activeFeature {
-                ActiveWorkCard(
-                    feature: feature,
-                    onShip: {
-                        shipFeature(feature)
-                    }
-                )
-            } else if let nextFeature = plannedFeatures.first {
-                StartWorkCard(
-                    feature: nextFeature,
-                    onStart: {
-                        Task {
-                            await appState.startFeature(nextFeature)
-                        }
-                    }
-                )
-            } else {
-                EmptyFeaturesView(onAddFeature: {
-                    // Focus the vibe input
-                })
             }
         }
     }

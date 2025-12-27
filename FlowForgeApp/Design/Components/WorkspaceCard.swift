@@ -232,6 +232,11 @@ struct ActiveWorkspacesSection: View {
         appState.features.filter { $0.status == .inProgress || $0.status == .review }
     }
 
+    /// Next planned feature to start
+    private var nextPlannedFeature: Feature? {
+        appState.features.first { $0.status == .planned }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.medium) {
             // Header
@@ -239,7 +244,7 @@ struct ActiveWorkspacesSection: View {
                 HStack(spacing: Spacing.small) {
                     Image(systemName: "hammer.fill")
                         .foregroundColor(Accent.primary)
-                    Text("ACTIVE WORKSPACES")
+                    Text("ACTIVE WORK")
                         .sectionHeaderStyle()
                 }
 
@@ -251,7 +256,7 @@ struct ActiveWorkspacesSection: View {
                 Spacer()
 
                 // Helpful tip
-                if !activeFeatures.isEmpty {
+                if activeFeatures.count > 1 {
                     Text("Each isolated — no conflicts!")
                         .font(Typography.caption)
                         .foregroundColor(.secondary)
@@ -259,22 +264,26 @@ struct ActiveWorkspacesSection: View {
             }
 
             if activeFeatures.isEmpty {
-                // Empty state
-                VStack(spacing: Spacing.small) {
-                    Image(systemName: "laptopcomputer")
-                        .font(.system(size: 24))
-                        .foregroundColor(.secondary.opacity(0.5))
-                    Text("No active workspaces")
-                        .font(Typography.body)
-                        .foregroundColor(.secondary)
-                    Text("Start a feature to create a workspace")
-                        .font(Typography.caption)
-                        .foregroundColor(.secondary.opacity(0.7))
+                // Empty state - show "Start next" if we have planned features
+                if let nextFeature = nextPlannedFeature {
+                    StartNextCard(feature: nextFeature)
+                } else {
+                    VStack(spacing: Spacing.small) {
+                        Image(systemName: "laptopcomputer")
+                            .font(.system(size: 24))
+                            .foregroundColor(.secondary.opacity(0.5))
+                        Text("Nothing in progress")
+                            .font(Typography.body)
+                            .foregroundColor(.secondary)
+                        Text("Add ideas above, then start one")
+                            .font(Typography.caption)
+                            .foregroundColor(.secondary.opacity(0.7))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(Spacing.large)
+                    .background(Surface.elevated)
+                    .cornerRadius(CornerRadius.medium)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(Spacing.large)
-                .background(Surface.elevated)
-                .cornerRadius(CornerRadius.medium)
             } else {
                 // Workspace cards grid
                 LazyVGrid(columns: [
@@ -313,6 +322,75 @@ struct ActiveWorkspacesSection: View {
             launchCommand: "claude --dangerously-skip-permissions"
         )
         #endif
+    }
+}
+
+// MARK: - Start Next Card
+
+/// Card shown when no active work - prompts to start the next planned feature
+struct StartNextCard: View {
+    @Environment(AppState.self) private var appState
+    let feature: Feature
+
+    @State private var isStarting = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.medium) {
+            HStack {
+                VStack(alignment: .leading, spacing: Spacing.micro) {
+                    Text("Ready to build")
+                        .font(Typography.caption)
+                        .foregroundColor(.secondary)
+                    Text(feature.title)
+                        .font(Typography.featureTitle)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+            }
+
+            if let desc = feature.description, !desc.isEmpty {
+                Text(desc)
+                    .font(Typography.body)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+
+            Button(action: startFeature) {
+                HStack {
+                    if isStarting {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "play.fill")
+                    }
+                    Text(isStarting ? "Starting..." : "Start Building")
+                        .fontWeight(.medium)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(Spacing.medium)
+                .background(Accent.primary)
+                .foregroundColor(.white)
+                .cornerRadius(CornerRadius.medium)
+            }
+            .buttonStyle(.plain)
+            .disabled(isStarting)
+        }
+        .padding(Spacing.standard)
+        .background(Surface.elevated)
+        .cornerRadius(CornerRadius.large)
+        .overlay(
+            RoundedRectangle(cornerRadius: CornerRadius.large)
+                .stroke(Accent.primary.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    private func startFeature() {
+        isStarting = true
+        Task {
+            await appState.startFeature(feature)
+            isStarting = false
+        }
     }
 }
 
