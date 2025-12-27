@@ -114,7 +114,9 @@ class RemoteExecutor:
         remote_cmd_parts.append(" ".join(shlex.quote(arg) for arg in command))
 
         # Combine with && to ensure all parts execute in sequence
-        remote_cmd = " && ".join(remote_cmd_parts)
+        # Wrap in bash -c to handle complex quoting
+        inner_cmd = " && ".join(remote_cmd_parts)
+        remote_cmd = f"bash -c {shlex.quote(inner_cmd)}"
 
         # Build full SSH command
         ssh_cmd = self._build_ssh_command()
