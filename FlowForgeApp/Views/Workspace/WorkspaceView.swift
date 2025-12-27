@@ -99,15 +99,10 @@ struct WorkspaceView: View {
     private var vibeInputSection: some View {
         VStack(alignment: .leading, spacing: Spacing.medium) {
             // Header with streak
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: Spacing.micro) {
-                    if let project = appState.selectedProject {
-                        Text(project.name)
-                            .font(Typography.largeTitle)
-                    }
-                    Text("What do you want to ship?")
-                        .font(Typography.body)
-                        .foregroundColor(.secondary)
+            HStack(alignment: .center) {
+                if let project = appState.selectedProject {
+                    Text(project.name)
+                        .font(Typography.largeTitle)
                 }
 
                 Spacer()

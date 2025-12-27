@@ -2,9 +2,6 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(AppState.self) private var appState
-    @State private var showingAddFeature = false
-    @State private var showingBrainstorm = false
-    @State private var newFeatureTitle = ""
 
     var body: some View {
         @Bindable var state = appState
@@ -82,15 +79,6 @@ struct ContentView: View {
                 .animation(SpringPreset.snappy, value: appState.successMessage)
             }
         }
-        .sheet(isPresented: $showingAddFeature) {
-            QuickAddFeatureSheet(
-                isPresented: $showingAddFeature,
-                featureTitle: $newFeatureTitle
-            )
-        }
-        .sheet(isPresented: $showingBrainstorm) {
-            BrainstormSheet()
-        }
         .sheet(isPresented: Binding(
             get: { appState.showingProposalReview },
             set: { appState.showingProposalReview = $0 }
@@ -115,30 +103,19 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                // Refresh button (useful for checking server status)
                 Button {
-                    showingBrainstorm = true
+                    refreshFeatures()
                 } label: {
-                    Label("Brainstorm", systemImage: "brain.head.profile")
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
-                .help("Import ideas from Claude brainstorm")
-
-                Button {
-                    showingAddFeature = true
-                } label: {
-                    Label("Add Feature", systemImage: "plus")
-                }
-                .help("Quick add a feature")
-                .keyboardShortcut("n", modifiers: .command)
+                .help("Refresh features from server")
+                .keyboardShortcut("r", modifiers: .command)
             }
         }
     }
 
     // MARK: - Keyboard Shortcut Actions
-
-    func addNewFeature() {
-        guard appState.selectedProject != nil else { return }
-        showingAddFeature = true
-    }
 
     func refreshFeatures() {
         Task {
