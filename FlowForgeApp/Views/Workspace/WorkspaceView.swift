@@ -152,7 +152,7 @@ struct WorkspaceView: View {
                 HStack(spacing: Spacing.small) {
                     Image(systemName: "hammer.fill")
                         .foregroundColor(Accent.success)
-                    Text("IDEAS")
+                    Text("IDEAS IN PROGRESS")
                         .sectionHeaderStyle()
                 }
 
@@ -197,7 +197,7 @@ struct WorkspaceView: View {
                 HStack(spacing: Spacing.small) {
                     Image(systemName: "lightbulb.fill")
                         .foregroundColor(Accent.warning)
-                    Text("INBOX")
+                    Text("IDEA INBOX")
                         .sectionHeaderStyle()
                 }
 

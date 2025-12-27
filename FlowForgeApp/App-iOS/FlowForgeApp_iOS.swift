@@ -113,6 +113,13 @@ struct iOSRoadmapView: View {
                                 feature: feature,
                                 onRefine: { refineFeature(feature) }
                             )
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    deleteFeature(feature)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                 } header: {
@@ -181,6 +188,12 @@ struct iOSRoadmapView: View {
         brainstormFeature = feature
         showingBrainstorm = true
     }
+
+    private func deleteFeature(_ feature: Feature) {
+        Task {
+            await appState.deleteFeature(feature)
+        }
+    }
 }
 
 /// Card for ideas in the IDEA INBOX
@@ -204,12 +217,12 @@ struct iOSIdeaCard: View {
 
             // Status badge
             HStack {
-                Text(feature.status == .idea ? "Needs refinement" : "Ready to build")
+                Text(feature.status == .inbox ? "Needs refinement" : "Ready to build")
                     .font(.caption2)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(feature.status == .idea ? Color.orange.opacity(0.2) : Color.green.opacity(0.2))
-                    .foregroundColor(feature.status == .idea ? .orange : .green)
+                    .background(feature.status == .inbox ? Color.orange.opacity(0.2) : Color.green.opacity(0.2))
+                    .foregroundColor(feature.status == .inbox ? .orange : .green)
                     .clipShape(Capsule())
 
                 Spacer()

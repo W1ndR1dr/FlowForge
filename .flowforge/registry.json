@@ -704,34 +704,6 @@
       "session_id": null,
       "extensions": {}
     },
-    "wave5-vibe-input": {
-      "id": "wave5-vibe-input",
-      "title": "Vibe Input (Single Text Entry)",
-      "description": "Replace 'Add Feature' with prominent text input at top. Type idea -> Enter -> build flow.",
-      "status": "idea",
-      "priority": 1,
-      "complexity": "small",
-      "parent_id": null,
-      "children": [],
-      "depends_on": [],
-      "blocked_by": [],
-      "branch": null,
-      "worktree_path": null,
-      "created_at": "2025-12-25T00:30:00.000000",
-      "updated_at": "2025-12-25T00:30:00.000000",
-      "started_at": null,
-      "completed_at": null,
-      "spec_path": null,
-      "prompt_path": null,
-      "notes": "Wave 5 - The iconic UX: just type what you want",
-      "tags": [
-        "wave5",
-        "gui",
-        "ux"
-      ],
-      "session_id": null,
-      "extensions": {}
-    },
     "wave5-streak-badges": {
       "id": "wave5-streak-badges",
       "title": "Streak Badges & Achievements",
@@ -755,34 +727,6 @@
       "tags": [
         "wave5",
         "gamification",
-        "streaks"
-      ],
-      "session_id": null,
-      "extensions": {}
-    },
-    "wave5-streak-notifications": {
-      "id": "wave5-streak-notifications",
-      "title": "Streak Risk Notifications",
-      "description": "Notify user if streak at risk (haven't shipped today). Gentle nudge.",
-      "status": "idea",
-      "priority": 3,
-      "complexity": "small",
-      "parent_id": null,
-      "children": [],
-      "depends_on": [],
-      "blocked_by": [],
-      "branch": null,
-      "worktree_path": null,
-      "created_at": "2025-12-25T00:30:00.000000",
-      "updated_at": "2025-12-25T00:30:00.000000",
-      "started_at": null,
-      "completed_at": null,
-      "spec_path": null,
-      "prompt_path": null,
-      "notes": "Wave 5 - Don't break the chain!",
-      "tags": [
-        "wave5",
-        "notifications",
         "streaks"
       ],
       "session_id": null,
@@ -1053,30 +997,6 @@
           }
         ]
       }
-    },
-    "test-idea": {
-      "id": "test-idea",
-      "title": "test idea",
-      "description": null,
-      "status": "idea",
-      "priority": 5,
-      "complexity": "medium",
-      "parent_id": null,
-      "children": [],
-      "depends_on": [],
-      "blocked_by": [],
-      "branch": null,
-      "worktree_path": null,
-      "created_at": "2025-12-27T10:50:30.932142",
-      "updated_at": "2025-12-27T10:50:30.932149",
-      "started_at": null,
-      "completed_at": null,
-      "spec_path": null,
-      "prompt_path": null,
-      "notes": null,
-      "tags": [],
-      "session_id": null,
-      "extensions": {}
     }
   },
   "merge_queue": [],

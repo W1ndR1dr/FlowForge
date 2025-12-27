@@ -18,7 +18,7 @@ enum TerminalLauncher {
     /// Launch Claude Code in Warp at the given worktree path
     /// - Parameters:
     ///   - worktreePath: Absolute path to the worktree directory
-    ///   - prompt: Optional prompt to copy to clipboard (user can paste into Claude)
+    ///   - prompt: Optional prompt to copy to clipboard and pipe into Claude
     ///   - launchCommand: Full command from server config (e.g., "claude --dangerously-skip-permissions")
     /// - Returns: LaunchResult indicating success/failure
     @MainActor
@@ -27,15 +27,31 @@ enum TerminalLauncher {
         prompt: String? = nil,
         launchCommand: String? = nil
     ) async -> LaunchResult {
-        // Copy prompt to clipboard first (as backup/convenience)
-        if let prompt = prompt, !prompt.isEmpty {
-            copyToClipboard(prompt)
-        }
-
-        // Use server-configured command or default to claude with skip-permissions
+        // Build the claude command
         let claudeCommand = launchCommand ?? "claude --dangerously-skip-permissions"
 
-        // AppleScript to open Warp, create new tab, cd to worktree, run claude, and paste prompt
+        let fullCommand: String
+        if let prompt = prompt, !prompt.isEmpty {
+            // Copy prompt to clipboard, then pipe it into Claude
+            // This automates the "paste prompt" step
+            copyToClipboard(prompt)
+            fullCommand = "cd '\(worktreePath)' && pbpaste | \(claudeCommand)"
+        } else {
+            // No prompt - just launch (resume case)
+            fullCommand = "cd '\(worktreePath)' && \(claudeCommand)"
+        }
+
+        // Try Warp's URL scheme first (no permissions needed)
+        if let warpURL = URL(string: "warp://action/new_tab?command=\(fullCommand.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") {
+            if NSWorkspace.shared.open(warpURL) {
+                let message = prompt != nil
+                    ? "Claude Code started in Warp with prompt"
+                    : "Claude Code opened in Warp"
+                return LaunchResult(success: true, message: message)
+            }
+        }
+
+        // Fallback: AppleScript (requires Accessibility permissions)
         let script = """
         tell application "Warp"
             activate
@@ -44,18 +60,9 @@ enum TerminalLauncher {
 
         tell application "System Events"
             tell process "Warp"
-                -- New tab
                 keystroke "t" using command down
                 delay 0.5
-
-                -- cd to worktree and run claude with configured flags
-                keystroke "cd '\(worktreePath.escapedForAppleScript)' && \(claudeCommand.escapedForAppleScript)"
-                keystroke return
-
-                -- Wait for Claude to start, then paste the prompt
-                delay 2.0
-                keystroke "v" using command down
-                delay 0.2
+                keystroke "\(fullCommand.escapedForAppleScript)"
                 keystroke return
             end tell
         end tell
@@ -64,10 +71,10 @@ enum TerminalLauncher {
         let result = await runAppleScript(script)
 
         if result.success {
-            return LaunchResult(
-                success: true,
-                message: "Claude Code opened in Warp. Prompt copied to clipboard."
-            )
+            let message = prompt != nil
+                ? "Claude Code started in Warp with prompt"
+                : "Claude Code opened in Warp"
+            return LaunchResult(success: true, message: message)
         } else {
             // Fallback: Try opening Terminal.app if Warp isn't available
             let fallbackResult = await launchInDefaultTerminal(worktreePath: worktreePath)

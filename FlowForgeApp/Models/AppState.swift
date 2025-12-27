@@ -722,8 +722,8 @@ class AppState {
         guard let project = selectedProject else { return }
 
         do {
-            try await apiClient.addFeature(project: project.name, title: title, status: "idea")
-            showSuccess("Added to queue!")
+            try await apiClient.addFeature(project: project.name, title: title, status: "inbox")
+            showSuccess("Added to inbox!")
         } catch {
             self.errorMessage = "Failed to add feature: \(error.localizedDescription)"
         }

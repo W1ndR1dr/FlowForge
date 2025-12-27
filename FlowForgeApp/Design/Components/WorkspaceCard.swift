@@ -208,11 +208,11 @@ struct WorkspaceCard: View {
         isLaunching = true
         defer { isLaunching = false }
 
-        // Launch Claude Code in terminal without prompt (resume mode)
+        // Launch Claude Code in terminal with --resume to continue last conversation
         let _ = await TerminalLauncher.launchClaudeCode(
             worktreePath: worktreePath,
-            prompt: nil,  // No auto-paste on resume
-            launchCommand: "claude --dangerously-skip-permissions"
+            prompt: nil,
+            launchCommand: "claude --resume --dangerously-skip-permissions"
         )
     }
 
@@ -344,11 +344,11 @@ struct ActiveWorkspacesSection: View {
         #if os(macOS)
         guard let worktreePath = feature.worktreePath else { return }
 
-        // Launch Claude Code in terminal (resume mode - no prompt auto-paste)
+        // Launch Claude Code in terminal with --resume to continue last conversation
         let _ = await TerminalLauncher.launchClaudeCode(
             worktreePath: worktreePath,
             prompt: nil,
-            launchCommand: "claude --dangerously-skip-permissions"
+            launchCommand: "claude --resume --dangerously-skip-permissions"
         )
         #endif
     }
