@@ -12,6 +12,11 @@ The server exposes tools for:
 
 When deployed on a Raspberry Pi with Tailscale, this enables full
 FlowForge functionality from Claude Code on iPhone.
+
+Architecture (Pi-native):
+- Registry operations (list, add, update, delete) run locally on Pi
+- Git operations (start, stop, merge) require Mac via SSH
+- This allows idea capture even when MacBook is asleep
 """
 
 from dataclasses import dataclass
@@ -21,11 +26,11 @@ import json
 import os
 
 from .config import FlowForgeConfig, find_project_root
-from .registry import FeatureRegistry, FeatureStatus
-# WorktreeManager and MergeOrchestrator run on Mac via SSH
+from .registry import FeatureRegistry, FeatureStatus, Feature, Complexity
 from .prompt_builder import PromptBuilder
 from .intelligence import IntelligenceEngine
 from .remote import RemoteExecutor
+from .pi_registry import PiRegistryManager, get_pi_registry_manager
 
 
 @dataclass
@@ -42,118 +47,139 @@ class FlowForgeMCPServer:
     MCP Server implementation for FlowForge.
 
     This server runs on a Raspberry Pi and is accessed by Claude Code (iOS/Mac)
-    via Remote MCP Server configuration. It manages projects on a Mac via SSH.
-    All git operations are executed on the Mac via SSH.
+    via Remote MCP Server configuration.
+
+    Architecture:
+    - Registry operations (list, add, update, delete) use Pi-local storage
+    - Git operations (start, stop, merge) require Mac via SSH
     """
 
     def __init__(
         self,
         projects_base: Path,
-        remote_host: str,
-        remote_user: str,
+        remote_host: Optional[str] = None,
+        remote_user: Optional[str] = None,
+        pi_registry: Optional[PiRegistryManager] = None,
     ):
         """
         Initialize the MCP server.
 
-        The server runs on Pi and connects to Mac via SSH for all git operations.
-
         Args:
             projects_base: Base directory containing FlowForge projects (Mac path)
-            remote_host: SSH host for Mac (e.g., "brians-macbook-pro")
+            remote_host: SSH host for Mac (for git operations)
             remote_user: SSH username for Mac
+            pi_registry: Pi-local registry manager (created if not provided)
         """
         self.projects_base = Path(projects_base)
         self.remote_host = remote_host
         self.remote_user = remote_user
 
-        # Remote executor for Pi → Mac SSH operations
-        self.remote_executor = RemoteExecutor(remote_host, remote_user)
+        # Pi-local registry manager (for offline-capable registry operations)
+        self.pi_registry = pi_registry or get_pi_registry_manager()
 
-        # Cache project configs
-        self._project_cache: dict[str, tuple[FlowForgeConfig, FeatureRegistry]] = {}
+        # Remote executor for Pi → Mac SSH operations (git only)
+        self.remote_executor = None
+        if remote_host and remote_user:
+            self.remote_executor = RemoteExecutor(remote_host, remote_user)
+
+        # Track Mac online status
+        self._mac_online: Optional[bool] = None
+
+    def _check_mac_online(self) -> bool:
+        """Check if Mac is reachable via SSH."""
+        if not self.remote_executor:
+            return False
+
+        if self._mac_online is not None:
+            return self._mac_online
+
+        try:
+            result = self.remote_executor.run_command(["echo", "ok"], timeout=5)
+            self._mac_online = result.success and result.stdout.strip() == "ok"
+        except Exception:
+            self._mac_online = False
+
+        return self._mac_online
+
+    def _require_mac(self) -> None:
+        """Raise an error if Mac is not available (for git operations)."""
+        if not self._check_mac_online():
+            raise ValueError(
+                "Mac is offline. This operation requires git access on your Mac. "
+                "Please open your MacBook to continue."
+            )
+
+    def _auto_migrate_project(self, project_name: str) -> bool:
+        """
+        Auto-migrate a project from Mac to Pi-local storage.
+
+        Called when a project is requested but not found locally.
+        Returns True if migration succeeded, False if Mac is offline.
+        """
+        if not self._check_mac_online():
+            return False
+
+        project_path = self.projects_base / project_name
+        flowforge_dir = project_path / ".flowforge"
+
+        # Check project exists on Mac
+        if not self.remote_executor.dir_exists(flowforge_dir):
+            return False
+
+        # Read registry and config from Mac
+        registry_content = self.remote_executor.read_file(flowforge_dir / "registry.json")
+        config_content = self.remote_executor.read_file(flowforge_dir / "config.json")
+
+        if not registry_content:
+            return False
+
+        # Import to Pi-local storage
+        self.pi_registry.import_from_mac(
+            project_name=project_name,
+            registry_json=registry_content,
+            config_json=config_content,
+            mac_path=str(project_path),
+        )
+
+        return True
 
     def _get_project_context(
         self, project_name: str
     ) -> tuple[Path, FlowForgeConfig, FeatureRegistry]:
-        """Get or load project context via SSH from Mac."""
-        project_path = self.projects_base / project_name
-        flowforge_dir = project_path / ".flowforge"
-
-        # Check project exists via SSH
-        if not self.remote_executor.dir_exists(project_path):
-            raise ValueError(f"Project not found: {project_name}")
-        if not self.remote_executor.dir_exists(flowforge_dir):
-            raise ValueError(f"Project not initialized: {project_name}")
-
-        # Load config and registry via SSH
-        return self._get_remote_project_context(project_name, project_path, flowforge_dir)
-
-    def _invalidate_cache(self, project_name: str) -> None:
-        """Invalidate cache for a project."""
-        project_path = self.projects_base / project_name
-        cache_key = str(project_path)
-        if cache_key in self._project_cache:
-            del self._project_cache[cache_key]
-
-    def _get_remote_project_context(
-        self,
-        project_name: str,
-        project_path: Path,
-        flowforge_dir: Path,
-    ) -> tuple[Path, FlowForgeConfig, FeatureRegistry]:
         """
-        Load project context via SSH from remote Mac.
+        Get project context from Pi-local storage.
 
-        Reads config.json and registry.json via SSH and constructs
-        the config and registry objects from the JSON data.
+        If project not found locally but Mac is online, auto-migrate.
         """
-        from .config import ProjectConfig
-
-        # Read config.json via SSH
-        config_path = flowforge_dir / "config.json"
-        config_content = self.remote_executor.read_file(config_path)
-        if not config_content:
-            raise ValueError(f"Could not read config for: {project_name}")
-
-        config_data = json.loads(config_content)
-        project_data = config_data.get("project", {})
-        project_config = ProjectConfig(**project_data)
-        config = FlowForgeConfig(
-            project=project_config,
-            version=config_data.get("version", "1.0.0"),
-        )
-
-        # Read registry.json via SSH
-        registry_path = flowforge_dir / "registry.json"
-        registry_content = self.remote_executor.read_file(registry_path)
-
-        # Create a registry object and populate it from JSON
-        # We create a "virtual" registry that operates on cached data
-        registry = FeatureRegistry(project_path)
-
-        if registry_content:
-            registry_data = json.loads(registry_content)
-
-            # Populate features
-            from .registry import Feature, MergeQueueItem, ShippingStats
-            for fid, fdata in registry_data.get("features", {}).items():
-                registry._features[fid] = Feature.from_dict(fdata)
-
-            # Populate merge queue
-            for item in registry_data.get("merge_queue", []):
-                registry._merge_queue.append(MergeQueueItem(**item))
-
-            # Populate shipping stats
-            if "shipping_stats" in registry_data:
-                registry._shipping_stats = ShippingStats.from_dict(
-                    registry_data["shipping_stats"]
+        # Check Pi-local storage first
+        if not self.pi_registry.registry_exists(project_name):
+            # Try to auto-migrate from Mac
+            if not self._auto_migrate_project(project_name):
+                raise ValueError(
+                    f"Project not found: {project_name}. "
+                    "Mac is offline or project doesn't exist."
                 )
 
-        # Cache the loaded data
-        cache_key = str(project_path)
-        self._project_cache[cache_key] = (config, registry)
+        # Load from Pi-local storage
+        registry = self.pi_registry.get_registry(project_name)
+        config = self.pi_registry.get_config(project_name)
 
-        return project_path, config, registry
+        # Get Mac path for git operations
+        mac_path = Path(self.pi_registry._get_mac_path(project_name))
+
+        # If no config stored, create a minimal one
+        if config is None:
+            from .config import ProjectConfig
+            config = FlowForgeConfig(
+                project=ProjectConfig(name=project_name),
+                version="1.0.0",
+            )
+
+        return mac_path, config, registry
+
+    def _save_registry(self, project_name: str, registry: FeatureRegistry) -> None:
+        """Save registry to Pi-local storage."""
+        self.pi_registry.save_registry(project_name, registry)
 
     # =========================================================================
     # MCP Tools
@@ -380,16 +406,30 @@ class FlowForgeMCPServer:
     # =========================================================================
 
     def _list_projects(self) -> MCPToolResult:
-        """List all FlowForge-initialized projects."""
-        projects = []
+        """
+        List all FlowForge-initialized projects.
 
-        # Get projects from Mac via SSH
-        remote_projects = self.remote_executor.get_projects(self.projects_base)
-        for p in remote_projects:
-            projects.append({
-                "name": p["name"],
-                "path": p["path"],
-            })
+        Uses Pi-local storage. If Mac is online, also discovers new projects.
+        """
+        # Get projects from Pi-local storage
+        projects = self.pi_registry.list_projects()
+
+        # If Mac is online, check for new projects and auto-migrate
+        if self._check_mac_online():
+            try:
+                remote_projects = self.remote_executor.get_projects(self.projects_base)
+                local_names = {p["name"] for p in projects}
+
+                for p in remote_projects:
+                    if p["name"] not in local_names:
+                        # Auto-migrate new project
+                        if self._auto_migrate_project(p["name"]):
+                            projects.append({
+                                "name": p["name"],
+                                "path": p["path"],
+                            })
+            except Exception:
+                pass  # Ignore errors, use local data
 
         return MCPToolResult(
             success=True,
@@ -455,7 +495,18 @@ class FlowForgeMCPServer:
         feature_id: str,
         skip_experts: bool = False,
     ) -> MCPToolResult:
-        """Start working on a feature."""
+        """
+        Start working on a feature.
+
+        This operation REQUIRES Mac to be online (creates git worktree).
+        Registry updates happen locally on Pi.
+        """
+        # Git operations require Mac
+        try:
+            self._require_mac()
+        except ValueError as e:
+            return MCPToolResult(success=False, message=str(e))
+
         try:
             project_path, config, registry = self._get_project_context(project)
         except ValueError as e:
@@ -517,36 +568,23 @@ class FlowForgeMCPServer:
             include_research=True,
         )
 
-        # Save prompt via SSH
+        # Save prompt via SSH (prompts need to be on Mac for Claude Code)
         prompt_filename = f"{feature_id}.md"
         prompt_dir = project_path / ".flowforge" / "prompts"
         prompt_path = prompt_dir / prompt_filename
-
-        # Write prompt file on Mac
         self.remote_executor.write_file(prompt_path, prompt)
 
-        # Update registry on Mac
+        # Update registry locally on Pi
         from datetime import datetime
-        registry_path = project_path / ".flowforge" / "registry.json"
-        registry_content = self.remote_executor.read_file(registry_path)
-
-        if registry_content:
-            import json
-            registry_data = json.loads(registry_content)
-
-            # Update the feature
-            if feature_id in registry_data.get("features", {}):
-                registry_data["features"][feature_id]["status"] = "in-progress"
-                registry_data["features"][feature_id]["branch"] = branch_name
-                registry_data["features"][feature_id]["worktree_path"] = str(worktree_path)
-                registry_data["features"][feature_id]["prompt_path"] = str(prompt_path)
-                registry_data["features"][feature_id]["started_at"] = datetime.now().isoformat()
-
-                # Write updated registry
-                updated_json = json.dumps(registry_data, indent=2)
-                self.remote_executor.write_file(registry_path, updated_json)
-
-        self._invalidate_cache(project)
+        registry.update_feature(
+            feature_id,
+            status=FeatureStatus.IN_PROGRESS,
+            branch=branch_name,
+            worktree_path=str(worktree_path),
+            prompt_path=str(prompt_path),
+            started_at=datetime.now().isoformat(),
+        )
+        self._save_registry(project, registry)
 
         return MCPToolResult(
             success=True,
@@ -561,7 +599,12 @@ class FlowForgeMCPServer:
         )
 
     def _stop_feature(self, project: str, feature_id: str) -> MCPToolResult:
-        """Mark a feature as ready for review."""
+        """
+        Mark a feature as ready for review.
+
+        This is a Pi-local operation - works even when Mac is offline.
+        (Git state isn't changed, just registry status)
+        """
         try:
             project_path, config, registry = self._get_project_context(project)
         except ValueError as e:
@@ -574,17 +617,16 @@ class FlowForgeMCPServer:
                 message=f"Feature not found: {feature_id}",
             )
 
-        # Execute via SSH on Mac
-        result = self.remote_executor.run_command(
-            ["forge", "stop", feature_id],
-            cwd=project_path
-        )
-        if result.returncode != 0:
+        if feature.status != FeatureStatus.IN_PROGRESS:
             return MCPToolResult(
                 success=False,
-                message=f"Failed to stop feature: {result.stderr or result.stdout}",
+                message=f"Feature is not in-progress (status: {feature.status.value})",
             )
-        self._invalidate_cache(project)
+
+        # Update registry locally on Pi
+        registry.update_feature(feature_id, status=FeatureStatus.REVIEW)
+        self._save_registry(project, registry)
+
         return MCPToolResult(
             success=True,
             message=f"Feature '{feature.title}' marked as ready for review",
@@ -602,7 +644,17 @@ class FlowForgeMCPServer:
         project: str,
         feature_id: Optional[str] = None,
     ) -> MCPToolResult:
-        """Check merge readiness via SSH on Mac."""
+        """
+        Check merge readiness.
+
+        This operation REQUIRES Mac to be online (runs git merge dry-run).
+        """
+        # Git operations require Mac
+        try:
+            self._require_mac()
+        except ValueError as e:
+            return MCPToolResult(success=False, message=str(e))
+
         try:
             project_path, config, registry = self._get_project_context(project)
         except ValueError as e:
@@ -674,7 +726,18 @@ class FlowForgeMCPServer:
         feature_id: str,
         skip_validation: bool = False,
     ) -> MCPToolResult:
-        """Merge a feature into main via SSH on Mac."""
+        """
+        Merge a feature into main.
+
+        This operation REQUIRES Mac to be online (runs git merge).
+        Registry is updated locally on Pi after successful merge.
+        """
+        # Git operations require Mac
+        try:
+            self._require_mac()
+        except ValueError as e:
+            return MCPToolResult(success=False, message=str(e))
+
         try:
             project_path, config, registry = self._get_project_context(project)
         except ValueError as e:
@@ -695,15 +758,25 @@ class FlowForgeMCPServer:
         # Run merge via SSH
         result = self.remote_executor.run_command(cmd, cwd=project_path)
 
-        self._invalidate_cache(project)
-
         if result.returncode == 0:
+            # Update registry locally on Pi
+            from datetime import datetime
+            registry.update_feature(
+                feature_id,
+                status=FeatureStatus.COMPLETED,
+                completed_at=datetime.now().isoformat(),
+            )
+            # Record the ship for streak tracking
+            registry.record_ship()
+            self._save_registry(project, registry)
+
             return MCPToolResult(
                 success=True,
                 message=f"Merged {feature.title} into {config.project.main_branch}",
                 data={
                     "feature_id": feature_id,
                     "merged_into": config.project.main_branch,
+                    "shipping_stats": registry.get_shipping_stats().to_dict(),
                 },
             )
         else:
@@ -726,13 +799,17 @@ class FlowForgeMCPServer:
         priority: int = 5,
         status: str = "inbox",  # Default to inbox for quick capture
     ) -> MCPToolResult:
-        """Add a new feature to a project."""
+        """
+        Add a new feature to a project.
+
+        This is a Pi-local operation - works even when Mac is offline.
+        """
         try:
             project_path, config, registry = self._get_project_context(project)
         except ValueError as e:
             return MCPToolResult(success=False, message=str(e))
 
-        from .registry import Feature, FeatureStatus, Complexity, MAX_PLANNED_FEATURES
+        from .registry import MAX_PLANNED_FEATURES
 
         # Convert status string to enum
         try:
@@ -772,23 +849,20 @@ class FlowForgeMCPServer:
                 message=f"Feature already exists: {feature_id}",
             )
 
-        # Create feature via SSH (forge add on Mac)
-        cmd = ["forge", "add", "-C", str(project_path), title]
-        if status:
-            cmd.extend(["--status", status])
-        if description:
-            cmd.extend(["--description", description])
+        # Create feature locally (Pi-local write - works offline!)
+        feature = Feature(
+            id=feature_id,
+            title=title,
+            description=description or "",
+            status=feature_status,
+            priority=priority,
+            complexity=Complexity.MEDIUM,
+            tags=tags or [],
+        )
+        registry.add_feature(feature)
 
-        result = self.remote_executor.run_command(cmd, cwd=project_path)
-        if result.returncode != 0:
-            return MCPToolResult(
-                success=False,
-                message=f"Failed to add feature: {result.stderr or result.stdout}",
-            )
-
-        # Generate ID for response (matches what forge add creates)
-        feature_id = FeatureRegistry.generate_id(title)
-        self._invalidate_cache(project)
+        # Save to Pi-local storage
+        self._save_registry(project, registry)
 
         # Show remaining slots (only relevant for idea features)
         remaining = MAX_PLANNED_FEATURES - registry.count_ideas()
@@ -821,7 +895,11 @@ class FlowForgeMCPServer:
         complexity: Optional[str] = None,
         tags: Optional[list[str]] = None,
     ) -> MCPToolResult:
-        """Update a feature's attributes."""
+        """
+        Update a feature's attributes.
+
+        This is a Pi-local operation - works even when Mac is offline.
+        """
         try:
             project_path, config, registry = self._get_project_context(project)
         except ValueError as e:
@@ -855,40 +933,24 @@ class FlowForgeMCPServer:
                 message="No updates provided",
             )
 
-        # Update registry on Mac via SSH
-        import json
-        from datetime import datetime
-        registry_path = project_path / ".flowforge" / "registry.json"
-        registry_content = self.remote_executor.read_file(registry_path)
+        # Update registry locally (Pi-local write - works offline!)
+        registry.update_feature(feature_id, **updates)
 
-        if not registry_content:
-            return MCPToolResult(success=False, message="Could not read registry")
+        # Save to Pi-local storage
+        self._save_registry(project, registry)
 
-        registry_data = json.loads(registry_content)
-
-        if feature_id not in registry_data.get("features", {}):
-            return MCPToolResult(success=False, message=f"Feature not found: {feature_id}")
-
-        # Apply updates
-        feature_data = registry_data["features"][feature_id]
-        for key, value in updates.items():
-            feature_data[key] = value
-        feature_data["updated_at"] = datetime.now().isoformat()
-
-        # Write updated registry
-        updated_json = json.dumps(registry_data, indent=2)
-        self.remote_executor.write_file(registry_path, updated_json)
-        self._invalidate_cache(project)
+        # Get updated feature
+        updated_feature = registry.get_feature(feature_id)
 
         return MCPToolResult(
             success=True,
-            message=f"Updated feature: {feature_data.get('title', feature_id)}",
+            message=f"Updated feature: {updated_feature.title}",
             data={
                 "feature_id": feature_id,
-                "title": feature_data.get("title"),
-                "status": feature_data.get("status"),
-                "priority": feature_data.get("priority"),
-                "tags": feature_data.get("tags", []),
+                "title": updated_feature.title,
+                "status": updated_feature.status.value,
+                "priority": updated_feature.priority,
+                "tags": updated_feature.tags,
             },
         )
 
@@ -898,48 +960,30 @@ class FlowForgeMCPServer:
         feature_id: str,
         force: bool = False,
     ) -> MCPToolResult:
-        """Delete a feature from the registry."""
+        """
+        Delete a feature from the registry.
+
+        This is a Pi-local operation - works even when Mac is offline.
+        """
         try:
             project_path, config, registry = self._get_project_context(project)
         except ValueError as e:
             return MCPToolResult(success=False, message=str(e))
 
-        # Delete from registry on Mac via SSH
-        import json
-        registry_path = project_path / ".flowforge" / "registry.json"
-        registry_content = self.remote_executor.read_file(registry_path)
-
-        if not registry_content:
-            return MCPToolResult(success=False, message="Could not read registry")
-
-        registry_data = json.loads(registry_content)
-
-        if feature_id not in registry_data.get("features", {}):
+        feature = registry.get_feature(feature_id)
+        if not feature:
             return MCPToolResult(success=False, message=f"Feature not found: {feature_id}")
 
-        feature_data = registry_data["features"][feature_id]
-        feature_title = feature_data.get("title", feature_id)
+        feature_title = feature.title
 
-        # Safety checks (unless force=True)
-        if not force:
-            if feature_data.get("children"):
-                return MCPToolResult(
-                    success=False,
-                    message=f"Feature has children. Use force=True to delete.",
-                )
-            if feature_data.get("status") == "in-progress":
-                return MCPToolResult(
-                    success=False,
-                    message="Feature is in-progress. Use force=True to delete.",
-                )
+        # Delete from registry locally (Pi-local write - works offline!)
+        try:
+            registry.remove_feature(feature_id, force=force)
+        except ValueError as e:
+            return MCPToolResult(success=False, message=str(e))
 
-        # Remove the feature
-        del registry_data["features"][feature_id]
-
-        # Write updated registry
-        updated_json = json.dumps(registry_data, indent=2)
-        self.remote_executor.write_file(registry_path, updated_json)
-        self._invalidate_cache(project)
+        # Save to Pi-local storage
+        self._save_registry(project, registry)
 
         return MCPToolResult(
             success=True,
@@ -962,8 +1006,15 @@ class FlowForgeMCPServer:
         """
         Initialize FlowForge in a project directory.
 
-        For remote mode, runs forge init via SSH on the Mac.
+        This operation REQUIRES Mac to be online (creates .flowforge on Mac).
+        After initialization, registry is auto-migrated to Pi.
         """
+        # Git operations require Mac
+        try:
+            self._require_mac()
+        except ValueError as e:
+            return MCPToolResult(success=False, message=str(e))
+
         project_path = self.projects_base / project
         flowforge_dir = project_path / ".flowforge"
 
@@ -1006,6 +1057,9 @@ class FlowForgeMCPServer:
                 success=False,
                 message="Initialization command succeeded but .flowforge not created",
             )
+
+        # Auto-migrate to Pi-local storage
+        self._auto_migrate_project(project)
 
         return MCPToolResult(
             success=True,

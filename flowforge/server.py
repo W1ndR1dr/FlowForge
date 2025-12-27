@@ -27,11 +27,10 @@ from .brainstorm import parse_proposals, Proposal, ProposalStatus, check_shippab
 from .prompt_builder import PromptBuilder
 from .registry import FeatureRegistry
 from .intelligence import IntelligenceEngine
-from .cache import CacheManager, get_cache_manager
-from .sync import SyncManager, get_sync_manager
 from .remote import RemoteExecutor
 from .worktree import WorktreeManager
 from .paths import PathTranslator, create_path_translator
+from .pi_registry import PiRegistryManager, get_pi_registry_manager
 
 
 # =============================================================================
@@ -113,63 +112,48 @@ ws_manager = ConnectionManager()
 # =============================================================================
 
 mcp_server: Optional[FlowForgeMCPServer] = None
-sync_manager: Optional[SyncManager] = None
-cache_manager: Optional[CacheManager] = None
+pi_registry: Optional[PiRegistryManager] = None
 remote_executor: Optional[RemoteExecutor] = None
 path_translator: Optional[PathTranslator] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize MCP server, cache, and sync on startup."""
-    global mcp_server, sync_manager, cache_manager, remote_executor, path_translator
+    """Initialize MCP server on startup."""
+    global mcp_server, pi_registry, remote_executor, path_translator
 
     config = get_config()
 
     # Initialize path translator for Pi→Mac path conversion
     path_translator = create_path_translator()
 
-    mcp_server = FlowForgeMCPServer(
-        projects_base=config["projects_base"],
-        remote_host=config["remote_host"],
-        remote_user=config["remote_user"],
-    )
+    # Initialize Pi-local registry manager
+    pi_registry = get_pi_registry_manager()
 
-    # Initialize cache manager
-    cache_manager = get_cache_manager()
-
-    # Initialize sync manager if running in remote mode (Pi)
+    # Initialize remote executor if running in remote mode (Pi)
     if config["remote_host"]:
         remote_executor = RemoteExecutor(
             host=config["remote_host"],
             user=config["remote_user"],
         )
-        sync_manager = SyncManager(remote_executor, cache_manager)
 
-        # Register callback for status changes
-        def on_mac_status_change(online: bool):
-            status = "online" if online else "offline"
-            print(f"  Mac status: {status}")
+    # Initialize MCP server with Pi-local registry
+    mcp_server = FlowForgeMCPServer(
+        projects_base=config["projects_base"],
+        remote_host=config["remote_host"],
+        remote_user=config["remote_user"],
+        pi_registry=pi_registry,
+    )
 
-        sync_manager.on_status_change(on_mac_status_change)
-
-        # Start background sync tasks
-        await sync_manager.start_background_tasks()
-        print(f"  Sync: Background tasks started")
-
-    print(f"FlowForge MCP Server started")
+    print(f"FlowForge MCP Server started (Pi-native architecture)")
     print(f"  Projects: {config['projects_base']}")
+    print(f"  Registry: {pi_registry.base_path}")
     if config["mac_projects_base"]:
         print(f"  Mac Projects: {config['mac_projects_base']}")
     if config["remote_host"]:
         print(f"  Remote: {config['remote_user']}@{config['remote_host']}")
-    print(f"  Cache: {cache_manager.db_path}")
 
     yield
-
-    # Stop background tasks
-    if sync_manager:
-        await sync_manager.stop_background_tasks()
 
     print("FlowForge MCP Server stopped")
 
@@ -229,61 +213,17 @@ async def list_projects():
     """
     List all FlowForge projects.
 
-    If Mac is offline, returns cached project list.
-    Response includes `from_cache` and `mac_online` flags.
+    Uses Pi-local storage. If Mac is online, also discovers new projects.
     """
-    # Check if we should use cache (Mac offline in remote mode)
-    mac_online = True
-    from_cache = False
-
-    if sync_manager and not sync_manager.mac_online:
-        # Mac is offline - use cache
-        mac_online = False
-        from_cache = True
-        cached_projects = cache_manager.get_all_cached_projects()
-
-        if cached_projects:
-            return {
-                "projects": cached_projects,
-                "from_cache": True,
-                "mac_online": False,
-                "pending_sync": cache_manager.get_pending_count(),
-            }
-        else:
-            # No cache available
-            raise HTTPException(
-                status_code=503,
-                detail="Mac is offline and no cached data available"
-            )
-
-    # Mac is online (or running locally) - fetch fresh data
     result = mcp_server._list_projects()
     if not result.success:
-        # Try cache as fallback
-        if cache_manager:
-            cached_projects = cache_manager.get_all_cached_projects()
-            if cached_projects:
-                return {
-                    "projects": cached_projects,
-                    "from_cache": True,
-                    "mac_online": False,
-                    "pending_sync": cache_manager.get_pending_count(),
-                }
         raise HTTPException(status_code=500, detail=result.message)
 
-    # Update cache with fresh data
-    if cache_manager and result.data and "projects" in result.data:
-        for project in result.data["projects"]:
-            cache_manager.cache_project(
-                name=project["name"],
-                path=project["path"],
-            )
+    # Check Mac online status
+    mac_online = mcp_server._check_mac_online()
 
-    # Add metadata to response
     response = result.data
-    response["from_cache"] = False
-    response["mac_online"] = True
-    response["pending_sync"] = cache_manager.get_pending_count() if cache_manager else 0
+    response["mac_online"] = mac_online
 
     return response
 
@@ -297,33 +237,20 @@ async def list_projects():
 @app.get("/api/system/status")
 async def get_system_status():
     """
-    Get system status including Mac connectivity and pending operations.
+    Get system status including Mac connectivity.
 
     Returns:
         mac_online: Whether Mac is currently reachable
-        last_check: Timestamp of last health check
-        last_sync: Timestamp of last successful sync
-        pending_operations: Number of queued operations
-        cache_stats: Cache database statistics
+        local_projects: Number of projects in Pi-local storage
     """
-    if sync_manager:
-        mac_status = sync_manager.get_status()
-        return {
-            "mac_online": mac_status.online,
-            "last_check": mac_status.last_check,
-            "last_sync": mac_status.last_successful_sync,
-            "pending_operations": mac_status.pending_operations,
-            "cache_stats": cache_manager.get_cache_stats() if cache_manager else None,
-        }
-    else:
-        # Running in local mode (on Mac directly)
-        return {
-            "mac_online": True,
-            "last_check": None,
-            "last_sync": None,
-            "pending_operations": 0,
-            "cache_stats": cache_manager.get_cache_stats() if cache_manager else None,
-        }
+    mac_online = mcp_server._check_mac_online()
+    local_projects = len(pi_registry.list_projects()) if pi_registry else 0
+
+    return {
+        "mac_online": mac_online,
+        "local_projects": local_projects,
+        "registry_path": str(pi_registry.base_path) if pi_registry else None,
+    }
 
 
 # =============================================================================
@@ -455,61 +382,14 @@ async def list_features(project: str, status: Optional[str] = None):
     """
     List features in a project.
 
-    If Mac is offline, returns cached features.
-    Response includes `from_cache` and `mac_online` flags.
+    Uses Pi-local storage. Works even when Mac is offline.
     """
-    # Check if we should use cache (Mac offline in remote mode)
-    if sync_manager and not sync_manager.mac_online:
-        # Mac is offline - use cache
-        cached_features = cache_manager.get_cached_features(project)
-
-        if cached_features:
-            # Filter by status if requested
-            if status:
-                cached_features = [f for f in cached_features if f.get("status") == status]
-
-            return {
-                "features": cached_features,
-                "from_cache": True,
-                "mac_online": False,
-                "pending_sync": cache_manager.get_pending_count(project),
-            }
-        else:
-            raise HTTPException(
-                status_code=503,
-                detail=f"Mac is offline and no cached data for {project}"
-            )
-
-    # Mac is online - fetch fresh data
     result = mcp_server._list_features(project, status)
     if not result.success:
-        # Try cache as fallback
-        if cache_manager:
-            cached_features = cache_manager.get_cached_features(project)
-            if cached_features:
-                if status:
-                    cached_features = [f for f in cached_features if f.get("status") == status]
-                return {
-                    "features": cached_features,
-                    "from_cache": True,
-                    "mac_online": False,
-                    "pending_sync": cache_manager.get_pending_count(project),
-                }
         raise HTTPException(status_code=404, detail=result.message)
 
-    # Update cache with fresh data (need to get full registry)
-    if cache_manager and sync_manager:
-        # The MCP server should have cached the registry - we can update our cache
-        cached_project = cache_manager.get_cached_project(project)
-        if cached_project:
-            # Registry already cached via project endpoint
-            pass
-
-    # Add metadata to response
     response = result.data
-    response["from_cache"] = False
-    response["mac_online"] = True
-    response["pending_sync"] = cache_manager.get_pending_count(project) if cache_manager else 0
+    response["mac_online"] = mcp_server._check_mac_online()
 
     return response
 
@@ -744,14 +624,8 @@ async def start_feature(
     Start working on a feature.
 
     This operation REQUIRES Mac to be online (creates git worktree).
+    The MCP server will return an error if Mac is offline.
     """
-    # Check if Mac is offline
-    if sync_manager and not sync_manager.mac_online:
-        raise HTTPException(
-            status_code=503,
-            detail="Mac is offline. Starting a feature requires creating a git worktree on your Mac. Please open your MacBook to continue."
-        )
-
     result = mcp_server._start_feature(project, feature_id, request.skip_experts)
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
@@ -810,14 +684,8 @@ async def merge_feature(
     Merge a feature into main.
 
     This operation REQUIRES Mac to be online (performs git merge).
+    The MCP server will return an error if Mac is offline.
     """
-    # Check if Mac is offline
-    if sync_manager and not sync_manager.mac_online:
-        raise HTTPException(
-            status_code=503,
-            detail="Mac is offline. Merging requires git access on your Mac. Please open your MacBook to continue."
-        )
-
     result = mcp_server._merge_feature(project, feature_id, request.skip_validation)
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
@@ -839,78 +707,9 @@ async def add_feature(project: str, request: AddFeatureRequest):
     """
     Add a new feature.
 
-    If Mac is offline, queues the operation for later sync.
+    This is a Pi-local operation - works even when Mac is offline.
     Default status is 'inbox' for quick capture (not counted in slot limit).
     """
-    # Check if Mac is offline
-    if sync_manager and not sync_manager.mac_online:
-        # Queue the operation for later
-        op_id = cache_manager.queue_operation(
-            project_name=project,
-            operation="add_feature",
-            payload={
-                "title": request.title,
-                "description": request.description,
-                "tags": request.tags,
-                "priority": request.priority,
-                "status": request.status,
-            }
-        )
-
-        # Generate a temporary ID for UI feedback
-        from .registry import FeatureRegistry
-        temp_id = FeatureRegistry.generate_id(request.title)
-
-        return {
-            "id": temp_id,
-            "title": request.title,
-            "status": request.status,
-            "queued": True,
-            "operation_id": op_id,
-            "message": "Feature queued - will be created when Mac comes online",
-            "mac_online": False,
-        }
-
-    # Mac is online - proceed
-    # If running in remote mode (Pi), execute via SSH to Mac
-    if remote_executor:
-        # Build forge add command using venv's forge with -C for project dir
-        config = get_config()
-        project_path = Path(config["projects_base"]) / project
-        # Translate to Mac path for SSH command
-        if path_translator:
-            mac_project_path = path_translator.resolve_for_mac(str(project_path))
-        else:
-            mac_project_path = str(project_path)
-        forge_bin = Path(mac_project_path) / ".venv" / "bin" / "forge"
-        # Use -C to avoid cd quoting issues through SSH
-        # Note: -C comes after 'add' because it's an option for that subcommand
-        cmd = [str(forge_bin), "add", "-C", mac_project_path, request.title]
-        if request.status:
-            cmd.extend(["--status", request.status])
-        if request.description:
-            cmd.extend(["--description", request.description])
-
-        result = remote_executor.run_command(cmd)  # No cwd needed with -C
-        if not result.success:
-            raise HTTPException(status_code=400, detail=result.stderr or "Failed to add feature")
-
-        # Parse feature ID from output
-        from .registry import FeatureRegistry
-        feature_id = FeatureRegistry.generate_id(request.title)
-
-        # Broadcast update
-        await ws_manager.broadcast_feature_update(project, feature_id, "created")
-
-        return {
-            "feature_id": feature_id,
-            "title": request.title,
-            "status": request.status or "inbox",
-            "mac_online": True,
-            "queued": False,
-        }
-
-    # Local mode - proceed directly
     result = mcp_server._add_feature(
         project,
         request.title,
@@ -923,12 +722,10 @@ async def add_feature(project: str, request: AddFeatureRequest):
         raise HTTPException(status_code=400, detail=result.message)
 
     # Broadcast update
-    feature_id = result.data.get("id") if isinstance(result.data, dict) else None
+    feature_id = result.data.get("feature_id")
     if feature_id:
         await ws_manager.broadcast_feature_update(project, feature_id, "created")
 
-    result.data["mac_online"] = True
-    result.data["queued"] = False
     return result.data
 
 
