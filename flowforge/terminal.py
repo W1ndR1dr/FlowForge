@@ -12,9 +12,14 @@ Supported terminals:
 
 import subprocess
 import shutil
+import platform
 from pathlib import Path
 from typing import Optional
 from enum import Enum
+
+
+# Terminal launching only works on macOS (uses osascript)
+IS_MACOS = platform.system() == "Darwin"
 
 
 class Terminal(str, Enum):
@@ -54,6 +59,10 @@ def open_terminal_in_directory(
     Returns:
         True if successful, False otherwise
     """
+    if not IS_MACOS:
+        # Terminal launching requires macOS osascript
+        return False
+
     if terminal == Terminal.AUTO:
         terminal = detect_terminal()
 

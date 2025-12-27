@@ -619,32 +619,6 @@ async def get_status(project: str):
     return result.data
 
 
-@app.get("/api/{project}/github-health")
-async def get_github_health(project: str):
-    """
-    Get GitHub health check for a project.
-
-    Checks:
-    - Git repository exists
-    - Origin remote configured
-    - SSH authentication works
-    - Main branch exists
-    - Similar repos on GitHub
-    """
-    from .github_health import GitHubHealthChecker
-
-    project_path = mcp_server.projects_base / project
-    if not project_path.exists():
-        raise HTTPException(status_code=404, detail=f"Project not found: {project}")
-
-    checker = GitHubHealthChecker(project_path)
-    report = checker.run_all_checks()
-    similar = checker.find_similar_repos()
-    report.similar_repos = similar
-
-    return report.to_dict()
-
-
 # =============================================================================
 # Project Health Check (Registry vs Git State)
 # =============================================================================
@@ -852,28 +826,6 @@ async def reconcile_feature(project: str, feature_id: str, request: ReconcileReq
         )
 
 
-class FixGitHubRequest(BaseModel):
-    issues: list[str] = []
-
-
-@app.post("/api/{project}/github-health/fix")
-async def fix_github_issues(project: str, request: FixGitHubRequest):
-    """Auto-fix GitHub issues for a project."""
-    from .github_health import GitHubHealthChecker
-
-    project_path = mcp_server.projects_base / project
-    if not project_path.exists():
-        raise HTTPException(status_code=404, detail=f"Project not found: {project}")
-
-    checker = GitHubHealthChecker(project_path)
-    results = checker.auto_fix(request.issues)
-
-    return {
-        "fixed": [k for k, v in results.items() if v],
-        "failed": [k for k, v in results.items() if not v],
-    }
-
-
 class StartFeatureRequest(BaseModel):
     skip_experts: bool = False
 
@@ -1021,10 +973,15 @@ async def add_feature(project: str, request: AddFeatureRequest):
         # Build forge add command using venv's forge with -C for project dir
         config = get_config()
         project_path = Path(config["projects_base"]) / project
-        forge_bin = project_path / ".venv" / "bin" / "forge"
+        # Translate to Mac path for SSH command
+        if path_translator:
+            mac_project_path = path_translator.resolve_for_mac(str(project_path))
+        else:
+            mac_project_path = str(project_path)
+        forge_bin = Path(mac_project_path) / ".venv" / "bin" / "forge"
         # Use -C to avoid cd quoting issues through SSH
         # Note: -C comes after 'add' because it's an option for that subcommand
-        cmd = [str(forge_bin), "add", "-C", str(project_path), request.title]
+        cmd = [str(forge_bin), "add", "-C", mac_project_path, request.title]
         if request.status:
             cmd.extend(["--status", request.status])
         if request.description:
@@ -1277,7 +1234,7 @@ async def get_git_status(project: str, feature_id: str):
 
     # Get worktree status
     worktree_manager = WorktreeManager(project_path)
-    status = worktree_manager.get_worktree_status(feature_id)
+    status = worktree_manager.get_status(feature_id)
 
     return {
         "exists": status.exists,
