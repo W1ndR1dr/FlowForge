@@ -1,15 +1,16 @@
 """
 BrainstormAgent - Chat-to-spec conversations via Claude CLI.
 
-This agent runs Claude Code CLI in streaming mode to enable real-time
-brainstorming conversations. It's designed to run on the Pi and use the
-user's authenticated Claude Max subscription.
+This agent runs Claude Code CLI to enable real-time brainstorming conversations.
+It's designed to run on the Pi and use the user's authenticated Claude Max
+subscription (NOT API keys - uses the CLI which routes through Max).
 
 Key CLI flags used:
-- `--tools ""` - Chat-only mode, no file access
-- `--output-format stream-json` - Real-time streaming
-- `--append-system-prompt` - Add brainstorm instructions
-- `--resume <session_id>` - Multi-turn conversations
+- `--tools ""` - Chat-only mode, no file/bash access (pure conversation)
+- `--output-format text` - Simple text streaming via stdout chunks
+
+The conversation history is rebuilt in each prompt. This is slightly less
+efficient than using --resume, but more reliable across reconnections.
 """
 
 import asyncio
@@ -57,7 +58,6 @@ class BrainstormSession:
     messages: list[BrainstormMessage] = field(default_factory=list)
     spec_ready: bool = False
     current_spec: Optional[SpecResult] = None
-    claude_session_id: Optional[str] = None  # Claude CLI session ID for --resume
 
     @property
     def is_crystallizing(self) -> bool:
@@ -89,11 +89,10 @@ class BrainstormAgent:
     """
     Agent that facilitates brainstorming conversations via Claude CLI.
 
-    Runs on the Pi, uses the user's Claude Max subscription.
+    Runs on the Pi, uses the user's Claude Max subscription (not API keys).
     Streams responses back for real-time chat experience.
 
-    Uses Claude CLI's native multi-turn support via --resume for efficient
-    conversations without rebuilding the full prompt each time.
+    Uses --tools "" for pure chat mode (no file access).
     """
 
     def __init__(
@@ -103,14 +102,12 @@ class BrainstormAgent:
         existing_features: Optional[list[str]] = None,
         existing_feature_title: Optional[str] = None,
         existing_history: Optional[list[dict]] = None,
-        claude_session_id: Optional[str] = None,  # Resume existing Claude session
     ):
         self.session = BrainstormSession(
             project_name=project_name,
             project_context=project_context,
             existing_features=existing_features or [],
             existing_feature_title=existing_feature_title,
-            claude_session_id=claude_session_id,
         )
 
         # Load existing history if provided (for UI display)
@@ -149,24 +146,22 @@ class BrainstormAgent:
 
         Uses:
         - `--tools ""` for chat-only mode (no file access)
-        - `--output-format stream-json` for real-time streaming
+        - `--output-format text` for streaming (reads stdout in chunks)
         - `--append-system-prompt` for brainstorm instructions
-        - `--resume` for multi-turn conversations
+
+        Note: We rebuild the conversation in the prompt each time since
+        --resume requires session persistence on the Pi, which may not
+        be reliable. This trades efficiency for reliability.
         """
+        # Build full prompt with conversation history
+        full_prompt = self._build_conversation_prompt(user_message)
+
         cmd = [
             "claude",
-            "-p", user_message,
+            "-p", full_prompt,
             "--tools", "",  # Chat-only, no file access
-            "--output-format", "stream-json",
+            "--output-format", "text",
         ]
-
-        # First message: include system prompt
-        # Subsequent messages: use --resume to continue conversation
-        if self.session.claude_session_id:
-            cmd.extend(["--resume", self.session.claude_session_id])
-        else:
-            # First message - include system prompt
-            cmd.extend(["--append-system-prompt", self.session.get_system_prompt()])
 
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -175,63 +170,16 @@ class BrainstormAgent:
         )
 
         full_response = []
-        buffer = ""
 
-        # Read and parse stream-json output
+        # Read stdout in chunks for streaming effect
         while True:
-            chunk = await process.stdout.read(1024)
+            chunk = await process.stdout.read(100)  # Small chunks for responsiveness
             if not chunk:
                 break
 
-            buffer += chunk.decode("utf-8", errors="replace")
-
-            # Process complete JSON lines
-            while "\n" in buffer:
-                line, buffer = buffer.split("\n", 1)
-                line = line.strip()
-                if not line:
-                    continue
-
-                try:
-                    data = json.loads(line)
-
-                    # Extract session ID from first response
-                    if not self.session.claude_session_id and "session_id" in data:
-                        self.session.claude_session_id = data["session_id"]
-
-                    # Handle different message types
-                    msg_type = data.get("type")
-
-                    if msg_type == "assistant":
-                        # Assistant message content
-                        content = data.get("message", {}).get("content", [])
-                        for block in content:
-                            if block.get("type") == "text":
-                                text = block.get("text", "")
-                                full_response.append(text)
-                                yield text
-
-                    elif msg_type == "content_block_delta":
-                        # Streaming delta
-                        delta = data.get("delta", {})
-                        if delta.get("type") == "text_delta":
-                            text = delta.get("text", "")
-                            full_response.append(text)
-                            yield text
-
-                    elif msg_type == "result":
-                        # Final result - extract session_id if not already captured
-                        if not self.session.claude_session_id:
-                            self.session.claude_session_id = data.get("session_id")
-                        # Result text
-                        result_text = data.get("result", "")
-                        if result_text and not full_response:
-                            full_response.append(result_text)
-                            yield result_text
-
-                except json.JSONDecodeError:
-                    # Not valid JSON, might be partial - skip
-                    pass
+            text = chunk.decode("utf-8", errors="replace")
+            full_response.append(text)
+            yield text
 
         # Wait for process to complete
         await process.wait()
@@ -240,13 +188,28 @@ class BrainstormAgent:
         stderr = await process.stderr.read()
         if stderr and process.returncode != 0:
             error_msg = stderr.decode("utf-8", errors="replace")
-            # Log but don't fail - some warnings are benign
             print(f"Claude CLI stderr: {error_msg}")
 
         # Store the full response
         response_text = "".join(full_response)
         if response_text:
             self.session.messages.append(BrainstormMessage(role="assistant", content=response_text))
+
+    def _build_conversation_prompt(self, new_message: str) -> str:
+        """Build prompt with system prompt + conversation history."""
+        parts = [self.session.get_system_prompt()]
+        parts.append("\n\n---\n\nConversation:\n")
+
+        # Include all messages except the last user message (which is new_message)
+        for msg in self.session.messages[:-1]:  # Skip the message we just added
+            role_label = "User" if msg.role == "user" else "Assistant"
+            parts.append(f"\n{role_label}: {msg.content}\n")
+
+        # Add the new user message
+        parts.append(f"\nUser: {new_message}\n")
+        parts.append("\nAssistant: ")
+
+        return "".join(parts)
 
     def _parse_spec(self, response: str) -> Optional[SpecResult]:
         """Parse a SPEC_READY response into a SpecResult."""
@@ -302,7 +265,6 @@ class BrainstormAgent:
             "message_count": len(self.session.messages),
             "spec_ready": self.session.spec_ready,
             "current_spec": self.session.current_spec.to_dict() if self.session.current_spec else None,
-            "claude_session_id": self.session.claude_session_id,
             "messages": [
                 {"role": msg.role, "content": msg.content}
                 for msg in self.session.messages
@@ -331,7 +293,6 @@ async def test_brainstorm():
     async for chunk in agent.send_message("I want to add due dates to tasks"):
         print(chunk, end="", flush=True)
     print("\n" + "=" * 50)
-    print(f"Session ID: {agent.session.claude_session_id}")
     print(f"Spec ready: {agent.is_spec_ready()}")
 
 
