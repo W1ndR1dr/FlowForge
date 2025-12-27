@@ -113,12 +113,13 @@ ws_manager = ConnectionManager()
 mcp_server: Optional[FlowForgeMCPServer] = None
 sync_manager: Optional[SyncManager] = None
 cache_manager: Optional[CacheManager] = None
+remote_executor: Optional[RemoteExecutor] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize MCP server, cache, and sync on startup."""
-    global mcp_server, sync_manager, cache_manager
+    global mcp_server, sync_manager, cache_manager, remote_executor
 
     config = get_config()
     mcp_server = FlowForgeMCPServer(
