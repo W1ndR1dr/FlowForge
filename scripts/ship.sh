@@ -142,11 +142,29 @@ if [[ "$ios_needed" == "yes" ]]; then
     fi
 fi
 
-# Restart server if Python files changed
+# Update and restart Pi server if Python files changed
 PYTHON_CHANGED=$(echo "$changed" | grep -E "\.py$" | head -1)
 if [[ -n "$PYTHON_CHANGED" ]] || [[ "$FORCE" == true ]]; then
     echo ""
-    echo -e "${BLUE}🔄 Restarting FlowForge server...${NC}"
+    echo -e "${BLUE}🍓 Updating Pi server...${NC}"
+    echo "─────────────────────────────────────"
+
+    # Check if Pi is reachable
+    if ssh -o ConnectTimeout=5 brian@raspberrypi "echo ok" &>/dev/null; then
+        ssh brian@raspberrypi "cd ~/flowforge && git pull && sudo systemctl restart flowforge"
+        sleep 2
+        if curl -s --connect-timeout 5 http://raspberrypi:8081/health > /dev/null; then
+            echo -e "${GREEN}✅ Pi server updated and restarted${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Pi server may not have started${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Pi not reachable - skipping Pi update${NC}"
+    fi
+
+    # Also restart local server if running
+    echo ""
+    echo -e "${BLUE}🔄 Restarting local server...${NC}"
     pkill -f "forge-server" 2>/dev/null || true
     sleep 1
     cd "$PROJECT_DIR"
@@ -154,9 +172,9 @@ if [[ -n "$PYTHON_CHANGED" ]] || [[ "$FORCE" == true ]]; then
     FLOWFORGE_PROJECTS_PATH=/Users/Brian/Projects/Active FLOWFORGE_PORT=8081 nohup forge-server > /tmp/flowforge-server.log 2>&1 &
     sleep 2
     if curl -s http://localhost:8081/health > /dev/null; then
-        echo -e "${GREEN}✅ Server restarted${NC}"
+        echo -e "${GREEN}✅ Local server restarted${NC}"
     else
-        echo -e "${YELLOW}⚠️  Server may not have started - check /tmp/flowforge-server.log${NC}"
+        echo -e "${YELLOW}⚠️  Local server may not have started - check /tmp/flowforge-server.log${NC}"
     fi
 fi
 
