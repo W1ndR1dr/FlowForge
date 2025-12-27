@@ -18,8 +18,7 @@ struct WorkspaceView: View {
 
     @State private var vibeText = ""
     @State private var isSubmitting = false
-    @State private var showingBrainstorm = false
-    @State private var brainstormFeature: Feature?
+    @State private var brainstormFeature: Feature?  // Set to show brainstorm sheet
 
     // MARK: - Computed Properties
 
@@ -128,11 +127,11 @@ struct WorkspaceView: View {
                 slotsRemaining: slotsRemaining
             )
         }
-        .sheet(isPresented: $showingBrainstorm) {
+        .sheet(item: $brainstormFeature) { feature in
             if let project = appState.selectedProject {
                 BrainstormChatView(
                     project: project.name,
-                    existingFeature: brainstormFeature  // Pass feature being refined
+                    existingFeature: feature  // Feature being refined
                 )
                 .environment(appState)
             }
@@ -378,8 +377,7 @@ struct WorkspaceView: View {
 
     /// Open brainstorm chat to refine a feature
     private func refineFeature(_ feature: Feature) {
-        brainstormFeature = feature
-        showingBrainstorm = true
+        brainstormFeature = feature  // Setting this shows the sheet
     }
 
     private func shipFeature(_ feature: Feature) {

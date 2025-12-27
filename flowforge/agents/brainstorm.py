@@ -1,20 +1,22 @@
 """
 BrainstormAgent - Chat-to-spec conversations via Claude CLI.
 
-This agent runs Claude Code CLI in a streaming mode to enable real-time
+This agent runs Claude Code CLI in streaming mode to enable real-time
 brainstorming conversations. It's designed to run on the Pi and use the
 user's authenticated Claude Max subscription.
+
+Key CLI flags used:
+- `--tools ""` - Chat-only mode, no file access
+- `--output-format stream-json` - Real-time streaming
+- `--append-system-prompt` - Add brainstorm instructions
+- `--resume <session_id>` - Multi-turn conversations
 """
 
 import asyncio
 import json
-import subprocess
 import re
 from dataclasses import dataclass, field
 from typing import AsyncGenerator, Optional
-from pathlib import Path
-
-from .prompts import BRAINSTORM_SYSTEM_PROMPT
 
 
 @dataclass
@@ -55,6 +57,7 @@ class BrainstormSession:
     messages: list[BrainstormMessage] = field(default_factory=list)
     spec_ready: bool = False
     current_spec: Optional[SpecResult] = None
+    claude_session_id: Optional[str] = None  # Claude CLI session ID for --resume
 
     @property
     def is_crystallizing(self) -> bool:
@@ -68,7 +71,6 @@ class BrainstormSession:
         features_str = "\n".join(f"- {f}" for f in self.existing_features) if self.existing_features else "(none yet)"
 
         if self.is_crystallizing:
-            # Crystallization mode: refining an existing idea
             return CRYSTALLIZE_SYSTEM_PROMPT.format(
                 project_name=self.project_name,
                 project_context=self.project_context or "(no project context provided)",
@@ -76,7 +78,6 @@ class BrainstormSession:
                 existing_features=features_str,
             )
         else:
-            # Brainstorm mode: generating new ideas
             return BRAINSTORM_SYSTEM_PROMPT.format(
                 project_name=self.project_name,
                 project_context=self.project_context or "(no project context provided)",
@@ -90,6 +91,9 @@ class BrainstormAgent:
 
     Runs on the Pi, uses the user's Claude Max subscription.
     Streams responses back for real-time chat experience.
+
+    Uses Claude CLI's native multi-turn support via --resume for efficient
+    conversations without rebuilding the full prompt each time.
     """
 
     def __init__(
@@ -97,17 +101,19 @@ class BrainstormAgent:
         project_name: str,
         project_context: str = "",
         existing_features: Optional[list[str]] = None,
-        existing_feature_title: Optional[str] = None,  # For crystallization mode
-        existing_history: Optional[list[dict]] = None,  # Resume from saved history
+        existing_feature_title: Optional[str] = None,
+        existing_history: Optional[list[dict]] = None,
+        claude_session_id: Optional[str] = None,  # Resume existing Claude session
     ):
         self.session = BrainstormSession(
             project_name=project_name,
             project_context=project_context,
             existing_features=existing_features or [],
             existing_feature_title=existing_feature_title,
+            claude_session_id=claude_session_id,
         )
 
-        # Load existing history if provided (resume crystallization)
+        # Load existing history if provided (for UI display)
         if existing_history:
             for msg in existing_history:
                 self.session.messages.append(
@@ -126,12 +132,8 @@ class BrainstormAgent:
         # Add user message to history
         self.session.messages.append(BrainstormMessage(role="user", content=user_message))
 
-        # Build the conversation for Claude CLI
-        # Format: system prompt + conversation history + new message
-        prompt = self._build_prompt()
-
         # Run claude CLI with streaming
-        async for chunk in self._run_claude_streaming(prompt):
+        async for chunk in self._run_claude_streaming(user_message):
             yield chunk
 
         # After streaming complete, check if spec is ready
@@ -141,26 +143,30 @@ class BrainstormAgent:
                 self.session.spec_ready = True
                 self.session.current_spec = self._parse_spec(last_response)
 
-    def _build_prompt(self) -> str:
-        """Build the full prompt including system prompt and conversation history."""
-        parts = [self.session.get_system_prompt(), "\n---\n\nConversation so far:\n"]
-
-        for msg in self.session.messages:
-            role_label = "User" if msg.role == "user" else "You"
-            parts.append(f"\n{role_label}: {msg.content}\n")
-
-        if self.session.messages and self.session.messages[-1].role == "user":
-            parts.append("\nYou: ")
-
-        return "".join(parts)
-
-    async def _run_claude_streaming(self, prompt: str) -> AsyncGenerator[str, None]:
+    async def _run_claude_streaming(self, user_message: str) -> AsyncGenerator[str, None]:
         """
         Run Claude CLI and stream the response.
 
-        Uses claude -p for non-interactive mode with streaming.
+        Uses:
+        - `--tools ""` for chat-only mode (no file access)
+        - `--output-format stream-json` for real-time streaming
+        - `--append-system-prompt` for brainstorm instructions
+        - `--resume` for multi-turn conversations
         """
-        cmd = ["claude", "-p", prompt, "--no-markdown"]
+        cmd = [
+            "claude",
+            "-p", user_message,
+            "--tools", "",  # Chat-only, no file access
+            "--output-format", "stream-json",
+        ]
+
+        # First message: include system prompt
+        # Subsequent messages: use --resume to continue conversation
+        if self.session.claude_session_id:
+            cmd.extend(["--resume", self.session.claude_session_id])
+        else:
+            # First message - include system prompt
+            cmd.extend(["--append-system-prompt", self.session.get_system_prompt()])
 
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -169,35 +175,88 @@ class BrainstormAgent:
         )
 
         full_response = []
+        buffer = ""
 
-        # Read stdout in chunks
+        # Read and parse stream-json output
         while True:
-            chunk = await process.stdout.read(100)  # Read 100 bytes at a time
+            chunk = await process.stdout.read(1024)
             if not chunk:
                 break
 
-            text = chunk.decode("utf-8", errors="replace")
-            full_response.append(text)
-            yield text
+            buffer += chunk.decode("utf-8", errors="replace")
+
+            # Process complete JSON lines
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    data = json.loads(line)
+
+                    # Extract session ID from first response
+                    if not self.session.claude_session_id and "session_id" in data:
+                        self.session.claude_session_id = data["session_id"]
+
+                    # Handle different message types
+                    msg_type = data.get("type")
+
+                    if msg_type == "assistant":
+                        # Assistant message content
+                        content = data.get("message", {}).get("content", [])
+                        for block in content:
+                            if block.get("type") == "text":
+                                text = block.get("text", "")
+                                full_response.append(text)
+                                yield text
+
+                    elif msg_type == "content_block_delta":
+                        # Streaming delta
+                        delta = data.get("delta", {})
+                        if delta.get("type") == "text_delta":
+                            text = delta.get("text", "")
+                            full_response.append(text)
+                            yield text
+
+                    elif msg_type == "result":
+                        # Final result - extract session_id if not already captured
+                        if not self.session.claude_session_id:
+                            self.session.claude_session_id = data.get("session_id")
+                        # Result text
+                        result_text = data.get("result", "")
+                        if result_text and not full_response:
+                            full_response.append(result_text)
+                            yield result_text
+
+                except json.JSONDecodeError:
+                    # Not valid JSON, might be partial - skip
+                    pass
 
         # Wait for process to complete
         await process.wait()
 
+        # Check stderr for errors
+        stderr = await process.stderr.read()
+        if stderr and process.returncode != 0:
+            error_msg = stderr.decode("utf-8", errors="replace")
+            # Log but don't fail - some warnings are benign
+            print(f"Claude CLI stderr: {error_msg}")
+
         # Store the full response
         response_text = "".join(full_response)
-        self.session.messages.append(BrainstormMessage(role="assistant", content=response_text))
+        if response_text:
+            self.session.messages.append(BrainstormMessage(role="assistant", content=response_text))
 
     def _parse_spec(self, response: str) -> Optional[SpecResult]:
         """Parse a SPEC_READY response into a SpecResult."""
         try:
-            # Extract the spec content after SPEC_READY
             spec_match = re.search(r"SPEC_READY\s*\n(.*)", response, re.DOTALL)
             if not spec_match:
                 return None
 
             spec_text = spec_match.group(1).strip()
 
-            # Parse individual fields
             title = ""
             title_match = re.search(r"FEATURE:\s*(.+?)(?:\n|$)", spec_text)
             if title_match:
@@ -243,6 +302,7 @@ class BrainstormAgent:
             "message_count": len(self.session.messages),
             "spec_ready": self.session.spec_ready,
             "current_spec": self.session.current_spec.to_dict() if self.session.current_spec else None,
+            "claude_session_id": self.session.claude_session_id,
             "messages": [
                 {"role": msg.role, "content": msg.content}
                 for msg in self.session.messages
@@ -267,9 +327,11 @@ async def test_brainstorm():
     )
 
     print("Testing brainstorm agent...")
+    print("=" * 50)
     async for chunk in agent.send_message("I want to add due dates to tasks"):
         print(chunk, end="", flush=True)
-    print("\n---")
+    print("\n" + "=" * 50)
+    print(f"Session ID: {agent.session.claude_session_id}")
     print(f"Spec ready: {agent.is_spec_ready()}")
 
 

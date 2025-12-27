@@ -68,7 +68,7 @@ struct BrainstormChatView: View {
             // Input area
             inputView
         }
-        .frame(minWidth: 500, minHeight: 500)
+        .frame(minWidth: 600, idealWidth: 750, minHeight: 550, idealHeight: 700)
         .onAppear {
             client.connect(
                 project: project,
@@ -150,11 +150,11 @@ struct BrainstormChatView: View {
                 .foregroundColor(isRefiningFeature ? Accent.primary.opacity(0.6) : Accent.warning.opacity(0.6))
 
             VStack(spacing: Spacing.small) {
-                if let feature = existingFeature {
-                    Text("Let's crystallize this idea")
+                if existingFeature != nil {
+                    Text("Let's make this idea buildable")
                         .font(Typography.sectionHeader)
 
-                    Text("I'll ask questions to help make \"\(feature.title)\" specific and implementable.")
+                    Text("I'll ask clarifying questions until we have a clear, implementable spec.")
                         .font(Typography.body)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -162,7 +162,7 @@ struct BrainstormChatView: View {
                     Text("What would you like to build?")
                         .font(Typography.sectionHeader)
 
-                    Text("Describe your idea and I'll help you turn it into a spec.")
+                    Text("Describe your idea and I'll help turn it into a spec.")
                         .font(Typography.body)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -180,8 +180,8 @@ struct BrainstormChatView: View {
                 // For refinement, show a "Start" button to kick things off
                 Button(action: { startRefinement() }) {
                     HStack {
-                        Image(systemName: "arrow.right.circle.fill")
-                        Text("Start Refining")
+                        Image(systemName: "sparkles")
+                        Text("Start")
                     }
                     .padding(.horizontal, Spacing.large)
                     .padding(.vertical, Spacing.medium)
@@ -200,7 +200,7 @@ struct BrainstormChatView: View {
     private func startRefinement() {
         guard let feature = existingFeature else { return }
         // Send the feature title to Claude to start the crystallization process
-        client.sendMessage("I want to refine this idea: \(feature.title)")
+        client.sendMessage("Help me crystallize this idea: \(feature.title)")
     }
 
     private func suggestionChip(_ text: String) -> some View {
@@ -444,8 +444,8 @@ struct SpecPreviewSheet: View {
                         ProgressView()
                             .scaleEffect(0.7)
                     } else {
-                        Label(isUpdating ? "Apply Changes" : "Build This",
-                              systemImage: isUpdating ? "checkmark.circle.fill" : "hammer.fill")
+                        Label(isUpdating ? "Save" : "Add to Backlog",
+                              systemImage: isUpdating ? "checkmark.circle.fill" : "plus.circle.fill")
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -453,7 +453,7 @@ struct SpecPreviewSheet: View {
             }
         }
         .padding(Spacing.large)
-        .frame(minWidth: 450, minHeight: 400)
+        .frame(minWidth: 500, idealWidth: 600, minHeight: 450, idealHeight: 550)
     }
 
     private func specSection(_ title: String, content: String) -> some View {
