@@ -805,7 +805,8 @@ async def add_feature(project: str, request: AddFeatureRequest):
         project_path = Path(config["projects_base"]) / project
         forge_bin = project_path / ".venv" / "bin" / "forge"
         # Use -C to avoid cd quoting issues through SSH
-        cmd = [str(forge_bin), "-C", str(project_path), "add", request.title]
+        # Note: -C comes after 'add' because it's an option for that subcommand
+        cmd = [str(forge_bin), "add", "-C", str(project_path), request.title]
         if request.status:
             cmd.extend(["--status", request.status])
         if request.description:
