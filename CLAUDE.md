@@ -80,6 +80,32 @@ flowforge/
 - `prompts/` - Generated implementation prompts
 - `research/` - Deep research outputs
 
+### Pi Server Architecture
+
+The FlowForge server **always runs on Raspberry Pi 5** (via Tailscale):
+
+```
+iPhone/Mac App → Tailscale → Pi Server → SSH → Mac (git/worktrees)
+```
+
+**What runs where:**
+| Component | Runs On | Notes |
+|-----------|---------|-------|
+| FastAPI server | Pi | Handles API requests, serves web UI |
+| Registry management | Pi | Reads/writes registry.json via SSH |
+| Git operations | Mac | Worktrees, merges, commits |
+| `forge` CLI | Mac | Direct terminal use only |
+| Terminal launching | Mac | macOS-only (osascript) |
+
+**Key environment variables on Pi:**
+```bash
+FLOWFORGE_PROJECTS_PATH=/Users/Brian/Projects/Active  # Mac paths!
+FLOWFORGE_MAC_HOST=brians-macbook-pro                 # Tailscale hostname
+FLOWFORGE_MAC_USER=Brian
+```
+
+The CLI (`forge` command) only works directly on Mac - it's not wrapped for remote use.
+
 ## CLI Commands
 
 ```bash
