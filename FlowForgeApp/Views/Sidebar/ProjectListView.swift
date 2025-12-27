@@ -2,11 +2,12 @@ import SwiftUI
 
 struct ProjectListView: View {
     @Environment(AppState.self) private var appState
+    @State private var hiddenSectionExpanded = false
 
     var body: some View {
         @Bindable var state = appState
 
-        List(appState.sortedProjects, selection: Binding(
+        List(selection: Binding(
             get: { appState.selectedProject },
             set: { newProject in
                 if let project = newProject {
@@ -16,9 +17,52 @@ struct ProjectListView: View {
                     }
                 }
             }
-        )) { project in
-            ProjectRow(project: project)
-                .tag(project)
+        )) {
+            // Visible projects
+            ForEach(appState.visibleSortedProjects) { project in
+                ProjectRow(project: project)
+                    .tag(project)
+                    .contextMenu {
+                        Button("Hide Project") {
+                            appState.hideProject(project)
+                        }
+                    }
+            }
+
+            // Hidden section (only if there are hidden projects)
+            if !appState.hiddenProjects.isEmpty {
+                Section {
+                    if hiddenSectionExpanded {
+                        ForEach(appState.hiddenProjects) { project in
+                            ProjectRow(project: project)
+                                .tag(project)
+                                .opacity(0.6)
+                                .contextMenu {
+                                    Button("Show Project") {
+                                        appState.showProject(project)
+                                    }
+                                }
+                        }
+                    }
+                } header: {
+                    Button {
+                        withAnimation(.snappy) {
+                            hiddenSectionExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: hiddenSectionExpanded ? "chevron.down" : "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text("Hidden (\(appState.hiddenProjects.count))")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
         .navigationTitle("Projects")
         .toolbar {
