@@ -929,17 +929,25 @@ async def update_feature_spec(
     if request.estimated_scope:
         full_description += f"\n\nEstimated scope: {request.estimated_scope}"
 
-    # Update the feature
-    registry.update_feature(
-        feature_id,
-        title=request.title,
-        description=full_description,
-    )
+    # Update the feature - also promote idea → planned (crystallized)
+    from .registry import FeatureStatus
+
+    update_kwargs = {
+        "title": request.title,
+        "description": full_description,
+    }
+
+    # If it's an idea, crystallizing promotes it to planned
+    if feature.status == FeatureStatus.IDEA:
+        update_kwargs["status"] = FeatureStatus.PLANNED
+
+    registry.update_feature(feature_id, **update_kwargs)
 
     # Broadcast update
     await ws_manager.broadcast_feature_update(project, feature_id, "updated")
 
-    return {"success": True, "message": f"Updated feature with crystallized spec: {request.title}"}
+    status_msg = " (promoted to planned)" if feature.status == FeatureStatus.IDEA else ""
+    return {"success": True, "message": f"Updated feature with crystallized spec: {request.title}{status_msg}"}
 
 
 @app.post("/api/{project}/features/{feature_id}/crystallize")
