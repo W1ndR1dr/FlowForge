@@ -62,6 +62,7 @@ class Feature:
     # Timestamps
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    started_at: Optional[str] = None  # When feature was started (in-progress)
     completed_at: Optional[str] = None  # When feature was shipped
 
     # Documentation
