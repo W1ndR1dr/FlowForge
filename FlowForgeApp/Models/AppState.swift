@@ -112,6 +112,11 @@ class AppState {
         didSet { saveAccessTimes() }
     }
 
+    // Track hidden projects (persisted)
+    private var hiddenProjectIds: Set<String> = [] {
+        didSet { saveHiddenProjects() }
+    }
+
     // Offline caching
     private let featureCache = FeatureCache()
 
@@ -152,8 +157,9 @@ class AppState {
             ideaSortOrder = .recentlyUsed
         }
 
-        // Load access times
+        // Load access times and hidden projects
         loadAccessTimes()
+        loadHiddenProjects()
 
         setupWebSocket()
         Task {
@@ -184,6 +190,19 @@ class AppState {
         }
     }
 
+    private func saveHiddenProjects() {
+        if let data = try? JSONEncoder().encode(Array(hiddenProjectIds)) {
+            UserDefaults.standard.set(data, forKey: "hiddenProjectIds")
+        }
+    }
+
+    private func loadHiddenProjects() {
+        if let data = UserDefaults.standard.data(forKey: "hiddenProjectIds"),
+           let ids = try? JSONDecoder().decode([String].self, from: data) {
+            hiddenProjectIds = Set(ids)
+        }
+    }
+
     /// Mark a project as accessed (for recently used sorting)
     func markProjectAccessed(_ project: Project) {
         projectAccessTimes[project.id.uuidString] = Date()
@@ -210,6 +229,16 @@ class AppState {
         case .manual:
             return projects
         }
+    }
+
+    /// Visible projects (excludes hidden) sorted according to current preference
+    var visibleSortedProjects: [Project] {
+        sortedProjects.filter { !hiddenProjectIds.contains($0.id.uuidString) }
+    }
+
+    /// Hidden projects sorted according to current preference
+    var hiddenProjects: [Project] {
+        sortedProjects.filter { hiddenProjectIds.contains($0.id.uuidString) }
     }
 
     /// Inbox items (raw captures) sorted according to current preference
@@ -351,6 +380,16 @@ class AppState {
     }
 
     // MARK: - Project Management
+
+    /// Hide a project from the sidebar
+    func hideProject(_ project: Project) {
+        hiddenProjectIds.insert(project.id.uuidString)
+    }
+
+    /// Show a hidden project in the sidebar
+    func showProject(_ project: Project) {
+        hiddenProjectIds.remove(project.id.uuidString)
+    }
 
     func loadProjects() async {
         isLoading = true
