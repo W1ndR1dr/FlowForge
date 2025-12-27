@@ -800,10 +800,11 @@ async def add_feature(project: str, request: AddFeatureRequest):
     # Mac is online - proceed
     # If running in remote mode (Pi), execute via SSH to Mac
     if remote_executor:
-        # Build forge add command
+        # Build forge add command using venv's forge
         config = get_config()
         project_path = Path(config["projects_base"]) / project
-        cmd = ["forge", "add", request.title]
+        forge_bin = project_path / ".venv" / "bin" / "forge"
+        cmd = [str(forge_bin), "add", request.title]
         if request.status:
             cmd.extend(["--status", request.status])
         if request.description:
