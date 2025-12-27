@@ -141,8 +141,20 @@ struct Feature: Identifiable, Codable, Hashable {
         let fallbackFormatter = ISO8601DateFormatter()
         fallbackFormatter.formatOptions = [.withInternetDateTime]
 
+        // Python's isoformat() doesn't include timezone, so we need a DateFormatter fallback
+        let pythonFormatter = DateFormatter()
+        pythonFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+        pythonFormatter.locale = Locale(identifier: "en_US_POSIX")
+
+        let pythonFormatterNoFrac = DateFormatter()
+        pythonFormatterNoFrac.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        pythonFormatterNoFrac.locale = Locale(identifier: "en_US_POSIX")
+
         func parseDate(_ string: String) -> Date? {
-            formatter.date(from: string) ?? fallbackFormatter.date(from: string)
+            formatter.date(from: string)
+                ?? fallbackFormatter.date(from: string)
+                ?? pythonFormatter.date(from: string)
+                ?? pythonFormatterNoFrac.date(from: string)
         }
 
         let createdAtString = try container.decode(String.self, forKey: .createdAt)
