@@ -319,6 +319,7 @@ def add(
     tags: Optional[str] = typer.Option(None, "--tags", "-t", help="Comma-separated tags"),
     complexity: Optional[str] = typer.Option(None, "--complexity", "-c", help="small/medium/large/epic"),
     priority: Optional[int] = typer.Option(None, "--priority", help="Priority (1=highest)"),
+    status: Optional[str] = typer.Option(None, "--status", help="Initial status (idea/planned)"),
 ):
     """Add a new feature to the registry."""
     project_root, config, registry = get_context()
@@ -346,11 +347,20 @@ def add(
         except ValueError:
             console.print(f"[yellow]Invalid complexity '{complexity}', using 'medium'[/yellow]")
 
+    # Parse status
+    status_enum = FeatureStatus.IDEA  # Default to idea for quick capture
+    if status:
+        try:
+            status_enum = FeatureStatus(status.lower())
+        except ValueError:
+            console.print(f"[yellow]Invalid status '{status}', using 'idea'[/yellow]")
+
     # Create feature
     feature = Feature(
         id=feature_id,
         title=title,
         description=description,
+        status=status_enum,
         parent_id=parent,
         spec_path=str(spec) if spec else None,
         tags=tag_list,
