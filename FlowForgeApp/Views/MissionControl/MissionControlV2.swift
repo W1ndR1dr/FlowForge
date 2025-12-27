@@ -17,7 +17,9 @@ struct MissionControlV2: View {
     @Environment(AppState.self) private var appState
 
     @State private var vibeText = ""
-    @State private var isAnalyzing = false
+    @State private var isSubmitting = false
+    @State private var showingBrainstorm = false
+    @State private var brainstormFeature: Feature?
 
     // MARK: - Computed Properties
 
@@ -120,39 +122,22 @@ struct MissionControlV2: View {
                 )
             }
 
-            // The iconic vibe input
+            // The iconic vibe input - submit adds directly to queue
             VibeInputWithScope(
                 text: $vibeText,
                 onSubmit: { idea in
-                    analyzeFeature(idea)
+                    submitFeatureDirectly(idea)
                 },
-                isAnalyzing: isAnalyzing || appState.isAnalyzingFeature,
+                isAnalyzing: isSubmitting,
                 slotsRemaining: slotsRemaining
             )
-
-            // Show analysis loading state
-            if appState.isAnalyzingFeature {
-                FeatureAnalysisLoading(title: appState.pendingFeatureTitle)
-                    .transition(.scaleAndFade)
-            }
-
-            // Show analysis results (inline preview)
-            if let analysis = appState.pendingAnalysis {
-                FeatureAnalysisPreview(
-                    title: appState.pendingFeatureTitle,
-                    analysis: analysis,
-                    onConfirm: {
-                        confirmFeature()
-                    },
-                    onCancel: {
-                        cancelAnalysis()
-                    }
-                )
-                .transition(.scaleAndFade)
+        }
+        .sheet(isPresented: $showingBrainstorm) {
+            if let project = appState.selectedProject {
+                BrainstormChatView(project: project.name)
+                    .environment(appState)
             }
         }
-        .animation(SpringPreset.smooth, value: appState.pendingAnalysis != nil)
-        .animation(SpringPreset.smooth, value: appState.isAnalyzingFeature)
     }
 
     // MARK: - Today's Mission Section
@@ -227,7 +212,11 @@ struct MissionControlV2: View {
             } else {
                 VStack(spacing: Spacing.small) {
                     ForEach(Array(upNextFeatures.enumerated()), id: \.element.id) { index, feature in
-                        UpNextCardV2(feature: feature, position: index + 1)
+                        UpNextCardV2(
+                            feature: feature,
+                            position: index + 1,
+                            onRefine: { refineFeature(feature) }
+                        )
                     }
                 }
             }
@@ -367,43 +356,25 @@ struct MissionControlV2: View {
 
     // MARK: - Actions
 
-    /// Step 1: Analyze the feature (show AI insights before adding)
-    private func analyzeFeature(_ idea: String) {
+    /// Direct submit - add to queue immediately (no fake AI gate)
+    private func submitFeatureDirectly(_ idea: String) {
         vibeText = ""  // Clear input immediately for responsiveness
+        isSubmitting = true
 
         Task {
-            await appState.analyzeFeature(title: idea)
-        }
-    }
-
-    /// Step 2: User confirmed - add the feature
-    private func confirmFeature() {
-        Task {
-            await appState.confirmAnalyzedFeature()
-        }
-    }
-
-    /// User cancelled - clear analysis
-    private func cancelAnalysis() {
-        appState.clearPendingAnalysis()
-    }
-
-    /// Legacy direct submit (bypasses analysis - kept for compatibility)
-    private func submitFeature(_ idea: String) {
-        isAnalyzing = true
-
-        Task {
-            // Add the feature via API
-            await appState.addFeature(title: idea)
-
-            // Reload features to show the new one
+            await appState.addFeatureToQueue(title: idea)
             await appState.loadFeatures()
 
             await MainActor.run {
-                isAnalyzing = false
-                vibeText = ""
+                isSubmitting = false
             }
         }
+    }
+
+    /// Open brainstorm chat to refine a feature
+    private func refineFeature(_ feature: Feature) {
+        brainstormFeature = feature
+        showingBrainstorm = true
     }
 
     private func shipFeature(_ feature: Feature) {
@@ -870,6 +841,7 @@ struct UpNextCardV2: View {
     let feature: Feature
     let position: Int
     var isSafeToParallelize: Bool = true  // Default to safe for vibecoders
+    var onRefine: (() -> Void)?  // Optional refine action
 
     @State private var isHovered = false
 
@@ -903,6 +875,24 @@ struct UpNextCardV2: View {
 
             Spacer()
 
+            // Refine button (show on hover) - opens BrainstormChatView
+            if isHovered, let onRefine = onRefine {
+                Button(action: onRefine) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                        Text("Refine")
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Accent.primary)
+                    .padding(.horizontal, Spacing.small)
+                    .padding(.vertical, 4)
+                    .background(Accent.primary.opacity(0.1))
+                    .cornerRadius(CornerRadius.small)
+                }
+                .buttonStyle(.plain)
+                .transition(.opacity)
+            }
+
             // Complexity indicator (Tufte - the color IS the information)
             if let complexity = feature.complexity {
                 Circle()
@@ -914,6 +904,7 @@ struct UpNextCardV2: View {
         .background(isHovered ? Surface.highlighted : Color.clear)
         .cornerRadius(CornerRadius.medium)
         .onHover { isHovered = $0 }
+        .animation(SpringPreset.snappy, value: isHovered)
     }
 
     private func complexityColor(_ complexity: Complexity) -> Color {

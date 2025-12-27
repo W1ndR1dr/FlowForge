@@ -24,7 +24,7 @@ class FeatureStatus(str, Enum):
 # Shipping Machine Constraints (Wave 4)
 # =============================================================================
 
-MAX_PLANNED_FEATURES = 3  # Enforce focus: max 3 planned features at a time
+MAX_PLANNED_FEATURES = 99  # Ideas are unlimited - discipline comes at START, not CAPTURE
 
 
 class Complexity(str, Enum):

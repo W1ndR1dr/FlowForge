@@ -56,10 +56,6 @@ class AppState {
     var parsedProposals: [Proposal] = []
     var showingProposalReview = false
 
-    // Feature analysis state (Wave 2)
-    var pendingAnalysis: FeatureAnalysis?
-    var pendingFeatureTitle: String = ""
-    var isAnalyzingFeature = false
 
     // Shipping stats (Wave 4.4)
     var shippingStats: ShippingStats = ShippingStats()
@@ -590,66 +586,19 @@ class AppState {
         }
     }
 
-    // MARK: - Feature Analysis (Wave 2)
+    // MARK: - Add Feature to Queue
 
-    /// Analyze a feature before adding (shows complexity, scope warnings, expert suggestions)
-    func analyzeFeature(title: String, description: String? = nil) async {
+    /// Add a feature directly to the queue (no analysis gate)
+    /// This is the instant capture path - ideas are cheap, discipline comes at START
+    func addFeatureToQueue(title: String) async {
         guard let project = selectedProject else { return }
 
-        isAnalyzingFeature = true
-        pendingFeatureTitle = title
-        pendingAnalysis = nil
-
         do {
-            let analysis = try await apiClient.analyzeFeature(
-                project: project.name,
-                title: title,
-                description: description
-            )
-            self.pendingAnalysis = analysis
+            try await apiClient.addFeature(project: project.name, title: title, status: "planned")
+            showSuccess("Added to queue!")
         } catch {
-            // If analysis fails, we can still add the feature
-            // Just log and continue - don't block the user
-            print("Feature analysis unavailable: \(error)")
-            // Create a minimal fallback analysis
-            self.pendingAnalysis = FeatureAnalysis(
-                complexity: "medium",
-                estimatedHours: nil,
-                confidence: nil,
-                foundationScore: nil,
-                expertDomain: nil,
-                scopeCreepWarnings: nil,
-                suggestedBreakdown: nil,
-                filesAffected: nil,
-                shippableToday: nil
-            )
+            self.errorMessage = "Failed to add feature: \(error.localizedDescription)"
         }
-
-        isAnalyzingFeature = false
-    }
-
-    /// Clear pending analysis (user cancelled)
-    func clearPendingAnalysis() {
-        pendingAnalysis = nil
-        pendingFeatureTitle = ""
-        isAnalyzingFeature = false
-    }
-
-    /// Confirm and add the pending analyzed feature
-    func confirmAnalyzedFeature() async {
-        guard !pendingFeatureTitle.isEmpty else { return }
-
-        let title = pendingFeatureTitle
-
-        await addFeature(title: title)
-        await loadFeatures()
-
-        // Clear the pending state
-        pendingAnalysis = nil
-        pendingFeatureTitle = ""
-
-        // Show success toast
-        showSuccess("Feature added to queue!")
     }
 
     func startFeature(_ feature: Feature) async {
