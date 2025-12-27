@@ -183,7 +183,7 @@ class FlowForgeMCPServer:
                         },
                         "status": {
                             "type": "string",
-                            "description": "Filter by status (planned, in-progress, review, completed, blocked)",
+                            "description": "Filter by status (inbox, idea, in-progress, review, completed, blocked)",
                         },
                     },
                     "required": ["project"],
@@ -416,7 +416,7 @@ class FlowForgeMCPServer:
             except ValueError:
                 return MCPToolResult(
                     success=False,
-                    message=f"Invalid status: {status}. Use: planned, in-progress, review, completed, blocked",
+                    message=f"Invalid status: {status}. Use: inbox, idea, in-progress, review, completed, blocked",
                 )
 
         features = registry.list_features(status=status_filter)
@@ -724,7 +724,7 @@ class FlowForgeMCPServer:
         description: Optional[str] = None,
         tags: Optional[list[str]] = None,
         priority: int = 5,
-        status: str = "idea",  # Default to idea for quick capture
+        status: str = "inbox",  # Default to inbox for quick capture
     ) -> MCPToolResult:
         """Add a new feature to a project."""
         try:
@@ -738,27 +738,27 @@ class FlowForgeMCPServer:
         try:
             feature_status = FeatureStatus(status)
         except ValueError:
-            feature_status = FeatureStatus.IDEA
+            feature_status = FeatureStatus.INBOX
 
         # =====================================================================
-        # Shipping Machine Constraint: Max 3 Planned Features
-        # Only applies when adding as "planned" (not "idea")
+        # Shipping Machine Constraint: Max Ideas Ready to Build
+        # Only applies when adding as "idea" (not "inbox")
         # =====================================================================
-        if feature_status == FeatureStatus.PLANNED and not registry.can_add_planned():
-            planned_titles = registry.get_planned_feature_titles()
+        if feature_status == FeatureStatus.IDEA and not registry.can_add_idea():
+            idea_titles = registry.get_idea_titles()
             return MCPToolResult(
                 success=False,
                 message=(
-                    f"You have {MAX_PLANNED_FEATURES} planned features. "
+                    f"You have {MAX_PLANNED_FEATURES} ideas ready to build. "
                     f"Finish or delete one first to stay focused!\n\n"
-                    f"Currently planned:\n"
-                    + "\n".join(f"  • {t}" for t in planned_titles[:MAX_PLANNED_FEATURES])
+                    f"Currently ready to build:\n"
+                    + "\n".join(f"  • {t}" for t in idea_titles[:MAX_PLANNED_FEATURES])
                 ),
                 data={
-                    "constraint": "max_planned_features",
+                    "constraint": "max_ideas",
                     "limit": MAX_PLANNED_FEATURES,
-                    "current": registry.count_planned(),
-                    "planned_titles": planned_titles,
+                    "current": registry.count_ideas(),
+                    "idea_titles": idea_titles,
                 },
             )
 
@@ -790,13 +790,13 @@ class FlowForgeMCPServer:
         feature_id = FeatureRegistry.generate_id(title)
         self._invalidate_cache(project)
 
-        # Show remaining slots (only relevant for planned features)
-        remaining = MAX_PLANNED_FEATURES - registry.count_planned()
+        # Show remaining slots (only relevant for idea features)
+        remaining = MAX_PLANNED_FEATURES - registry.count_ideas()
 
-        if feature_status == FeatureStatus.IDEA:
-            message = f"Idea captured: {title}"
+        if feature_status == FeatureStatus.INBOX:
+            message = f"Captured to inbox: {title}"
         else:
-            message = f"Added feature: {title} ({remaining} slot{'s' if remaining != 1 else ''} remaining)"
+            message = f"Added idea: {title} ({remaining} slot{'s' if remaining != 1 else ''} remaining)"
 
         return MCPToolResult(
             success=True,
@@ -805,7 +805,7 @@ class FlowForgeMCPServer:
                 "feature_id": feature_id,
                 "title": title,
                 "status": feature_status.value,
-                "planned_count": registry.count_planned(),
+                "idea_count": registry.count_ideas(),
                 "slots_remaining": remaining,
             },
         )

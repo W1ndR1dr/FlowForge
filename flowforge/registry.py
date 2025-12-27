@@ -12,8 +12,8 @@ import re
 class FeatureStatus(str, Enum):
     """Status of a feature in the development lifecycle."""
 
-    IDEA = "idea"  # Rough sketch, quick capture - not counted in 3-slot limit
-    PLANNED = "planned"  # Crystallized, ready to build
+    INBOX = "inbox"  # Raw captures, quick thoughts - not counted in slot limit
+    IDEA = "idea"  # Refined, ready to build (was "planned")
     IN_PROGRESS = "in-progress"
     REVIEW = "review"
     COMPLETED = "completed"
@@ -43,7 +43,7 @@ class Feature:
     id: str
     title: str
     description: str = ""
-    status: FeatureStatus = FeatureStatus.PLANNED
+    status: FeatureStatus = FeatureStatus.IDEA
     priority: int = 5  # 1 = highest, 10 = lowest
     complexity: Complexity = Complexity.MEDIUM
 
@@ -86,7 +86,7 @@ class Feature:
     def from_dict(cls, data: dict) -> "Feature":
         """Create Feature from dictionary."""
         data = data.copy()
-        data["status"] = FeatureStatus(data.get("status", "planned"))
+        data["status"] = FeatureStatus(data.get("status", "idea"))
         data["complexity"] = Complexity(data.get("complexity", "medium"))
         return cls(**data)
 
@@ -295,10 +295,10 @@ class FeatureRegistry:
 
     def get_ready_features(self) -> list[Feature]:
         """
-        Get features that are ready to start (planned, no unmet dependencies).
+        Get features that are ready to start (ideas, no unmet dependencies).
         """
         ready = []
-        for feature in self.list_features(status=FeatureStatus.PLANNED):
+        for feature in self.list_features(status=FeatureStatus.IDEA):
             deps_met = all(
                 self._features.get(dep, Feature(id="", title="")).status == FeatureStatus.COMPLETED
                 for dep in feature.depends_on
@@ -343,17 +343,17 @@ class FeatureRegistry:
 
     # Shipping Machine Constraints
 
-    def count_planned(self) -> int:
-        """Count features in planned status (for max constraint)."""
-        return len(self.list_features(status=FeatureStatus.PLANNED))
+    def count_ideas(self) -> int:
+        """Count features in idea status (refined, ready to build)."""
+        return len(self.list_features(status=FeatureStatus.IDEA))
 
-    def can_add_planned(self) -> bool:
-        """Check if we can add another planned feature (max 3 constraint)."""
-        return self.count_planned() < MAX_PLANNED_FEATURES
+    def can_add_idea(self) -> bool:
+        """Check if we can add another idea (max constraint)."""
+        return self.count_ideas() < MAX_PLANNED_FEATURES
 
-    def get_planned_feature_titles(self) -> list[str]:
-        """Get titles of planned features (for error messages)."""
-        return [f.title for f in self.list_features(status=FeatureStatus.PLANNED)]
+    def get_idea_titles(self) -> list[str]:
+        """Get titles of idea features (for error messages)."""
+        return [f.title for f in self.list_features(status=FeatureStatus.IDEA)]
 
     # Shipping Streak
 

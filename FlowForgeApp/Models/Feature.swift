@@ -1,8 +1,8 @@
 import Foundation
 
 enum FeatureStatus: String, Codable, CaseIterable {
-    case idea = "idea"  // Quick capture, not counted in 3-slot limit
-    case planned = "planned"  // Crystallized, ready to build
+    case inbox = "inbox"  // Quick captures, raw thoughts
+    case idea = "idea"  // Refined, ready to build (was "planned")
     case inProgress = "in-progress"
     case review = "review"
     case completed = "completed"
@@ -10,19 +10,19 @@ enum FeatureStatus: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .idea: return "Idea"
-        case .planned: return "Planned"
-        case .inProgress: return "In Progress"
+        case .inbox: return "Inbox"
+        case .idea: return "Ready"  // Ready to build
+        case .inProgress: return "Building"
         case .review: return "Review"
-        case .completed: return "Completed"
+        case .completed: return "Shipped"
         case .blocked: return "Blocked"
         }
     }
 
     var color: String {
         switch self {
-        case .idea: return "purple"  // Distinct color for ideas
-        case .planned: return "gray"
+        case .inbox: return "purple"  // Distinct color for raw captures
+        case .idea: return "gray"  // Ready to build
         case .inProgress: return "blue"
         case .review: return "orange"
         case .completed: return "green"
@@ -82,7 +82,7 @@ struct Feature: Identifiable, Codable, Hashable {
         id: String,
         title: String,
         description: String? = nil,
-        status: FeatureStatus = .planned,
+        status: FeatureStatus = .idea,
         complexity: Complexity? = nil,
         parentId: String? = nil,
         dependencies: [String] = [],

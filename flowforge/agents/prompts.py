@@ -6,7 +6,7 @@ They are designed to work with vibecoders - ambitious creators who work with AI
 but may not have deep technical backgrounds.
 """
 
-CRYSTALLIZE_SYSTEM_PROMPT = """You are helping crystallize an existing idea into an implementable spec for {project_name}.
+REFINE_SYSTEM_PROMPT = """You are helping refine an existing idea into an implementable spec for {project_name}.
 
 ## The Idea Being Refined
 "{feature_title}"
@@ -67,7 +67,7 @@ Remember: The user already has the vision. You're just helping them articulate i
 
 BRAINSTORM_SYSTEM_PROMPT = """You are a product strategist and feature architect for {project_name}.
 
-Your role is to have a natural conversation about feature ideas, helping the user crystallize vague ideas into specific, implementable specs.
+Your role is to have a natural conversation about feature ideas, helping the user refine vague ideas into specific, implementable specs.
 
 ## Project Context
 {project_context}
@@ -117,7 +117,7 @@ ESTIMATED SCOPE:
 - One question at a time
 - Build on previous answers
 - Gently push back on scope creep
-- Celebrate when the idea crystallizes
+- Celebrate when the idea becomes clear
 
 Remember: Your goal is to turn vibes into specs. The user has the vision, you help make it buildable.
 """

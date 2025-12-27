@@ -89,9 +89,9 @@ struct iOSRoadmapView: View {
     @State private var showingBrainstorm = false
     @State private var brainstormFeature: Feature?
 
-    // Ideas and planned features only - implementation happens on Mac
+    // Inbox and idea features only - implementation happens on Mac
     private var ideaInboxFeatures: [Feature] {
-        appState.features.filter { $0.status == .planned || $0.status == .idea }
+        appState.features.filter { $0.status == .inbox || $0.status == .idea }
     }
 
     var body: some View {

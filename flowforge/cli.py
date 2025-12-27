@@ -319,7 +319,7 @@ def add(
     tags: Optional[str] = typer.Option(None, "--tags", "-t", help="Comma-separated tags"),
     complexity: Optional[str] = typer.Option(None, "--complexity", "-c", help="small/medium/large/epic"),
     priority: Optional[int] = typer.Option(None, "--priority", help="Priority (1=highest)"),
-    status: Optional[str] = typer.Option(None, "--status", help="Initial status (idea/planned)"),
+    status: Optional[str] = typer.Option(None, "--status", help="Initial status (inbox/idea)"),
     project_dir: Optional[Path] = typer.Option(None, "-C", "--project-dir", help="Run as if forge was started in this directory"),
 ):
     """Add a new feature to the registry."""
@@ -354,12 +354,12 @@ def add(
             console.print(f"[yellow]Invalid complexity '{complexity}', using 'medium'[/yellow]")
 
     # Parse status
-    status_enum = FeatureStatus.IDEA  # Default to idea for quick capture
+    status_enum = FeatureStatus.INBOX  # Default to inbox for quick capture
     if status:
         try:
             status_enum = FeatureStatus(status.lower())
         except ValueError:
-            console.print(f"[yellow]Invalid status '{status}', using 'idea'[/yellow]")
+            console.print(f"[yellow]Invalid status '{status}', using 'inbox'[/yellow]")
 
     # Create feature
     feature = Feature(
@@ -416,17 +416,17 @@ def build(
 
     console.print(f"\n🚀 [bold]BUILD[/bold]: {idea}\n")
 
-    # Step 1: Check max planned features constraint
-    planned_count = len(registry.list_features(status=FeatureStatus.PLANNED))
+    # Step 1: Check max idea features constraint
+    idea_count = len(registry.list_features(status=FeatureStatus.IDEA))
     in_progress_count = len(registry.list_features(status=FeatureStatus.IN_PROGRESS))
 
-    if planned_count >= MAX_PLANNED_FEATURES:
-        console.print(f"[red]❌ You have {MAX_PLANNED_FEATURES} planned features.[/red]")
+    if idea_count >= MAX_PLANNED_FEATURES:
+        console.print(f"[red]❌ You have {MAX_PLANNED_FEATURES} ideas ready to build.[/red]")
         console.print(f"\n[yellow]Finish or delete one first to stay focused![/yellow]\n")
 
-        planned_features = registry.list_features(status=FeatureStatus.PLANNED)
-        console.print("Currently planned:")
-        for f in planned_features[:MAX_PLANNED_FEATURES]:
+        idea_features = registry.list_features(status=FeatureStatus.IDEA)
+        console.print("Currently ready to build:")
+        for f in idea_features[:MAX_PLANNED_FEATURES]:
             console.print(f"  • {f.title}")
 
         console.print(f"\n[dim]Hint: Run 'forge delete <id>' or 'forge start <id>' to make room.[/dim]")
@@ -525,7 +525,7 @@ def build(
     )
 
     # Step 8: Show launch instructions
-    remaining = MAX_PLANNED_FEATURES - (planned_count - 1)  # One less since we started it
+    remaining = MAX_PLANNED_FEATURES - (idea_count - 1)  # One less since we started it
 
     console.print("\n" + "=" * 60)
     console.print(f"\n[bold green]🚀 Ready to build![/bold green]")
@@ -675,16 +675,16 @@ def ship(
     console.print(f"\n   {registry.get_streak_display()} (Best: {stats.longest_streak})")
     console.print(f"   [dim]Total shipped: {stats.total_shipped}[/dim]")
 
-    # Show remaining planned
-    planned = registry.list_features(status=FeatureStatus.PLANNED)
+    # Show remaining ideas
+    ideas = registry.list_features(status=FeatureStatus.IDEA)
     completed = registry.list_features(status=FeatureStatus.COMPLETED)
 
-    console.print(f"\n   [dim]Completed: {len(completed)} | Planned: {len(planned)}[/dim]")
+    console.print(f"\n   [dim]Completed: {len(completed)} | Ideas: {len(ideas)}[/dim]")
 
-    if planned:
+    if ideas:
         console.print("\n[yellow]What's next?[/yellow]")
-        for p in planned[:3]:
-            console.print(f"   • forge build \"{p.title}\"")
+        for idea in ideas[:3]:
+            console.print(f"   • forge build \"{idea.title}\"")
     else:
         console.print("\n[green]🎊 Backlog clear! Time to brainstorm.[/green]")
         console.print("   forge brainstorm")
@@ -725,7 +725,8 @@ def _show_feature_tree(features: list[Feature], registry: FeatureRegistry):
     tree = Tree("🔨 [bold]Features[/bold]")
 
     status_colors = {
-        FeatureStatus.PLANNED: "white",
+        FeatureStatus.INBOX: "dim",
+        FeatureStatus.IDEA: "white",
         FeatureStatus.IN_PROGRESS: "blue",
         FeatureStatus.REVIEW: "yellow",
         FeatureStatus.COMPLETED: "green",
@@ -1056,7 +1057,8 @@ def status():
     console.print(Panel(
         f"[bold]Project:[/bold] {config.project.name}\n"
         f"[bold]Total features:[/bold] {stats['total']}\n\n"
-        f"  📋 Planned: {stats['by_status'].get('planned', 0)}\n"
+        f"  💭 Inbox: {stats['by_status'].get('inbox', 0)}\n"
+        f"  💡 Ideas: {stats['by_status'].get('idea', 0)}\n"
         f"  🔄 In Progress: {stats['by_status'].get('in-progress', 0)}\n"
         f"  👀 Review: {stats['by_status'].get('review', 0)}\n"
         f"  ✅ Completed: {stats['by_status'].get('completed', 0)}\n"

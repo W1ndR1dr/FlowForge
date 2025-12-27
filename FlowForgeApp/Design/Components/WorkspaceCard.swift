@@ -12,12 +12,14 @@ struct WorkspaceCard: View {
     let feature: Feature
     let onResume: () -> Void
     let onStop: () -> Void
+    let onDelete: () -> Void
 
     @State private var isHovered = false
     @State private var isLaunching = false
     @State private var hasConflicts = false
     @State private var conflictFiles: [String] = []
     @State private var isCheckingConflicts = false
+    @State private var showingDeleteConfirmation = false
 
     private let apiClient = APIClient()
 
@@ -81,6 +83,18 @@ struct WorkspaceCard: View {
                     .lineLimit(1)
 
                 Spacer()
+
+                // Delete button (show on hover)
+                if isHovered {
+                    Button(action: { showingDeleteConfirmation = true }) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 10))
+                            .foregroundColor(Accent.danger)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Delete feature")
+                    .transition(.opacity)
+                }
 
                 if !timeWorking.isEmpty {
                     Text(timeWorking)
@@ -171,6 +185,16 @@ struct WorkspaceCard: View {
         .onAppear {
             Task { await checkConflicts() }
         }
+        .confirmationDialog(
+            "Delete Feature?",
+            isPresented: $showingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) { onDelete() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Delete \"\(feature.title)\"? This will remove the feature and clean up the worktree.")
+        }
     }
 
     // MARK: - Actions
@@ -221,7 +245,7 @@ struct WorkspaceCard: View {
     }
 }
 
-// MARK: - Active Workspaces Section
+// MARK: - Building Section
 // Shows all features currently being worked on
 
 struct ActiveWorkspacesSection: View {
@@ -232,9 +256,9 @@ struct ActiveWorkspacesSection: View {
         appState.features.filter { $0.status == .inProgress || $0.status == .review }
     }
 
-    /// Next planned feature to start
-    private var nextPlannedFeature: Feature? {
-        appState.features.first { $0.status == .planned }
+    /// Next idea ready to start
+    private var nextIdea: Feature? {
+        appState.features.first { $0.status == .idea }
     }
 
     var body: some View {
@@ -244,7 +268,7 @@ struct ActiveWorkspacesSection: View {
                 HStack(spacing: Spacing.small) {
                     Image(systemName: "hammer.fill")
                         .foregroundColor(Accent.primary)
-                    Text("ACTIVE WORK")
+                    Text("BUILDING")
                         .sectionHeaderStyle()
                 }
 
@@ -264,8 +288,8 @@ struct ActiveWorkspacesSection: View {
             }
 
             if activeFeatures.isEmpty {
-                // Empty state - show "Start next" if we have planned features
-                if let nextFeature = nextPlannedFeature {
+                // Empty state - show "Start next" if we have ideas ready
+                if let nextFeature = nextIdea {
                     StartNextCard(feature: nextFeature)
                 } else {
                     VStack(spacing: Spacing.small) {
@@ -301,6 +325,11 @@ struct ActiveWorkspacesSection: View {
                             onStop: {
                                 Task {
                                     await appState.stopFeature(feature)
+                                }
+                            },
+                            onDelete: {
+                                Task {
+                                    await appState.deleteFeature(feature)
                                 }
                             }
                         )
@@ -408,7 +437,8 @@ struct StartNextCard: View {
                 startedAt: Date().addingTimeInterval(-3600)
             ),
             onResume: {},
-            onStop: {}
+            onStop: {},
+            onDelete: {}
         )
         .frame(width: 250)
 

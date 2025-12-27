@@ -3,7 +3,7 @@ import SwiftUI
 /// The Chat-to-Spec experience.
 ///
 /// A conversational interface where users brainstorm with Claude until
-/// a feature spec crystallizes. This is the heart of the vibecoder experience.
+/// a feature spec is refined. This is the heart of the vibecoder experience.
 ///
 /// "Talk to Claude until your idea becomes buildable."
 struct BrainstormChatView: View {
@@ -202,8 +202,8 @@ struct BrainstormChatView: View {
     /// Auto-start refinement with the feature title as context
     private func startRefinement() {
         guard let feature = existingFeature else { return }
-        // Send the feature title to Claude to start the crystallization process
-        client.sendMessage("Help me crystallize this idea: \(feature.title)")
+        // Send the feature title to Claude to start the refinement process
+        client.sendMessage("Help me refine this idea: \(feature.title)")
     }
 
     private func suggestionChip(_ text: String) -> some View {
@@ -232,7 +232,7 @@ struct BrainstormChatView: View {
             HStack(spacing: Spacing.small) {
                 Image(systemName: "sparkles")
                     .foregroundColor(Accent.success)
-                Text(isRefiningFeature ? "Ready to crystallize!" : "Spec ready!")
+                Text(isRefiningFeature ? "Ready to promote!" : "Spec ready!")
                     .font(Typography.caption)
                     .fontWeight(.medium)
                 Spacer()
@@ -349,7 +349,7 @@ struct SpecPreviewSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
-    let spec: BrainstormClient.CrystallizedSpec
+    let spec: BrainstormClient.RefinedSpec
     let project: String
     var existingFeature: Feature?  // Feature being refined (nil = create new)
 
@@ -366,7 +366,7 @@ struct SpecPreviewSheet: View {
             HStack {
                 VStack(alignment: .leading, spacing: Spacing.micro) {
                     if isUpdating {
-                        Label("Crystallized", systemImage: "sparkles")
+                        Label("Refined", systemImage: "sparkles")
                             .font(Typography.caption)
                             .foregroundColor(Accent.primary)
                     } else {
@@ -479,7 +479,7 @@ struct SpecPreviewSheet: View {
 
         Task {
             if let feature = existingFeature {
-                // UPDATE existing feature with crystallized spec
+                // UPDATE existing feature with refined spec
                 await appState.updateFeatureWithSpec(
                     featureId: feature.id,
                     title: spec.title,

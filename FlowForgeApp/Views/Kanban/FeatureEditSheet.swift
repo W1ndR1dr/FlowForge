@@ -121,8 +121,8 @@ struct FeatureEditSheet: View {
 
     private func statusColor(for status: FeatureStatus) -> Color {
         switch status {
-        case .idea: return .purple
-        case .planned: return .gray
+        case .inbox: return .purple
+        case .idea: return .gray
         case .inProgress: return .blue
         case .review: return .orange
         case .completed: return .green
@@ -179,7 +179,7 @@ extension Complexity: CaseIterable {
             id: "test-1",
             title: "Sample Feature",
             description: "This is a test feature",
-            status: .planned,
+            status: .idea,
             complexity: .medium,
             tags: ["ui", "backend"]
         ),

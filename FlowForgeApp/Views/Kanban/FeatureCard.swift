@@ -214,8 +214,8 @@ struct FeatureCard: View {
 
     private var statusColor: Color {
         switch feature.status {
-        case .idea: return .purple
-        case .planned: return .gray
+        case .inbox: return .purple
+        case .idea: return .gray
         case .inProgress: return .blue
         case .review: return .orange
         case .completed: return .green
@@ -367,7 +367,7 @@ struct DetailRow: View {
             feature: Feature(
                 id: "test-2",
                 title: "Simple Feature",
-                status: .planned,
+                status: .idea,
                 complexity: .small
             ),
             projectName: "TestProject"

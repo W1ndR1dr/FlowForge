@@ -29,7 +29,7 @@ class BrainstormMessage:
 
 @dataclass
 class SpecResult:
-    """A crystallized spec from brainstorming."""
+    """A refined spec from brainstorming."""
     title: str
     what_it_does: str
     how_it_works: list[str]
@@ -54,24 +54,24 @@ class BrainstormSession:
     project_name: str
     project_context: str
     existing_features: list[str]
-    existing_feature_title: Optional[str] = None  # For crystallization mode
+    existing_feature_title: Optional[str] = None  # For refining mode
     messages: list[BrainstormMessage] = field(default_factory=list)
     spec_ready: bool = False
     current_spec: Optional[SpecResult] = None
 
     @property
-    def is_crystallizing(self) -> bool:
+    def is_refining(self) -> bool:
         """Whether we're refining an existing feature vs brainstorming new ideas."""
         return self.existing_feature_title is not None
 
     def get_system_prompt(self) -> str:
         """Generate the system prompt for this session."""
-        from .prompts import BRAINSTORM_SYSTEM_PROMPT, CRYSTALLIZE_SYSTEM_PROMPT
+        from .prompts import BRAINSTORM_SYSTEM_PROMPT, REFINE_SYSTEM_PROMPT
 
         features_str = "\n".join(f"- {f}" for f in self.existing_features) if self.existing_features else "(none yet)"
 
-        if self.is_crystallizing:
-            return CRYSTALLIZE_SYSTEM_PROMPT.format(
+        if self.is_refining:
+            return REFINE_SYSTEM_PROMPT.format(
                 project_name=self.project_name,
                 project_context=self.project_context or "(no project context provided)",
                 feature_title=self.existing_feature_title,

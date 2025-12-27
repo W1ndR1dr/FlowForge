@@ -12,7 +12,7 @@ final class BrainstormClient: ObservableObject {
     @Published private(set) var isConnected = false
     @Published private(set) var isTyping = false
     @Published private(set) var messages: [BrainstormMessage] = []
-    @Published private(set) var currentSpec: CrystallizedSpec?
+    @Published private(set) var currentSpec: RefinedSpec?
     @Published private(set) var lastError: Error?
     @Published private(set) var streamingText: String = ""  // Current streaming response (debounced)
 
@@ -30,7 +30,7 @@ final class BrainstormClient: ObservableObject {
         }
     }
 
-    struct CrystallizedSpec: Codable {
+    struct RefinedSpec: Codable {
         let title: String
         let whatItDoes: String
         let howItWorks: [String]
@@ -62,7 +62,7 @@ final class BrainstormClient: ObservableObject {
 
     // MARK: - Callbacks
 
-    var onSpecReady: ((CrystallizedSpec) -> Void)?
+    var onSpecReady: ((RefinedSpec) -> Void)?
 
     // MARK: - Lifecycle
 
@@ -77,8 +77,8 @@ final class BrainstormClient: ObservableObject {
     /// Connect to brainstorm WebSocket for a project
     /// - Parameters:
     ///   - project: Project name
-    ///   - featureId: Optional feature ID for crystallization mode
-    ///   - featureTitle: Optional feature title for crystallization mode
+    ///   - featureId: Optional feature ID for refining mode
+    ///   - featureTitle: Optional feature title for refining mode
     func connect(project: String, featureId: String? = nil, featureTitle: String? = nil) {
         if currentProject != nil {
             disconnect()
@@ -184,11 +184,11 @@ final class BrainstormClient: ObservableObject {
 
         print("Brainstorm WebSocket connecting to: \(url)")
 
-        // Send init message with feature context for crystallization mode
+        // Send init message with feature context for refining mode
         sendInitMessage()
     }
 
-    /// Send init message with feature context (for crystallization mode)
+    /// Send init message with feature context (for refining mode)
     private func sendInitMessage() {
         var payload: [String: Any] = ["type": "init"]
 
@@ -285,10 +285,10 @@ final class BrainstormClient: ObservableObject {
             currentAssistantMessage = nil
 
         case "spec_ready":
-            // Spec has crystallized!
+            // Spec is ready!
             if let specData = json["spec"] as? [String: Any],
                let jsonData = try? JSONSerialization.data(withJSONObject: specData),
-               let spec = try? JSONDecoder().decode(CrystallizedSpec.self, from: jsonData) {
+               let spec = try? JSONDecoder().decode(RefinedSpec.self, from: jsonData) {
                 currentSpec = spec
                 onSpecReady?(spec)
             }

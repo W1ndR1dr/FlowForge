@@ -27,14 +27,14 @@ struct WorkspaceView: View {
             ?? appState.features.first { $0.status == .review }
     }
 
-    private var ideaFeatures: [Feature] {
-        // Raw ideas that need crystallization (sorted)
-        appState.sortedIdeas
+    private var inboxFeatures: [Feature] {
+        // Raw captures that need refining (sorted)
+        appState.sortedInboxItems
     }
 
-    private var plannedFeatures: [Feature] {
-        // Crystallized features ready to build (sorted)
-        appState.sortedPlannedFeatures
+    private var ideaFeatures: [Feature] {
+        // Refined ideas ready to build (sorted)
+        appState.sortedIdeas
     }
 
     private var slotsRemaining: Int {
@@ -74,15 +74,15 @@ struct WorkspaceView: View {
                     // Level 0: Capture - The Vibe Input
                     vibeInputSection
 
-                    // Level 1: Raw Ideas - need crystallization
-                    ideaInboxSection
+                    // Level 1: Raw captures - need refining
+                    inboxSection
 
-                    // Level 2: Ready to Build - crystallized, pick one to start
-                    if !plannedFeatures.isEmpty {
-                        readyToBuildSection
+                    // Level 2: Ready to Build - refined, pick one to start
+                    if !ideaFeatures.isEmpty {
+                        ideasSection
                     }
 
-                    // Level 3: Active Work - what you're building now
+                    // Level 3: Building - what you're actively working on
                     ActiveWorkspacesSection()
 
                     // Level 4: Done - shipped features
@@ -141,11 +141,9 @@ struct WorkspaceView: View {
         }
     }
 
-    // MARK: - Idea Queue Section (The One Queue)
+    // MARK: - Ideas Section (Refined, Ready to Build)
 
-    // MARK: - Ready to Build Section (Planned/Crystallized)
-
-    private var readyToBuildSection: some View {
+    private var ideasSection: some View {
         @Bindable var state = appState
 
         return VStack(alignment: .leading, spacing: Spacing.medium) {
@@ -154,28 +152,29 @@ struct WorkspaceView: View {
                 HStack(spacing: Spacing.small) {
                     Image(systemName: "hammer.fill")
                         .foregroundColor(Accent.success)
-                    Text("READY TO BUILD")
+                    Text("IDEAS")
                         .sectionHeaderStyle()
                 }
 
-                Text("\(plannedFeatures.count)")
+                Text("\(ideaFeatures.count)")
                     .badgeStyle(color: Accent.success)
 
                 Spacer()
 
-                SortPicker(selection: $state.plannedSortOrder)
+                SortPicker(selection: $state.ideaSortOrder)
             }
 
-            // Planned features
+            // Ideas (refined, ready to build)
             ScrollView {
                 VStack(spacing: Spacing.small) {
-                    ForEach(plannedFeatures) { feature in
-                        PlannedFeatureCard(
+                    ForEach(ideaFeatures) { feature in
+                        IdeaFeatureCard(
                             feature: feature,
                             onStart: {
                                 Task { await appState.startFeature(feature) }
                             },
-                            onRefine: { refineFeature(feature) }
+                            onRefine: { refineFeature(feature) },
+                            onDelete: { archiveIdea(feature) }
                         )
                     }
                 }
@@ -187,9 +186,9 @@ struct WorkspaceView: View {
         .cornerRadius(CornerRadius.large)
     }
 
-    // MARK: - Idea Inbox Section (Raw Ideas)
+    // MARK: - Inbox Section (Raw Captures)
 
-    private var ideaInboxSection: some View {
+    private var inboxSection: some View {
         @Bindable var state = appState
 
         return VStack(alignment: .leading, spacing: Spacing.medium) {
@@ -198,27 +197,27 @@ struct WorkspaceView: View {
                 HStack(spacing: Spacing.small) {
                     Image(systemName: "lightbulb.fill")
                         .foregroundColor(Accent.warning)
-                    Text("IDEA INBOX")
+                    Text("INBOX")
                         .sectionHeaderStyle()
                 }
 
-                if !ideaFeatures.isEmpty {
-                    Text("\(ideaFeatures.count)")
+                if !inboxFeatures.isEmpty {
+                    Text("\(inboxFeatures.count)")
                         .badgeStyle(color: Accent.warning)
                 }
 
                 Spacer()
 
-                SortPicker(selection: $state.ideaSortOrder)
+                SortPicker(selection: $state.inboxSortOrder)
             }
 
-            // Ideas
-            if ideaFeatures.isEmpty {
+            // Inbox items
+            if inboxFeatures.isEmpty {
                 VStack(spacing: Spacing.medium) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 32))
                         .foregroundColor(.secondary.opacity(0.5))
-                    Text("No rough ideas")
+                    Text("No raw captures")
                         .font(Typography.body)
                         .foregroundColor(.secondary)
                     Text("Type above to capture an idea, then refine it")
@@ -230,10 +229,11 @@ struct WorkspaceView: View {
             } else {
                 ScrollView {
                     VStack(spacing: Spacing.small) {
-                        ForEach(ideaFeatures) { feature in
-                            IdeaCard(
+                        ForEach(inboxFeatures) { feature in
+                            InboxCard(
                                 feature: feature,
-                                onCrystallize: { refineFeature(feature) },
+                                onRefine: { refineFeature(feature) },
+                                onMarkReady: { promoteToIdea(feature) },
                                 onDelete: { archiveIdea(feature) }
                             )
                         }
@@ -289,7 +289,7 @@ struct WorkspaceView: View {
                 }
 
                 VStack(spacing: Spacing.micro) {
-                    Text("\(plannedFeatures.count + ideaFeatures.count)")
+                    Text("\(ideaFeatures.count + inboxFeatures.count)")
                         .font(Typography.streakNumber)
                         .foregroundColor(StatusColor.inProgressFallback)
                     Text("queued")
@@ -367,9 +367,9 @@ struct WorkspaceView: View {
         }
     }
 
-    private func crystallizeIdea(_ feature: Feature) {
+    private func promoteToIdea(_ feature: Feature) {
         Task {
-            await appState.crystallizeFeature(feature)
+            await appState.refineFeature(feature)
         }
     }
 
@@ -386,12 +386,14 @@ struct ActiveWorkCard: View {
     @Environment(AppState.self) private var appState
     let feature: Feature
     let onShip: () -> Void
+    let onDelete: () -> Void
 
     @State private var isHovered = false
     @State private var isVisible = false
     @State private var isLaunchingTerminal = false
     @State private var gitStatus: GitStatus?
     @State private var isLoadingGitStatus = false
+    @State private var showingDeleteConfirmation = false
 
     private let apiClient = APIClient()
 
@@ -409,6 +411,18 @@ struct ActiveWorkCard: View {
                     .font(Typography.featureTitle)
 
                 Spacer()
+
+                // Delete button (show on hover)
+                if isHovered {
+                    Button(action: { showingDeleteConfirmation = true }) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12))
+                            .foregroundColor(Accent.danger)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Delete feature")
+                    .transition(.opacity)
+                }
 
                 Text(feature.status.displayName)
                     .badgeStyle(color: feature.status == .review ? StatusColor.reviewFallback : StatusColor.inProgressFallback)
@@ -577,6 +591,16 @@ struct ActiveWorkCard: View {
             withAnimation(SpringPreset.gentle) {
                 isVisible = true
             }
+        }
+        .confirmationDialog(
+            "Delete Feature?",
+            isPresented: $showingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) { onDelete() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Delete \"\(feature.title)\"? This will remove the feature and any worktree.")
         }
     }
 
@@ -1169,18 +1193,20 @@ struct ShippedCard: View {
     }
 }
 
-// MARK: - Planned Feature Card (Ready to Build)
+// MARK: - Idea Feature Card (Ready to Build)
 
-struct PlannedFeatureCard: View {
+struct IdeaFeatureCard: View {
     let feature: Feature
     let onStart: () -> Void
     let onRefine: () -> Void
+    let onDelete: () -> Void
 
     @State private var isHovered = false
+    @State private var showingDeleteConfirmation = false
 
     var body: some View {
         HStack(spacing: Spacing.medium) {
-            // Checkmark icon (crystallized)
+            // Checkmark icon (refined)
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(Accent.success)
                 .font(.system(size: 16))
@@ -1205,6 +1231,14 @@ struct PlannedFeatureCard: View {
             // Actions
             if isHovered {
                 HStack(spacing: Spacing.small) {
+                    Button(action: { showingDeleteConfirmation = true }) {
+                        Image(systemName: "trash")
+                            .font(Typography.caption)
+                            .foregroundColor(Accent.danger)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Delete feature")
+
                     Button(action: onRefine) {
                         HStack(spacing: 4) {
                             Image(systemName: "pencil")
@@ -1237,52 +1271,104 @@ struct PlannedFeatureCard: View {
         .padding(Spacing.medium)
         .background(isHovered ? Accent.success.opacity(0.1) : Color.clear)
         .cornerRadius(CornerRadius.medium)
+        .confirmationDialog(
+            "Delete Feature?",
+            isPresented: $showingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) { onDelete() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Delete \"\(feature.title)\"? This cannot be undone.")
+        }
         .onHover { isHovered = $0 }
         .animation(SpringPreset.snappy, value: isHovered)
     }
 }
 
-// MARK: - Idea Card
+// MARK: - Inbox Card
 
-struct IdeaCard: View {
+struct InboxCard: View {
     let feature: Feature
-    let onCrystallize: () -> Void
+    let onRefine: () -> Void
+    let onMarkReady: () -> Void
     let onDelete: () -> Void
 
     @State private var isHovered = false
     @State private var showingDeleteConfirmation = false
 
+    /// Has this idea been refined (has description from chat)?
+    private var isRefined: Bool {
+        guard let desc = feature.description else { return false }
+        return !desc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         HStack(spacing: Spacing.medium) {
-            // Lightbulb icon
-            Image(systemName: "lightbulb")
-                .foregroundColor(.purple)
+            // Icon - different for refined vs raw
+            Image(systemName: isRefined ? "checkmark.circle" : "lightbulb")
+                .foregroundColor(isRefined ? Accent.success : .purple)
                 .font(.system(size: 14))
 
-            // Title
-            Text(feature.title)
-                .font(Typography.body)
-                .lineLimit(1)
+            // Title and refinement status
+            VStack(alignment: .leading, spacing: 2) {
+                Text(feature.title)
+                    .font(Typography.body)
+                    .lineLimit(1)
+
+                if isRefined {
+                    Text("Refined — ready to promote")
+                        .font(.system(size: 10))
+                        .foregroundColor(Accent.success)
+                }
+            }
 
             Spacer()
 
             // Actions (show on hover)
             if isHovered {
                 HStack(spacing: Spacing.small) {
-                    Button(action: onCrystallize) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "sparkles")
-                            Text("Crystallize")
+                    if isRefined {
+                        // Refined: can promote to Ready to Build
+                        Button(action: onMarkReady) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.right.circle.fill")
+                                Text("Ready")
+                            }
+                            .font(Typography.caption)
+                            .padding(.horizontal, Spacing.small)
+                            .padding(.vertical, Spacing.micro)
+                            .background(Accent.success.opacity(0.2))
+                            .foregroundColor(Accent.success)
+                            .cornerRadius(CornerRadius.small)
                         }
-                        .font(Typography.caption)
-                        .padding(.horizontal, Spacing.small)
-                        .padding(.vertical, Spacing.micro)
-                        .background(Color.purple.opacity(0.2))
-                        .foregroundColor(.purple)
-                        .cornerRadius(CornerRadius.small)
+                        .buttonStyle(.plain)
+                        .help("Move to Ready to Build")
+
+                        Button(action: onRefine) {
+                            Image(systemName: "pencil")
+                                .font(Typography.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Edit spec")
+                    } else {
+                        // Raw: needs refinement
+                        Button(action: onRefine) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "sparkles")
+                                Text("Refine")
+                            }
+                            .font(Typography.caption)
+                            .padding(.horizontal, Spacing.small)
+                            .padding(.vertical, Spacing.micro)
+                            .background(Color.purple.opacity(0.2))
+                            .foregroundColor(.purple)
+                            .cornerRadius(CornerRadius.small)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Refine this idea with Claude")
                     }
-                    .buttonStyle(.plain)
-                    .help("Refine this idea into a shippable feature")
 
                     Button(action: { showingDeleteConfirmation = true }) {
                         Image(systemName: "trash")
@@ -1297,7 +1383,7 @@ struct IdeaCard: View {
             }
         }
         .padding(Spacing.medium)
-        .background(isHovered ? Color.purple.opacity(0.1) : Color.clear)
+        .background(isHovered ? (isRefined ? Accent.success.opacity(0.1) : Color.purple.opacity(0.1)) : Color.clear)
         .cornerRadius(CornerRadius.medium)
         .onHover { isHovered = $0 }
         .animation(SpringPreset.snappy, value: isHovered)

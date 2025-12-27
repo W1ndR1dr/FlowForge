@@ -123,12 +123,12 @@ struct StatusCard<Content: View>: View {
 
     private var statusColor: Color {
         switch status {
-        case .idea: return StatusColor.idea
-        case .planned: return StatusColor.planned
-        case .inProgress: return StatusColor.inProgress
-        case .review: return StatusColor.review
-        case .completed: return StatusColor.completed
-        case .blocked: return StatusColor.blocked
+        case .inbox: return StatusColor.inboxFallback
+        case .idea: return StatusColor.ideaFallback
+        case .inProgress: return StatusColor.inProgressFallback
+        case .review: return StatusColor.reviewFallback
+        case .completed: return StatusColor.completedFallback
+        case .blocked: return StatusColor.blockedFallback
         }
     }
 }
@@ -182,8 +182,8 @@ struct CardContainerPreview: View {
 
             // Status cards
             VStack(spacing: Spacing.small) {
-                StatusCard(status: .planned) {
-                    Text("Planned feature")
+                StatusCard(status: .idea) {
+                    Text("Idea feature")
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 

@@ -72,7 +72,7 @@ actor CLIBridge {
             id: id,
             title: title,
             description: nil,
-            status: .planned,
+            status: .idea,
             complexity: nil,
             parentId: nil,
             dependencies: [],

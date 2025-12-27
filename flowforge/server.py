@@ -851,7 +851,7 @@ class AddFeatureRequest(BaseModel):
     description: Optional[str] = None
     tags: Optional[list[str]] = None
     priority: int = 5
-    status: str = "idea"  # Default to idea for quick capture
+    status: str = "inbox"  # Default to inbox for quick capture
 
 
 @app.post("/api/{project}/features")
@@ -860,7 +860,7 @@ async def add_feature(project: str, request: AddFeatureRequest):
     Add a new feature.
 
     If Mac is offline, queues the operation for later sync.
-    Default status is 'idea' for quick capture (not counted in 3-slot limit).
+    Default status is 'inbox' for quick capture (not counted in slot limit).
     """
     # Check if Mac is offline
     if sync_manager and not sync_manager.mac_online:
@@ -925,7 +925,7 @@ async def add_feature(project: str, request: AddFeatureRequest):
         return {
             "feature_id": feature_id,
             "title": request.title,
-            "status": request.status or "idea",
+            "status": request.status or "inbox",
             "mac_online": True,
             "queued": False,
         }
@@ -988,7 +988,7 @@ async def update_feature(
 
 
 class UpdateFeatureSpecRequest(BaseModel):
-    """Request to update a feature with crystallized spec details."""
+    """Request to update a feature with refined spec details."""
     title: str
     description: str
     how_it_works: list[str] = []
@@ -1003,9 +1003,9 @@ async def update_feature_spec(
     request: UpdateFeatureSpecRequest,
 ):
     """
-    Update a feature with crystallized spec details.
+    Update a feature with refined spec details.
 
-    Used when refining an idea through the brainstorm chat.
+    Used when refining an inbox item through the brainstorm chat.
     Updates title, description, and stores spec metadata.
     """
     # Get project context
@@ -1028,7 +1028,7 @@ async def update_feature_spec(
     if request.estimated_scope:
         full_description += f"\n\nEstimated scope: {request.estimated_scope}"
 
-    # Update the feature - also promote idea → planned (crystallized)
+    # Update the feature - also promote inbox → idea (refined)
     from .registry import FeatureStatus
 
     update_kwargs = {
@@ -1036,26 +1036,26 @@ async def update_feature_spec(
         "description": full_description,
     }
 
-    # If it's an idea, crystallizing promotes it to planned
-    if feature.status == FeatureStatus.IDEA:
-        update_kwargs["status"] = FeatureStatus.PLANNED
+    # If it's an inbox item, refining promotes it to idea
+    if feature.status == FeatureStatus.INBOX:
+        update_kwargs["status"] = FeatureStatus.IDEA
 
     registry.update_feature(feature_id, **update_kwargs)
 
     # Broadcast update
     await ws_manager.broadcast_feature_update(project, feature_id, "updated")
 
-    status_msg = " (promoted to planned)" if feature.status == FeatureStatus.IDEA else ""
-    return {"success": True, "message": f"Updated feature with crystallized spec: {request.title}{status_msg}"}
+    status_msg = " (promoted to idea)" if feature.status == FeatureStatus.INBOX else ""
+    return {"success": True, "message": f"Updated feature with refined spec: {request.title}{status_msg}"}
 
 
-@app.post("/api/{project}/features/{feature_id}/crystallize")
-async def crystallize_feature(project: str, feature_id: str):
+@app.post("/api/{project}/features/{feature_id}/refine")
+async def refine_feature(project: str, feature_id: str):
     """
-    Crystallize an idea into a planned feature.
+    Refine an inbox item into an idea ready to build.
 
-    Takes a feature from 'idea' status to 'planned' status.
-    Checks the 3-slot constraint before crystallizing.
+    Takes a feature from 'inbox' status to 'idea' status.
+    Checks the slot constraint before refining.
     """
     from .registry import FeatureStatus, MAX_PLANNED_FEATURES
 
@@ -1070,39 +1070,39 @@ async def crystallize_feature(project: str, feature_id: str):
     if not feature:
         raise HTTPException(status_code=404, detail=f"Feature not found: {feature_id}")
 
-    # Check it's an idea
-    if feature.status != FeatureStatus.IDEA:
+    # Check it's an inbox item
+    if feature.status != FeatureStatus.INBOX:
         raise HTTPException(
             status_code=400,
-            detail=f"Feature is not an idea (status: {feature.status.value})"
+            detail=f"Feature is not in inbox (status: {feature.status.value})"
         )
 
-    # Check 3-slot constraint
-    if not registry.can_add_planned():
-        planned_titles = registry.get_planned_feature_titles()
+    # Check slot constraint
+    if not registry.can_add_idea():
+        idea_titles = registry.get_idea_titles()
         raise HTTPException(
             status_code=400,
             detail=(
-                f"You have {MAX_PLANNED_FEATURES} planned features. "
-                f"Finish or delete one first: {', '.join(planned_titles[:MAX_PLANNED_FEATURES])}"
+                f"You have {MAX_PLANNED_FEATURES} ideas ready to build. "
+                f"Finish or delete one first: {', '.join(idea_titles[:MAX_PLANNED_FEATURES])}"
             )
         )
 
-    # Crystallize: idea → planned
-    registry.update_feature(feature_id, status=FeatureStatus.PLANNED)
+    # Refine: inbox → idea
+    registry.update_feature(feature_id, status=FeatureStatus.IDEA)
 
     # Broadcast update
     await ws_manager.broadcast_feature_update(project, feature_id, "updated")
 
-    remaining = MAX_PLANNED_FEATURES - registry.count_planned()
+    remaining = MAX_PLANNED_FEATURES - registry.count_ideas()
 
     return {
         "feature_id": feature_id,
         "title": feature.title,
-        "status": "planned",
-        "planned_count": registry.count_planned(),
+        "status": "idea",
+        "idea_count": registry.count_ideas(),
         "slots_remaining": remaining,
-        "message": f"Crystallized: {feature.title} ({remaining} slot{'s' if remaining != 1 else ''} remaining)",
+        "message": f"Refined: {feature.title} ({remaining} slot{'s' if remaining != 1 else ''} remaining)",
     }
 
 
@@ -1554,7 +1554,8 @@ async def web_ui():
             font-weight: 500;
         }
 
-        .status.planned { background: var(--accent); }
+        .status.inbox { background: var(--accent); opacity: 0.7; }
+        .status.idea { background: var(--accent); }
         .status.in-progress { background: var(--blue); color: #000; }
         .status.review { background: var(--warning); color: #000; }
         .status.completed { background: var(--success); color: #000; }
@@ -1684,20 +1685,20 @@ async def web_ui():
 
                     <div class="stats">
                         <div class="stat">
-                            <div class="stat-value">${stats.planned || 0}</div>
-                            <div class="stat-label">Planned</div>
+                            <div class="stat-value">${stats.inbox || 0}</div>
+                            <div class="stat-label">Inbox</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">${stats.idea || 0}</div>
+                            <div class="stat-label">Ideas</div>
                         </div>
                         <div class="stat">
                             <div class="stat-value">${stats['in-progress'] || 0}</div>
-                            <div class="stat-label">In Progress</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-value">${stats.review || 0}</div>
-                            <div class="stat-label">Review</div>
+                            <div class="stat-label">Building</div>
                         </div>
                         <div class="stat">
                             <div class="stat-value">${stats.completed || 0}</div>
-                            <div class="stat-label">Completed</div>
+                            <div class="stat-label">Shipped</div>
                         </div>
                     </div>
 
@@ -1710,12 +1711,12 @@ async def web_ui():
                             </div>
                             <div class="actions">
                                 <span class="status ${f.status}">${f.status}</span>
-                                ${f.status === 'planned' ?
+                                ${f.status === 'idea' ?
                                     `<button class="btn" onclick="startFeature('${f.id}')">Start</button>` : ''}
                                 ${f.status === 'in-progress' ?
                                     `<button class="btn" onclick="stopFeature('${f.id}')">Review</button>` : ''}
                                 ${f.status === 'review' ?
-                                    `<button class="btn" onclick="mergeFeature('${f.id}')">Merge</button>` : ''}
+                                    `<button class="btn" onclick="mergeFeature('${f.id}')">Ship</button>` : ''}
                             </div>
                         </div>
                     `).join('')}

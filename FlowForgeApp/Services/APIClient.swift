@@ -61,12 +61,12 @@ actor APIClient {
         return response.features
     }
 
-    /// Add a new feature (defaults to idea status for quick capture)
+    /// Add a new feature (defaults to inbox status for quick capture)
     func addFeature(
         project: String,
         title: String,
         description: String? = nil,
-        status: String = "idea"
+        status: String = "inbox"
     ) async throws {
         let url = baseURL.appendingPathComponent("api/\(project)/features")
         var body: [String: Any] = ["title": title, "status": status]
@@ -76,9 +76,9 @@ actor APIClient {
         let _: FeatureAddResponse = try await post(url: url, body: body)
     }
 
-    /// Crystallize an idea into a planned feature
-    func crystallizeFeature(project: String, featureId: String) async throws {
-        let url = baseURL.appendingPathComponent("api/\(project)/features/\(featureId)/crystallize")
+    /// Refine an inbox item into an idea ready to build
+    func refineFeature(project: String, featureId: String) async throws {
+        let url = baseURL.appendingPathComponent("api/\(project)/features/\(featureId)/refine")
         let _: EmptyResponse = try await post(url: url, body: [:])
     }
 
@@ -174,8 +174,8 @@ actor APIClient {
         let _: EmptyResponse = try await patch(url: url, body: body)
     }
 
-    /// Update a feature with crystallized spec details
-    /// Used when refining an idea through brainstorm chat
+    /// Update a feature with refined spec details
+    /// Used when refining an inbox item through brainstorm chat
     func updateFeatureWithSpec(
         project: String,
         featureId: String,

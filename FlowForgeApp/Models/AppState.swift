@@ -95,11 +95,11 @@ class AppState {
     var projectSortOrder: SortOrder {
         didSet { UserDefaults.standard.set(projectSortOrder.rawValue, forKey: "projectSortOrder") }
     }
+    var inboxSortOrder: SortOrder {
+        didSet { UserDefaults.standard.set(inboxSortOrder.rawValue, forKey: "inboxSortOrder") }
+    }
     var ideaSortOrder: SortOrder {
         didSet { UserDefaults.standard.set(ideaSortOrder.rawValue, forKey: "ideaSortOrder") }
-    }
-    var plannedSortOrder: SortOrder {
-        didSet { UserDefaults.standard.set(plannedSortOrder.rawValue, forKey: "plannedSortOrder") }
     }
 
     // Track when items were last accessed (for "recently used" sorting)
@@ -137,17 +137,17 @@ class AppState {
         } else {
             projectSortOrder = .recentlyUsed
         }
+        if let raw = UserDefaults.standard.string(forKey: "inboxSortOrder"),
+           let order = SortOrder(rawValue: raw) {
+            inboxSortOrder = order
+        } else {
+            inboxSortOrder = .recentlyUsed
+        }
         if let raw = UserDefaults.standard.string(forKey: "ideaSortOrder"),
            let order = SortOrder(rawValue: raw) {
             ideaSortOrder = order
         } else {
             ideaSortOrder = .recentlyUsed
-        }
-        if let raw = UserDefaults.standard.string(forKey: "plannedSortOrder"),
-           let order = SortOrder(rawValue: raw) {
-            plannedSortOrder = order
-        } else {
-            plannedSortOrder = .recentlyUsed
         }
 
         // Load access times
@@ -210,16 +210,16 @@ class AppState {
         }
     }
 
-    /// Ideas sorted according to current preference
+    /// Inbox items (raw captures) sorted according to current preference
+    var sortedInboxItems: [Feature] {
+        let inbox = features.filter { $0.status == .inbox }
+        return sortFeatures(inbox, by: inboxSortOrder)
+    }
+
+    /// Ideas (refined, ready to build) sorted according to current preference
     var sortedIdeas: [Feature] {
         let ideas = features.filter { $0.status == .idea }
         return sortFeatures(ideas, by: ideaSortOrder)
-    }
-
-    /// Planned features sorted according to current preference
-    var sortedPlannedFeatures: [Feature] {
-        let planned = features.filter { $0.status == .planned }
-        return sortFeatures(planned, by: plannedSortOrder)
     }
 
     private func sortFeatures(_ items: [Feature], by order: SortOrder) -> [Feature] {
@@ -741,7 +741,7 @@ class AppState {
         guard let project = selectedProject else { return }
 
         do {
-            try await apiClient.addFeature(project: project.name, title: title, status: "planned")
+            try await apiClient.addFeature(project: project.name, title: title, status: "idea")
             showSuccess("Added to queue!")
         } catch {
             self.errorMessage = "Failed to add feature: \(error.localizedDescription)"
@@ -830,26 +830,26 @@ class AppState {
         }
     }
 
-    // MARK: - Crystallize Feature (Idea → Planned)
+    // MARK: - Refine Feature (Inbox → Idea)
 
-    /// Crystallize an idea into a planned feature
-    func crystallizeFeature(_ feature: Feature) async {
+    /// Refine an inbox item into an idea ready to build
+    func refineFeature(_ feature: Feature) async {
         guard let project = selectedProject else { return }
 
         do {
-            try await apiClient.crystallizeFeature(project: project.name, featureId: feature.id)
+            try await apiClient.refineFeature(project: project.name, featureId: feature.id)
             // Update local state
             if let index = features.firstIndex(where: { $0.id == feature.id }) {
-                features[index].status = .planned
+                features[index].status = .idea
             }
-            self.successMessage = "Crystallized: \(feature.title)"
+            self.successMessage = "Refined: \(feature.title)"
         } catch {
-            self.errorMessage = "Failed to crystallize: \(error.localizedDescription)"
+            self.errorMessage = "Failed to refine: \(error.localizedDescription)"
         }
     }
 
-    /// Update a feature with crystallized spec details
-    /// This is used when refining an existing idea through brainstorm chat
+    /// Update a feature with refined spec details
+    /// This is used when refining an existing inbox item through brainstorm chat
     func updateFeatureWithSpec(
         featureId: String,
         title: String,
@@ -991,23 +991,23 @@ class AppState {
 
     // MARK: - Shipping Machine Constraints
 
-    /// Maximum planned features allowed (effectively unlimited - ideas are cheap!)
+    /// Maximum ideas allowed (effectively unlimited - ideas are cheap!)
     /// The discipline comes at START, not CAPTURE
-    static let maxPlannedFeatures = 99
+    static let maxIdeas = 99
 
-    /// Number of currently planned features
-    var plannedCount: Int {
-        features.filter { $0.status == .planned }.count
+    /// Number of ready-to-build ideas
+    var ideaCount: Int {
+        features.filter { $0.status == .idea }.count
     }
 
-    /// Remaining slots for planned features
-    var plannedSlotsRemaining: Int {
-        max(0, Self.maxPlannedFeatures - plannedCount)
+    /// Remaining slots for ideas
+    var ideaSlotsRemaining: Int {
+        max(0, Self.maxIdeas - ideaCount)
     }
 
-    /// Whether user can add a new planned feature
-    var canAddPlannedFeature: Bool {
-        plannedCount < Self.maxPlannedFeatures
+    /// Whether user can add a new idea
+    var canAddIdea: Bool {
+        ideaCount < Self.maxIdeas
     }
 
     // MARK: - Shipping Stats
