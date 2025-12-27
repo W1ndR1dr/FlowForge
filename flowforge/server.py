@@ -796,7 +796,43 @@ async def add_feature(project: str, request: AddFeatureRequest):
             "mac_online": False,
         }
 
-    # Mac is online - proceed normally
+    # Mac is online - proceed
+    # If running in remote mode (Pi), execute via SSH to Mac
+    if remote_executor:
+        # Build forge add command
+        project_path = projects_base / project
+        cmd = ["forge", "add", request.title]
+        if request.status:
+            cmd.extend(["--status", request.status])
+        if request.description:
+            cmd.extend(["--description", request.description])
+
+        result = remote_executor.run_command(cmd, cwd=str(project_path))
+        if not result.success:
+            raise HTTPException(status_code=400, detail=result.stderr or "Failed to add feature")
+
+        # Parse feature ID from output
+        from .registry import FeatureRegistry
+        feature_id = FeatureRegistry.generate_id(request.title)
+
+        # Broadcast update
+        await ws_manager.broadcast_feature_update(project, feature_id, "created")
+
+        # Count planned features for response
+        registry = get_registry(project)
+        planned = [f for f in registry.features.values() if f.status.value == "planned"]
+
+        return {
+            "feature_id": feature_id,
+            "title": request.title,
+            "status": request.status or "idea",
+            "planned_count": len(planned),
+            "slots_remaining": MAX_PLANNED_FEATURES - len(planned),
+            "mac_online": True,
+            "queued": False,
+        }
+
+    # Local mode - proceed directly
     result = mcp_server._add_feature(
         project,
         request.title,
