@@ -513,7 +513,12 @@ struct iOSFeatureDetailView: View {
                             dismiss()
                         }
                     } label: {
-                        Label("Start Feature", systemImage: "play.fill")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label("Mark as In Progress", systemImage: "flag.fill")
+                            Text("Worktree created on Mac")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                     }
                     .disabled(feature.status == .inProgress)
                 }

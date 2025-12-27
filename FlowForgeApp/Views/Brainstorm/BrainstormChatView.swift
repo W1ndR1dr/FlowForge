@@ -60,6 +60,11 @@ struct BrainstormChatView: View {
 
             Divider()
 
+            // Spec ready indicator
+            if client.currentSpec != nil {
+                specReadyBanner
+            }
+
             // Input area
             inputView
         }
@@ -213,6 +218,31 @@ struct BrainstormChatView: View {
             .padding(.vertical, Spacing.small)
             .background(Surface.elevated)
             .cornerRadius(CornerRadius.large)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Spec Ready Banner
+
+    private var specReadyBanner: some View {
+        Button(action: { showingSpec = true }) {
+            HStack(spacing: Spacing.small) {
+                Image(systemName: "sparkles")
+                    .foregroundColor(Accent.success)
+                Text(isRefiningFeature ? "Ready to crystallize!" : "Spec ready!")
+                    .font(Typography.caption)
+                    .fontWeight(.medium)
+                Spacer()
+                Text("Review")
+                    .font(Typography.caption)
+                    .foregroundColor(Accent.primary)
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundColor(Accent.primary)
+            }
+            .padding(.horizontal, Spacing.standard)
+            .padding(.vertical, Spacing.small)
+            .background(Accent.success.opacity(0.1))
         }
         .buttonStyle(.plain)
     }
