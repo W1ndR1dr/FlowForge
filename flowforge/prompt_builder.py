@@ -210,11 +210,12 @@ class PromptBuilder:
         sections.append("## Workflow Context")
         sections.append("")
         sections.append("You're in a FlowForge-managed worktree for this feature.")
+        sections.append(f"- **Feature ID:** `{context.feature.id}`")
         if context.worktree_path:
             sections.append(f"- **Worktree:** `{context.worktree_path}`")
-        sections.append(f"- **Branch:** Isolated from main (changes don't affect main until merge)")
-        sections.append("- **When finished:** Human clicks \"Stop\" in FlowForge → build validation → merge")
-        sections.append("- **Your focus:** Implement the feature. Human decides when it's done.")
+        sections.append("- **Branch:** Isolated from main (changes won't affect main until shipped)")
+        sections.append(f"- **To ship:** When human says \"ship it\", run `forge merge {context.feature.id}`")
+        sections.append("- **Your focus:** Implement the feature. Human decides when to ship.")
         sections.append("")
 
         # Feature description
@@ -279,19 +280,22 @@ class PromptBuilder:
         # Implementation instructions (AGI-pilled)
         sections.append("## Instructions")
         sections.append("")
-        sections.append("You're helping a novice vibecoder who isn't a Git expert.")
-        sections.append("All Git operations should be explained and handled safely.")
+        sections.append("You're helping a vibecoder who isn't a Git expert.")
+        sections.append("Handle all Git operations safely without requiring them to understand Git.")
         sections.append("")
         sections.append("**Engage plan mode and ultrathink before implementing.**")
         sections.append("Present your plan for approval before writing code.")
         sections.append("")
-        sections.append("When complete:")
-        sections.append("1. Commit your changes with conventional commit format")
-        sections.append("2. Ensure any new files follow existing patterns")
-        sections.append("3. Test manually on the target device/environment")
-        sections.append(f"4. Run `forge stop {context.feature.id}` to mark ready for review")
+        sections.append("When implementing:")
+        sections.append("- Commit changes with conventional commit format")
+        sections.append("- Follow existing patterns in the codebase")
+        sections.append("- Test on target device/environment")
         sections.append("")
-        sections.append("Ask clarifying questions if the specification is unclear before proceeding.")
+        sections.append("When human says \"ship it\":")
+        sections.append(f"- Run `forge merge {context.feature.id}` to merge to main and clean up")
+        sections.append("- This handles: merge → build validation → worktree cleanup → done")
+        sections.append("")
+        sections.append("Ask clarifying questions if the specification is unclear.")
         sections.append("")
 
         return "\n".join(sections)
@@ -350,9 +354,9 @@ class QuickPromptBuilder:
 ## Workflow Context
 
 You're in a FlowForge-managed worktree for this feature.
-- **Branch:** Isolated from main (changes don't affect main until merge)
-- **When finished:** Human clicks "Stop" in FlowForge → build validation → merge
-- **Your focus:** Implement the feature. Human decides when it's done.
+- **Branch:** Isolated from main (changes won't affect main until shipped)
+- **To ship:** When human says "ship it", run `forge merge <feature-id>`
+- **Your focus:** Implement the feature. Human decides when to ship.
 
 ## Feature
 {description}
@@ -362,5 +366,5 @@ You're in a FlowForge-managed worktree for this feature.
 
 ## Instructions
 Implement this feature following the project conventions above.
-Commit with conventional commit format when complete.
+Commit with conventional commit format. When human says "ship it", run forge merge.
 """

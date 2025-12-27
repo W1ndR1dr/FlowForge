@@ -521,7 +521,7 @@ struct ActiveWorkCard: View {
 
                     // Open in Terminal button
                     #if os(macOS)
-                    Button(action: { Task { await openInTerminal(worktreePath) } }) {
+                    Button(action: { Task { await openInTerminal(worktreePath, promptPath: feature.promptPath) } }) {
                         HStack {
                             Image(systemName: "terminal")
                             Text(isLaunchingTerminal ? "Opening..." : "Open in Claude Code")
@@ -609,15 +609,41 @@ struct ActiveWorkCard: View {
     #if os(macOS)
     /// Open Claude Code in the worktree directory
     @MainActor
-    private func openInTerminal(_ worktreePath: String) async {
+    private func openInTerminal(_ worktreePath: String, promptPath: String? = nil) async {
         isLaunchingTerminal = true
         defer { isLaunchingTerminal = false }
 
-        let _ = await TerminalLauncher.launchClaudeCode(
+        // Try to read saved prompt for first-time launch
+        var promptContent: String? = nil
+        var promptURL: URL? = nil
+        if let promptPath = promptPath, !promptPath.isEmpty {
+            if promptPath.hasPrefix("/") {
+                // Absolute path - use directly
+                promptURL = URL(fileURLWithPath: promptPath)
+            } else {
+                // Relative path - construct from project root
+                let worktreeURL = URL(fileURLWithPath: worktreePath)
+                let projectRoot = worktreeURL.deletingLastPathComponent().deletingLastPathComponent()
+                promptURL = projectRoot.appendingPathComponent(promptPath)
+            }
+
+            if let url = promptURL, FileManager.default.fileExists(atPath: url.path) {
+                promptContent = try? String(contentsOf: url, encoding: .utf8)
+            }
+        }
+
+        // Launch Claude Code - with prompt for first start, or --resume to continue
+        let result = await TerminalLauncher.launchClaudeCode(
             worktreePath: worktreePath,
-            prompt: nil,  // No auto-paste on resume
-            launchCommand: "claude --dangerously-skip-permissions"
+            prompt: promptContent,
+            launchCommand: nil
         )
+
+        // After successful launch with prompt, rename file so next click uses --resume
+        if result.success, promptContent != nil, let url = promptURL {
+            let usedURL = url.deletingPathExtension().appendingPathExtension("used.md")
+            try? FileManager.default.moveItem(at: url, to: usedURL)
+        }
     }
 
     /// Open the worktree folder in Finder

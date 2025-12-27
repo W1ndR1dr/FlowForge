@@ -203,17 +203,61 @@ struct WorkspaceCard: View {
     /// Open Claude Code in the worktree directory
     @MainActor
     private func openInTerminal() async {
-        guard let worktreePath = feature.worktreePath else { return }
+        print("[WorkspaceCard] openInTerminal called for feature: \(feature.title)")
+        print("[WorkspaceCard] worktreePath: \(feature.worktreePath ?? "nil")")
+        print("[WorkspaceCard] promptPath: \(feature.promptPath ?? "nil")")
+
+        guard let worktreePath = feature.worktreePath else {
+            print("[WorkspaceCard] No worktreePath, returning early")
+            return
+        }
 
         isLaunching = true
         defer { isLaunching = false }
 
-        // Launch Claude Code in terminal with --resume to continue last conversation
-        let _ = await TerminalLauncher.launchClaudeCode(
+        // Try to read saved prompt for first-time launch
+        // prompt_path from registry can be absolute or relative
+        var promptContent: String? = nil
+        var promptURL: URL? = nil
+        if let promptPath = feature.promptPath, !promptPath.isEmpty {
+            if promptPath.hasPrefix("/") {
+                // Absolute path - use directly
+                promptURL = URL(fileURLWithPath: promptPath)
+            } else {
+                // Relative path - construct from project root (worktree parent's parent)
+                let worktreeURL = URL(fileURLWithPath: worktreePath)
+                let projectRoot = worktreeURL.deletingLastPathComponent().deletingLastPathComponent()
+                promptURL = projectRoot.appendingPathComponent(promptPath)
+            }
+
+            print("[WorkspaceCard] Checking for prompt at: \(promptURL?.path ?? "nil")")
+
+            if let url = promptURL, FileManager.default.fileExists(atPath: url.path) {
+                do {
+                    promptContent = try String(contentsOf: url, encoding: .utf8)
+                    print("[WorkspaceCard] Loaded prompt (\(promptContent?.count ?? 0) chars)")
+                } catch {
+                    print("[WorkspaceCard] Failed to read prompt: \(error)")
+                }
+            } else {
+                print("[WorkspaceCard] No prompt file found, will use --resume")
+            }
+        }
+
+        // Launch Claude Code - with prompt for first start, or --resume to continue
+        let result = await TerminalLauncher.launchClaudeCode(
             worktreePath: worktreePath,
-            prompt: nil,
-            launchCommand: "claude --resume --dangerously-skip-permissions"
+            prompt: promptContent,
+            launchCommand: nil  // Let TerminalLauncher decide based on prompt presence
         )
+        print("[WorkspaceCard] TerminalLauncher result: \(result.success) - \(result.message)")
+
+        // After successful launch with prompt, rename file so next click uses --resume
+        if result.success, promptContent != nil, let url = promptURL {
+            let usedURL = url.deletingPathExtension().appendingPathExtension("used.md")
+            try? FileManager.default.moveItem(at: url, to: usedURL)
+            print("[WorkspaceCard] Renamed prompt to .used.md for future --resume")
+        }
     }
 
     /// Open the worktree folder in Finder
@@ -344,12 +388,35 @@ struct ActiveWorkspacesSection: View {
         #if os(macOS)
         guard let worktreePath = feature.worktreePath else { return }
 
-        // Launch Claude Code in terminal with --resume to continue last conversation
-        let _ = await TerminalLauncher.launchClaudeCode(
+        // Try to read saved prompt for first-time launch
+        var promptContent: String? = nil
+        var promptURL: URL? = nil
+        if let promptPath = feature.promptPath, !promptPath.isEmpty {
+            if promptPath.hasPrefix("/") {
+                promptURL = URL(fileURLWithPath: promptPath)
+            } else {
+                let worktreeURL = URL(fileURLWithPath: worktreePath)
+                let projectRoot = worktreeURL.deletingLastPathComponent().deletingLastPathComponent()
+                promptURL = projectRoot.appendingPathComponent(promptPath)
+            }
+
+            if let url = promptURL, FileManager.default.fileExists(atPath: url.path) {
+                promptContent = try? String(contentsOf: url, encoding: .utf8)
+            }
+        }
+
+        // Launch Claude Code - with prompt for first start, or --resume to continue
+        let result = await TerminalLauncher.launchClaudeCode(
             worktreePath: worktreePath,
-            prompt: nil,
-            launchCommand: "claude --resume --dangerously-skip-permissions"
+            prompt: promptContent,
+            launchCommand: nil
         )
+
+        // After successful launch with prompt, rename file so next click uses --resume
+        if result.success, promptContent != nil, let url = promptURL {
+            let usedURL = url.deletingPathExtension().appendingPathExtension("used.md")
+            try? FileManager.default.moveItem(at: url, to: usedURL)
+        }
         #endif
     }
 }

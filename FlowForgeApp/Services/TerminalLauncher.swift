@@ -1,6 +1,7 @@
 import Foundation
 #if os(macOS)
 import AppKit
+import ApplicationServices
 #endif
 
 /// Launches Claude Code in Warp terminal at a specific worktree path.
@@ -18,8 +19,8 @@ enum TerminalLauncher {
     /// Launch Claude Code in Warp at the given worktree path
     /// - Parameters:
     ///   - worktreePath: Absolute path to the worktree directory
-    ///   - prompt: Optional prompt to copy to clipboard and pipe into Claude
-    ///   - launchCommand: Full command from server config (e.g., "claude --dangerously-skip-permissions")
+    ///   - prompt: Optional prompt for new sessions (nil = resume existing session)
+    ///   - launchCommand: Base command from server config (e.g., "claude --dangerously-skip-permissions")
     /// - Returns: LaunchResult indicating success/failure
     @MainActor
     static func launchClaudeCode(
@@ -27,58 +28,130 @@ enum TerminalLauncher {
         prompt: String? = nil,
         launchCommand: String? = nil
     ) async -> LaunchResult {
-        // Build the claude command
-        let claudeCommand = launchCommand ?? "claude --dangerously-skip-permissions"
+        let baseCommand = launchCommand ?? "claude --dangerously-skip-permissions"
 
+        // Build the full command
         let fullCommand: String
+        var promptFile: URL? = nil
+
         if let prompt = prompt, !prompt.isEmpty {
-            // Copy prompt to clipboard, then pipe it into Claude
-            // This automates the "paste prompt" step
-            copyToClipboard(prompt)
-            fullCommand = "cd '\(worktreePath)' && pbpaste | \(claudeCommand)"
-        } else {
-            // No prompt - just launch (resume case)
-            fullCommand = "cd '\(worktreePath)' && \(claudeCommand)"
-        }
+            // FIRST START: Save prompt to temp file, command reads it
+            let tempDir = FileManager.default.temporaryDirectory
+            promptFile = tempDir.appendingPathComponent("flowforge-prompt-\(UUID().uuidString).md")
 
-        // Try Warp's URL scheme first (no permissions needed)
-        if let warpURL = URL(string: "warp://action/new_tab?command=\(fullCommand.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") {
-            if NSWorkspace.shared.open(warpURL) {
-                let message = prompt != nil
-                    ? "Claude Code started in Warp with prompt"
-                    : "Claude Code opened in Warp"
-                return LaunchResult(success: true, message: message)
+            do {
+                try prompt.write(to: promptFile!, atomically: true, encoding: .utf8)
+                fullCommand = "\(baseCommand) \"$(cat '\(promptFile!.path)')\""
+            } catch {
+                // Fallback without temp file
+                fullCommand = baseCommand
             }
+        } else {
+            // RESUME: Use --resume to continue previous session
+            fullCommand = "claude --resume --dangerously-skip-permissions"
         }
 
-        // Fallback: AppleScript (requires Accessibility permissions)
-        let script = """
-        tell application "Warp"
-            activate
-            delay 0.3
-        end tell
+        // Check if we have Accessibility permissions
+        // Use AXIsProcessTrustedWithOptions to prompt user if needed
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false] as CFDictionary
+        let hasAccessibility = AXIsProcessTrustedWithOptions(options)
+        print("[TerminalLauncher] AXIsProcessTrusted: \(hasAccessibility)")
 
+        // Step 1: Open Warp to the worktree path (new window, not tab)
+        guard let encodedPath = worktreePath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let warpURL = URL(string: "warp://action/new_window?path=\(encodedPath)"),
+              NSWorkspace.shared.open(warpURL) else {
+            return LaunchResult(success: false, message: "Failed to open Warp")
+        }
+
+        // If no accessibility permissions, copy command and prompt user
+        if !hasAccessibility {
+            copyToClipboard(fullCommand)
+            showAccessibilityPermissionsAlert()
+
+            // Clean up temp file after delay
+            if let file = promptFile {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+                    try? FileManager.default.removeItem(at: file)
+                }
+            }
+
+            return LaunchResult(
+                success: true,
+                message: "Command copied. Grant Accessibility permissions for auto-typing, then try again."
+            )
+        }
+
+        // Step 2: Use AppleScript to type the command
+        // Wait for Warp to open and focus
+        try? await Task.sleep(nanoseconds: 800_000_000) // 0.8 seconds
+
+        print("[TerminalLauncher] Full command: \(fullCommand)")
+        print("[TerminalLauncher] Command length: \(fullCommand.count) chars")
+
+        let escapedCommand = fullCommand.escapedForAppleScript
+        let script = """
+        tell application "Warp" to activate
+        delay 0.3
         tell application "System Events"
             tell process "Warp"
-                keystroke "t" using command down
-                delay 0.5
-                keystroke "\(fullCommand.escapedForAppleScript)"
+                keystroke "\(escapedCommand)"
+                delay 0.1
                 keystroke return
             end tell
         end tell
         """
 
+        print("[TerminalLauncher] Running AppleScript...")
         let result = await runAppleScript(script)
+        print("[TerminalLauncher] AppleScript result: success=\(result.success), error=\(result.error ?? "none")")
+
+        // Clean up temp file after delay
+        if let file = promptFile {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
 
         if result.success {
-            let message = prompt != nil
-                ? "Claude Code started in Warp with prompt"
-                : "Claude Code opened in Warp"
-            return LaunchResult(success: true, message: message)
+            return LaunchResult(success: true, message: "Claude Code launched in Warp")
         } else {
-            // Fallback: Try opening Terminal.app if Warp isn't available
-            let fallbackResult = await launchInDefaultTerminal(worktreePath: worktreePath)
-            return fallbackResult
+            // AppleScript failed for some other reason
+            copyToClipboard(fullCommand)
+            return LaunchResult(
+                success: true,
+                message: "Command copied - paste with ⌘V (AppleScript error: \(result.error ?? "unknown"))"
+            )
+        }
+    }
+
+    /// Show alert explaining how to grant Accessibility permissions
+    @MainActor
+    private static func showAccessibilityPermissionsAlert() {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Accessibility Permission Required"
+            alert.informativeText = """
+            FlowForge needs Accessibility access to auto-type commands in Warp.
+
+            In System Settings → Privacy & Security → Accessibility:
+            1. If FlowForge is listed, REMOVE it first (select → click -)
+            2. Click + and add FlowForge from /Applications
+            3. Make sure the toggle is ON
+            4. QUIT and relaunch FlowForge
+
+            The command is on your clipboard - paste with ⌘V for now.
+            """
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "Open Settings")
+            alert.addButton(withTitle: "OK")
+
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
         }
     }
 
@@ -113,19 +186,30 @@ enum TerminalLauncher {
         pasteboard.setString(text, forType: .string)
     }
 
-    /// Run AppleScript and return result
+    /// Run AppleScript via osascript command (more reliable than NSAppleScript)
     private static func runAppleScript(_ script: String) async -> (success: Bool, error: String?) {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                var error: NSDictionary?
-                let appleScript = NSAppleScript(source: script)
-                let _ = appleScript?.executeAndReturnError(&error)
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+                process.arguments = ["-e", script]
 
-                if let error = error {
-                    let errorMessage = error[NSAppleScript.errorMessage] as? String ?? "Unknown error"
-                    continuation.resume(returning: (false, errorMessage))
-                } else {
-                    continuation.resume(returning: (true, nil))
+                let errorPipe = Pipe()
+                process.standardError = errorPipe
+
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+
+                    if process.terminationStatus == 0 {
+                        continuation.resume(returning: (true, nil))
+                    } else {
+                        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                        let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+                        continuation.resume(returning: (false, errorMessage))
+                    }
+                } catch {
+                    continuation.resume(returning: (false, error.localizedDescription))
                 }
             }
         }
@@ -136,9 +220,10 @@ enum TerminalLauncher {
 // MARK: - String Extension for AppleScript escaping
 
 private extension String {
-    /// Escape string for safe use in AppleScript
+    /// Escape string for safe use in AppleScript keystroke
     var escapedForAppleScript: String {
+        // AppleScript strings only need backslash and double quote escaped
         self.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "'\\''")
+            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 }
