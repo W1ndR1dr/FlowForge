@@ -22,8 +22,7 @@ import os
 
 from .config import FlowForgeConfig, find_project_root
 from .registry import FeatureRegistry, FeatureStatus
-from .worktree import WorktreeManager
-from .merge import MergeOrchestrator
+# WorktreeManager and MergeOrchestrator run on Mac via SSH
 from .prompt_builder import PromptBuilder
 from .intelligence import IntelligenceEngine
 from .remote import RemoteExecutor
@@ -42,36 +41,33 @@ class FlowForgeMCPServer:
     """
     MCP Server implementation for FlowForge.
 
-    This server can run on a Raspberry Pi and be accessed by Claude Code
-    via Remote MCP Server configuration. It manages projects on a remote
-    Mac via SSH, or locally if running on the same machine.
+    This server runs on a Raspberry Pi and is accessed by Claude Code (iOS/Mac)
+    via Remote MCP Server configuration. It manages projects on a Mac via SSH.
+    All git operations are executed on the Mac via SSH.
     """
 
     def __init__(
         self,
         projects_base: Path,
-        remote_host: Optional[str] = None,
-        remote_user: Optional[str] = None,
+        remote_host: str,
+        remote_user: str,
     ):
         """
         Initialize the MCP server.
 
+        The server runs on Pi and connects to Mac via SSH for all git operations.
+
         Args:
-            projects_base: Base directory containing FlowForge projects
-            remote_host: SSH host for remote Mac (e.g., "mac.tailnet")
-            remote_user: SSH username for remote Mac
+            projects_base: Base directory containing FlowForge projects (Mac path)
+            remote_host: SSH host for Mac (e.g., "brians-macbook-pro")
+            remote_user: SSH username for Mac
         """
         self.projects_base = Path(projects_base)
         self.remote_host = remote_host
         self.remote_user = remote_user
 
-        # Set up remote executor if running on Pi
-        if remote_host and remote_user:
-            self.remote_executor = RemoteExecutor(remote_host, remote_user)
-            self.is_remote = True
-        else:
-            self.remote_executor = None
-            self.is_remote = False
+        # Remote executor for Pi → Mac SSH operations
+        self.remote_executor = RemoteExecutor(remote_host, remote_user)
 
         # Cache project configs
         self._project_cache: dict[str, tuple[FlowForgeConfig, FeatureRegistry]] = {}
@@ -79,40 +75,18 @@ class FlowForgeMCPServer:
     def _get_project_context(
         self, project_name: str
     ) -> tuple[Path, FlowForgeConfig, FeatureRegistry]:
-        """Get or load project context."""
+        """Get or load project context via SSH from Mac."""
         project_path = self.projects_base / project_name
         flowforge_dir = project_path / ".flowforge"
 
-        if self.is_remote:
-            # Check project exists via SSH
-            if not self.remote_executor.dir_exists(project_path):
-                raise ValueError(f"Project not found: {project_name}")
-            if not self.remote_executor.dir_exists(flowforge_dir):
-                raise ValueError(f"Project not initialized: {project_name}")
-
-            # Load config and registry via SSH
-            return self._get_remote_project_context(project_name, project_path, flowforge_dir)
-
-        # Local mode
-        if not project_path.exists():
+        # Check project exists via SSH
+        if not self.remote_executor.dir_exists(project_path):
             raise ValueError(f"Project not found: {project_name}")
+        if not self.remote_executor.dir_exists(flowforge_dir):
+            raise ValueError(f"Project not initialized: {project_name}")
 
-        if not flowforge_dir.exists():
-            raise ValueError(f"FlowForge not initialized in: {project_name}")
-
-        # Load or get from cache
-        cache_key = str(project_path)
-        if cache_key not in self._project_cache:
-            config = FlowForgeConfig.load(project_path)
-            registry = FeatureRegistry.load(project_path)
-            self._project_cache[cache_key] = (config, registry)
-        else:
-            config, registry = self._project_cache[cache_key]
-            # Reload registry to get fresh data
-            registry = FeatureRegistry.load(project_path)
-            self._project_cache[cache_key] = (config, registry)
-
-        return project_path, config, registry
+        # Load config and registry via SSH
+        return self._get_remote_project_context(project_name, project_path, flowforge_dir)
 
     def _invalidate_cache(self, project_name: str) -> None:
         """Invalidate cache for a project."""
@@ -409,28 +383,13 @@ class FlowForgeMCPServer:
         """List all FlowForge-initialized projects."""
         projects = []
 
-        if self.is_remote:
-            # Use SSH to get projects from Mac
-            remote_projects = self.remote_executor.get_projects(self.projects_base)
-            for p in remote_projects:
-                projects.append({
-                    "name": p["name"],
-                    "path": p["path"],
-                })
-        else:
-            # Local mode - access filesystem directly
-            for item in self.projects_base.iterdir():
-                if item.is_dir() and (item / ".flowforge").exists():
-                    try:
-                        config = FlowForgeConfig.load(item)
-                        projects.append({
-                            "name": config.project.name,
-                            "path": str(item),
-                            "main_branch": config.project.main_branch,
-                        })
-                    except Exception:
-                        # Skip projects we can't load
-                        pass
+        # Get projects from Mac via SSH
+        remote_projects = self.remote_executor.get_projects(self.projects_base)
+        for p in remote_projects:
+            projects.append({
+                "name": p["name"],
+                "path": p["path"],
+            })
 
         return MCPToolResult(
             success=True,
@@ -520,108 +479,34 @@ class FlowForgeMCPServer:
         worktree_dir = project_path / worktree_base / feature_id
         branch_name = f"feature/{feature_id}"
 
-        if self.is_remote:
-            # Remote mode: Create worktree via SSH on Mac
-            # Check if worktree already exists
-            if self.remote_executor.dir_exists(worktree_dir):
-                worktree_path = worktree_dir
-            else:
-                # Create worktree on Mac via SSH
+        # Create worktree via SSH on Mac
+        # Check if worktree already exists
+        if self.remote_executor.dir_exists(worktree_dir):
+            worktree_path = worktree_dir
+        else:
+            # Create worktree on Mac via SSH
+            result = self.remote_executor.create_worktree(
+                project_path=project_path,
+                worktree_path=worktree_dir,
+                branch_name=branch_name,
+                create_branch=True,
+            )
+            if not result.success:
+                # Branch might already exist, try without -b
                 result = self.remote_executor.create_worktree(
                     project_path=project_path,
                     worktree_path=worktree_dir,
                     branch_name=branch_name,
-                    create_branch=True,
+                    create_branch=False,
                 )
                 if not result.success:
-                    # Branch might already exist, try without -b
-                    result = self.remote_executor.create_worktree(
-                        project_path=project_path,
-                        worktree_path=worktree_dir,
-                        branch_name=branch_name,
-                        create_branch=False,
+                    return MCPToolResult(
+                        success=False,
+                        message=f"Failed to create worktree: {result.stderr}",
                     )
-                    if not result.success:
-                        return MCPToolResult(
-                            success=False,
-                            message=f"Failed to create worktree: {result.stderr}",
-                        )
-                worktree_path = worktree_dir
+            worktree_path = worktree_dir
 
-            # Generate prompt (runs on Pi, just needs registry data)
-            # For prompt generation, we still use the project_path
-            # The prompt content will have Mac paths for Claude Code
-            intelligence = IntelligenceEngine(project_path)
-            prompt_builder = PromptBuilder(project_path, registry, intelligence)
-
-            prompt = prompt_builder.build_for_feature(
-                feature_id,
-                config.project.claude_md_path,
-                include_experts=not skip_experts,
-                include_research=True,
-            )
-
-            # Save prompt via SSH
-            prompt_filename = f"{feature_id}.md"
-            prompt_dir = project_path / ".flowforge" / "prompts"
-            prompt_path = prompt_dir / prompt_filename
-
-            # Write prompt file on Mac using remote executor's write_file
-            self.remote_executor.write_file(prompt_path, prompt)
-
-            # Update registry on Mac
-            # Read current registry, update it, write it back
-            from datetime import datetime
-            registry_path = project_path / ".flowforge" / "registry.json"
-            registry_content = self.remote_executor.read_file(registry_path)
-
-            if registry_content:
-                import json
-                registry_data = json.loads(registry_content)
-
-                # Update the feature
-                if feature_id in registry_data.get("features", {}):
-                    registry_data["features"][feature_id]["status"] = "in-progress"
-                    registry_data["features"][feature_id]["branch"] = branch_name
-                    registry_data["features"][feature_id]["worktree_path"] = str(worktree_path)
-                    registry_data["features"][feature_id]["prompt_path"] = str(prompt_path)
-                    registry_data["features"][feature_id]["started_at"] = datetime.now().isoformat()
-
-                    # Write updated registry
-                    updated_json = json.dumps(registry_data, indent=2)
-                    self.remote_executor.write_file(registry_path, updated_json)
-
-            self._invalidate_cache(project)
-
-            return MCPToolResult(
-                success=True,
-                message=f"Started feature: {feature.title}",
-                data={
-                    "feature_id": feature_id,
-                    "worktree_path": str(worktree_path),
-                    "prompt_path": str(prompt_path),
-                    "prompt": prompt,
-                    "launch_command": f"cd {worktree_path} && {config.project.claude_command} {' '.join(config.project.claude_flags)}",
-                },
-            )
-
-        # Local mode: Create worktree directly
-        worktree_mgr = WorktreeManager(project_path, config.project.worktree_base)
-
-        worktree_path = worktree_mgr.get_worktree_path(feature_id)
-        if not worktree_path:
-            try:
-                worktree_path = worktree_mgr.create_for_feature(
-                    feature_id,
-                    config.project.main_branch,
-                )
-            except Exception as e:
-                return MCPToolResult(
-                    success=False,
-                    message=f"Failed to create worktree: {e}",
-                )
-
-        # Generate prompt
+        # Generate prompt (runs on Pi, just needs registry data)
         intelligence = IntelligenceEngine(project_path)
         prompt_builder = PromptBuilder(project_path, registry, intelligence)
 
@@ -632,17 +517,34 @@ class FlowForgeMCPServer:
             include_research=True,
         )
 
-        # Save prompt
-        prompt_path = prompt_builder.save_prompt(feature_id, prompt)
+        # Save prompt via SSH
+        prompt_filename = f"{feature_id}.md"
+        prompt_dir = project_path / ".flowforge" / "prompts"
+        prompt_path = prompt_dir / prompt_filename
 
-        # Update registry
-        registry.update_feature(
-            feature_id,
-            status=FeatureStatus.IN_PROGRESS,
-            branch=branch_name,
-            worktree_path=str(worktree_path),
-            prompt_path=str(prompt_path),
-        )
+        # Write prompt file on Mac
+        self.remote_executor.write_file(prompt_path, prompt)
+
+        # Update registry on Mac
+        from datetime import datetime
+        registry_path = project_path / ".flowforge" / "registry.json"
+        registry_content = self.remote_executor.read_file(registry_path)
+
+        if registry_content:
+            import json
+            registry_data = json.loads(registry_content)
+
+            # Update the feature
+            if feature_id in registry_data.get("features", {}):
+                registry_data["features"][feature_id]["status"] = "in-progress"
+                registry_data["features"][feature_id]["branch"] = branch_name
+                registry_data["features"][feature_id]["worktree_path"] = str(worktree_path)
+                registry_data["features"][feature_id]["prompt_path"] = str(prompt_path)
+                registry_data["features"][feature_id]["started_at"] = datetime.now().isoformat()
+
+                # Write updated registry
+                updated_json = json.dumps(registry_data, indent=2)
+                self.remote_executor.write_file(registry_path, updated_json)
 
         self._invalidate_cache(project)
 
@@ -672,34 +574,17 @@ class FlowForgeMCPServer:
                 message=f"Feature not found: {feature_id}",
             )
 
-        # Execute remotely when in remote mode (Pi → Mac)
-        if self.is_remote:
-            result = self.remote_executor.run_command(
-                ["forge", "stop", feature_id],
-                cwd=project_path
-            )
-            if result.returncode != 0:
-                return MCPToolResult(
-                    success=False,
-                    message=f"Failed to stop feature: {result.stderr or result.stdout}",
-                )
-            self._invalidate_cache(project)
+        # Execute via SSH on Mac
+        result = self.remote_executor.run_command(
+            ["forge", "stop", feature_id],
+            cwd=project_path
+        )
+        if result.returncode != 0:
             return MCPToolResult(
-                success=True,
-                message=f"Feature '{feature.title}' marked as ready for review",
-                data={
-                    "feature_id": feature_id,
-                    "next_steps": [
-                        f"Run merge-check to verify no conflicts",
-                        f"Run merge to merge into {config.project.main_branch}",
-                    ],
-                },
+                success=False,
+                message=f"Failed to stop feature: {result.stderr or result.stdout}",
             )
-
-        # Local mode - direct registry update
-        registry.update_feature(feature_id, status=FeatureStatus.REVIEW)
         self._invalidate_cache(project)
-
         return MCPToolResult(
             success=True,
             message=f"Feature '{feature.title}' marked as ready for review",
@@ -717,18 +602,11 @@ class FlowForgeMCPServer:
         project: str,
         feature_id: Optional[str] = None,
     ) -> MCPToolResult:
-        """Check merge readiness."""
+        """Check merge readiness via SSH on Mac."""
         try:
             project_path, config, registry = self._get_project_context(project)
         except ValueError as e:
             return MCPToolResult(success=False, message=str(e))
-
-        orchestrator = MergeOrchestrator(
-            project_path,
-            registry,
-            config.project.main_branch,
-            config.project.build_command,
-        )
 
         if feature_id:
             # Check specific feature
@@ -739,39 +617,53 @@ class FlowForgeMCPServer:
                     message=f"Feature not found: {feature_id}",
                 )
 
-            result = orchestrator.check_conflicts(feature_id)
+            # Run merge-check via SSH
+            result = self.remote_executor.run_command(
+                ["forge", "merge-check", feature_id],
+                cwd=project_path
+            )
+
+            # Parse result - success if returncode is 0
+            ready = result.returncode == 0
+            message = result.stdout.strip() if result.stdout else (
+                "Ready to merge" if ready else f"Not ready: {result.stderr}"
+            )
 
             return MCPToolResult(
-                success=result.success,
-                message=result.message,
+                success=ready,
+                message=message,
                 data={
                     "feature_id": feature_id,
-                    "ready": result.success,
-                    "conflict_files": result.conflict_files,
+                    "ready": ready,
+                    "conflict_files": [],  # Parse from output if needed
                 },
             )
         else:
             # Check all features in review
-            merge_order = orchestrator.compute_merge_order()
+            review_features = registry.list_features(status=FeatureStatus.REVIEW)
 
             checks = []
-            for fid in merge_order:
-                feature = registry.get_feature(fid)
-                result = orchestrator.check_conflicts(fid)
+            ready_count = 0
+            for feature in review_features:
+                result = self.remote_executor.run_command(
+                    ["forge", "merge-check", feature.id],
+                    cwd=project_path
+                )
+                ready = result.returncode == 0
+                if ready:
+                    ready_count += 1
                 checks.append({
-                    "feature_id": fid,
+                    "feature_id": feature.id,
                     "title": feature.title,
-                    "ready": result.success,
-                    "conflict_files": result.conflict_files,
+                    "ready": ready,
+                    "conflict_files": [],
                 })
-
-            ready_count = sum(1 for c in checks if c["ready"])
 
             return MCPToolResult(
                 success=True,
                 message=f"{ready_count}/{len(checks)} features ready to merge",
                 data={
-                    "merge_order": merge_order,
+                    "merge_order": [f.id for f in review_features],
                     "checks": checks,
                 },
             )
@@ -782,7 +674,7 @@ class FlowForgeMCPServer:
         feature_id: str,
         skip_validation: bool = False,
     ) -> MCPToolResult:
-        """Merge a feature into main."""
+        """Merge a feature into main via SSH on Mac."""
         try:
             project_path, config, registry = self._get_project_context(project)
         except ValueError as e:
@@ -795,48 +687,34 @@ class FlowForgeMCPServer:
                 message=f"Feature not found: {feature_id}",
             )
 
-        orchestrator = MergeOrchestrator(
-            project_path,
-            registry,
-            config.project.main_branch,
-            config.project.build_command,
-        )
+        # Build merge command
+        cmd = ["forge", "merge", feature_id]
+        if skip_validation:
+            cmd.append("--skip-validation")
 
-        result = orchestrator.merge_feature(
-            feature_id,
-            validate=not skip_validation,
-            auto_cleanup=True,
-        )
+        # Run merge via SSH
+        result = self.remote_executor.run_command(cmd, cwd=project_path)
 
         self._invalidate_cache(project)
 
-        if result.success:
+        if result.returncode == 0:
             return MCPToolResult(
                 success=True,
-                message=result.message,
+                message=f"Merged {feature.title} into {config.project.main_branch}",
                 data={
                     "feature_id": feature_id,
                     "merged_into": config.project.main_branch,
                 },
             )
         else:
-            data = {
-                "feature_id": feature_id,
-                "conflict_files": result.conflict_files,
-            }
-
-            if result.needs_resolution:
-                # Generate conflict resolution prompt
-                resolution_prompt = orchestrator.generate_conflict_prompt(feature_id)
-                data["resolution_prompt"] = resolution_prompt
-
-            if result.validation_output:
-                data["validation_output"] = result.validation_output
-
             return MCPToolResult(
                 success=False,
-                message=result.message,
-                data=data,
+                message=result.stderr or result.stdout or "Merge failed",
+                data={
+                    "feature_id": feature_id,
+                    "output": result.stdout,
+                    "error": result.stderr,
+                },
             )
 
     def _add_feature(
@@ -1042,118 +920,52 @@ class FlowForgeMCPServer:
         project_path = self.projects_base / project
         flowforge_dir = project_path / ".flowforge"
 
-        if self.is_remote:
-            # Check if project exists on remote Mac
-            if not self.remote_executor.dir_exists(project_path):
-                return MCPToolResult(
-                    success=False,
-                    message=f"Project directory not found on Mac: {project}",
-                )
-
-            # Check if already initialized
-            if self.remote_executor.dir_exists(flowforge_dir):
-                return MCPToolResult(
-                    success=False,
-                    message=f"Project already initialized: {project}",
-                )
-
-            # Run forge init via SSH
-            args = ["init"]
-            if quick:
-                args.append("--quick")
-            if project_name:
-                args.extend(["--name", project_name])
-
-            result = self.remote_executor.run_forge_command(
-                project_path,
-                args,
-                timeout=60,
-            )
-
-            if not result.success:
-                return MCPToolResult(
-                    success=False,
-                    message=f"Remote initialization failed: {result.stderr}",
-                )
-
-            # Verify initialization
-            if not self.remote_executor.dir_exists(flowforge_dir):
-                return MCPToolResult(
-                    success=False,
-                    message="Initialization command succeeded but .flowforge not created",
-                )
-
-            return MCPToolResult(
-                success=True,
-                message=f"Initialized FlowForge in {project} (remote)",
-                data={
-                    "project": project,
-                    "path": str(project_path),
-                },
-            )
-
-        # Local mode
-        if not project_path.exists():
+        # Check if project exists on Mac
+        if not self.remote_executor.dir_exists(project_path):
             return MCPToolResult(
                 success=False,
-                message=f"Project directory not found: {project}",
+                message=f"Project directory not found on Mac: {project}",
             )
 
-        if flowforge_dir.exists():
+        # Check if already initialized
+        if self.remote_executor.dir_exists(flowforge_dir):
             return MCPToolResult(
                 success=False,
                 message=f"Project already initialized: {project}",
             )
 
-        # Use the init module
-        from .init import EnhancedInitializer, ProjectContext
-        from .config import FlowForgeConfig, detect_project_settings
-
-        initializer = EnhancedInitializer(project_path)
-
-        # Detect tech stack and settings
-        tech_stack = initializer.detect_tech_stack()
-        detected = detect_project_settings(project_path)
-
-        # Apply overrides
+        # Run forge init via SSH
+        args = ["init"]
+        if quick:
+            args.append("--quick")
         if project_name:
-            detected.name = project_name
+            args.extend(["--name", project_name])
 
-        # Create config
-        forge_config = FlowForgeConfig(project=detected)
-        forge_config.save(project_path)
-
-        # Create registry
-        registry = FeatureRegistry(project_path)
-        registry.save()
-
-        # Create directories
-        (project_path / ".flowforge" / "prompts").mkdir(parents=True, exist_ok=True)
-        (project_path / ".flowforge" / "research").mkdir(parents=True, exist_ok=True)
-
-        # Create project context
-        context = ProjectContext(
-            name=project_name or detected.name,
-            description=description or "",
-            vision=vision or "",
-            target_users=target_users or "",
-            tech_stack=tech_stack,
-            coding_philosophy=coding_philosophy or "",
-            ai_guidance=ai_guidance or "Engage plan mode and ultrathink before implementing.",
+        result = self.remote_executor.run_forge_command(
+            project_path,
+            args,
+            timeout=60,
         )
-        context.save(project_path)
 
-        self._invalidate_cache(project)
+        if not result.success:
+            return MCPToolResult(
+                success=False,
+                message=f"Remote initialization failed: {result.stderr}",
+            )
+
+        # Verify initialization
+        if not self.remote_executor.dir_exists(flowforge_dir):
+            return MCPToolResult(
+                success=False,
+                message="Initialization command succeeded but .flowforge not created",
+            )
 
         return MCPToolResult(
             success=True,
-            message=f"Initialized FlowForge in {detected.name}",
+            message=f"Initialized FlowForge in {project}",
             data={
-                "project_name": detected.name,
-                "main_branch": detected.main_branch,
-                "tech_stack": tech_stack,
-                "config_path": str(project_path / ".flowforge" / "config.json"),
-                "registry_path": str(project_path / ".flowforge" / "registry.json"),
+                "project": project,
+                "path": str(project_path),
             },
         )
 
