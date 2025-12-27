@@ -515,7 +515,97 @@ class FlowForgeMCPServer:
                 message="Feature is already completed",
             )
 
-        # Create worktree
+        # Determine worktree paths
+        worktree_base = config.project.worktree_base or ".flowforge-worktrees"
+        worktree_dir = project_path / worktree_base / feature_id
+        branch_name = f"feature/{feature_id}"
+
+        if self.is_remote:
+            # Remote mode: Create worktree via SSH on Mac
+            # Check if worktree already exists
+            if self.remote_executor.dir_exists(worktree_dir):
+                worktree_path = worktree_dir
+            else:
+                # Create worktree on Mac via SSH
+                result = self.remote_executor.create_worktree(
+                    project_path=project_path,
+                    worktree_path=worktree_dir,
+                    branch_name=branch_name,
+                    create_branch=True,
+                )
+                if not result.success:
+                    # Branch might already exist, try without -b
+                    result = self.remote_executor.create_worktree(
+                        project_path=project_path,
+                        worktree_path=worktree_dir,
+                        branch_name=branch_name,
+                        create_branch=False,
+                    )
+                    if not result.success:
+                        return MCPToolResult(
+                            success=False,
+                            message=f"Failed to create worktree: {result.stderr}",
+                        )
+                worktree_path = worktree_dir
+
+            # Generate prompt (runs on Pi, just needs registry data)
+            # For prompt generation, we still use the project_path
+            # The prompt content will have Mac paths for Claude Code
+            intelligence = IntelligenceEngine(project_path)
+            prompt_builder = PromptBuilder(project_path, registry, intelligence)
+
+            prompt = prompt_builder.build_for_feature(
+                feature_id,
+                config.project.claude_md_path,
+                include_experts=not skip_experts,
+                include_research=True,
+            )
+
+            # Save prompt via SSH
+            prompt_filename = f"{feature_id}.md"
+            prompt_dir = project_path / ".flowforge" / "prompts"
+            prompt_path = prompt_dir / prompt_filename
+
+            # Write prompt file on Mac using remote executor's write_file
+            self.remote_executor.write_file(prompt_path, prompt)
+
+            # Update registry on Mac
+            # Read current registry, update it, write it back
+            from datetime import datetime
+            registry_path = project_path / ".flowforge" / "registry.json"
+            registry_content = self.remote_executor.read_file(registry_path)
+
+            if registry_content:
+                import json
+                registry_data = json.loads(registry_content)
+
+                # Update the feature
+                if feature_id in registry_data.get("features", {}):
+                    registry_data["features"][feature_id]["status"] = "in-progress"
+                    registry_data["features"][feature_id]["branch"] = branch_name
+                    registry_data["features"][feature_id]["worktree_path"] = str(worktree_path)
+                    registry_data["features"][feature_id]["prompt_path"] = str(prompt_path)
+                    registry_data["features"][feature_id]["started_at"] = datetime.now().isoformat()
+
+                    # Write updated registry
+                    updated_json = json.dumps(registry_data, indent=2)
+                    self.remote_executor.write_file(registry_path, updated_json)
+
+            self._invalidate_cache(project)
+
+            return MCPToolResult(
+                success=True,
+                message=f"Started feature: {feature.title}",
+                data={
+                    "feature_id": feature_id,
+                    "worktree_path": str(worktree_path),
+                    "prompt_path": str(prompt_path),
+                    "prompt": prompt,
+                    "launch_command": f"cd {worktree_path} && {config.project.claude_command} {' '.join(config.project.claude_flags)}",
+                },
+            )
+
+        # Local mode: Create worktree directly
         worktree_mgr = WorktreeManager(project_path, config.project.worktree_base)
 
         worktree_path = worktree_mgr.get_worktree_path(feature_id)
@@ -549,7 +639,7 @@ class FlowForgeMCPServer:
         registry.update_feature(
             feature_id,
             status=FeatureStatus.IN_PROGRESS,
-            branch=f"feature/{feature_id}",
+            branch=branch_name,
             worktree_path=str(worktree_path),
             prompt_path=str(prompt_path),
         )
@@ -563,7 +653,7 @@ class FlowForgeMCPServer:
                 "feature_id": feature_id,
                 "worktree_path": str(worktree_path),
                 "prompt_path": str(prompt_path),
-                "prompt": prompt,  # Include full prompt for Claude Code to display
+                "prompt": prompt,
                 "launch_command": f"cd {worktree_path} && {config.project.claude_command} {' '.join(config.project.claude_flags)}",
             },
         )

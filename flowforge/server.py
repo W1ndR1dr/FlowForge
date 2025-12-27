@@ -33,6 +33,7 @@ from .cache import CacheManager, get_cache_manager
 from .sync import SyncManager, get_sync_manager
 from .remote import RemoteExecutor
 from .worktree import WorktreeManager
+from .paths import PathTranslator, create_path_translator
 
 
 # =============================================================================
@@ -49,6 +50,8 @@ def get_config() -> dict:
                 os.path.expanduser("~/Projects/Active"),
             )
         ),
+        # Mac projects path for SSH commands (Pi-native architecture)
+        "mac_projects_base": os.environ.get("FLOWFORGE_MAC_PROJECTS_PATH"),
         "remote_host": os.environ.get("FLOWFORGE_MAC_HOST"),
         "remote_user": os.environ.get("FLOWFORGE_MAC_USER"),
         "port": int(os.environ.get("FLOWFORGE_PORT", "8081")),
@@ -115,14 +118,19 @@ mcp_server: Optional[FlowForgeMCPServer] = None
 sync_manager: Optional[SyncManager] = None
 cache_manager: Optional[CacheManager] = None
 remote_executor: Optional[RemoteExecutor] = None
+path_translator: Optional[PathTranslator] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize MCP server, cache, and sync on startup."""
-    global mcp_server, sync_manager, cache_manager, remote_executor
+    global mcp_server, sync_manager, cache_manager, remote_executor, path_translator
 
     config = get_config()
+
+    # Initialize path translator for Pi→Mac path conversion
+    path_translator = create_path_translator()
+
     mcp_server = FlowForgeMCPServer(
         projects_base=config["projects_base"],
         remote_host=config["remote_host"],
@@ -153,6 +161,8 @@ async def lifespan(app: FastAPI):
 
     print(f"FlowForge MCP Server started")
     print(f"  Projects: {config['projects_base']}")
+    if config["mac_projects_base"]:
+        print(f"  Mac Projects: {config['mac_projects_base']}")
     if config["remote_host"]:
         print(f"  Remote: {config['remote_user']}@{config['remote_host']}")
     print(f"  Cache: {cache_manager.db_path}")
@@ -657,37 +667,70 @@ async def get_project_health(project: str):
     config = get_config()
     project_path = config["projects_base"] / project
 
-    if not (project_path / ".flowforge").exists():
-        raise HTTPException(status_code=404, detail=f"Project not found: {project}")
+    # In remote mode, translate to Mac path for git operations
+    if remote_executor and path_translator:
+        mac_project_path = Path(path_translator.resolve_for_mac(str(project_path)))
+    else:
+        mac_project_path = project_path
+
+    # Check if project exists (local or remote)
+    if remote_executor:
+        if not remote_executor.dir_exists(mac_project_path / ".flowforge"):
+            raise HTTPException(status_code=404, detail=f"Project not found: {project}")
+    else:
+        if not (project_path / ".flowforge").exists():
+            raise HTTPException(status_code=404, detail=f"Project not found: {project}")
 
     registry = FeatureRegistry.load(project_path)
-    worktree_manager = WorktreeManager(project_path)
-
     issues = []
 
-    # Get merged branches
+    # Get merged branches (local or remote)
+    merged_branches = set()
     try:
-        result = subprocess.run(
-            ["git", "branch", "--merged", "main"],
-            cwd=project_path,
-            capture_output=True,
-            text=True,
-        )
-        merged_branches = set()
-        if result.returncode == 0:
-            for line in result.stdout.strip().split("\n"):
-                branch = line.strip().lstrip("* ")
-                if branch and branch != "main":
-                    merged_branches.add(branch)
+        if remote_executor:
+            result = remote_executor.get_merged_branches(mac_project_path)
+            if result.success:
+                for line in result.stdout.strip().split("\n"):
+                    branch = line.strip().lstrip("* ")
+                    if branch and branch != "main":
+                        merged_branches.add(branch)
+        else:
+            result = subprocess.run(
+                ["git", "branch", "--merged", "main"],
+                cwd=project_path,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                for line in result.stdout.strip().split("\n"):
+                    branch = line.strip().lstrip("* ")
+                    if branch and branch != "main":
+                        merged_branches.add(branch)
     except Exception:
-        merged_branches = set()
+        pass
 
-    # Get all worktrees
+    # Get all worktrees (local or remote)
+    worktree_paths = set()
     try:
-        worktrees = worktree_manager.list_worktrees()
-        worktree_paths = {wt.path for wt in worktrees if not wt.is_main}
+        if remote_executor:
+            result = remote_executor.list_worktrees(mac_project_path)
+            if result.success:
+                # Parse porcelain format
+                current_path = None
+                for line in result.stdout.strip().split("\n"):
+                    if line.startswith("worktree "):
+                        current_path = Path(line[9:])
+                    elif line == "" and current_path:
+                        # Skip the main worktree
+                        if ".flowforge-worktrees" in str(current_path):
+                            worktree_paths.add(current_path)
+                        current_path = None
+        else:
+            worktree_manager = WorktreeManager(project_path)
+            worktrees = worktree_manager.list_worktrees()
+            worktree_paths = {wt.path for wt in worktrees if not wt.is_main}
     except Exception:
-        worktree_paths = set()
+        pass
 
     # Check 1: Branches merged but status != completed
     from .registry import FeatureStatus
@@ -705,8 +748,13 @@ async def get_project_health(project: str):
     # Check 2: Worktree path set but directory missing
     for feature in registry.list_features():
         if feature.worktree_path:
-            wt_path = project_path / feature.worktree_path
-            if not wt_path.exists():
+            wt_path = mac_project_path / feature.worktree_path
+            if remote_executor:
+                exists = remote_executor.dir_exists(wt_path)
+            else:
+                exists = wt_path.exists()
+
+            if not exists:
                 issues.append({
                     "feature_id": feature.id,
                     "type": "missing_worktree",
@@ -719,7 +767,7 @@ async def get_project_health(project: str):
     registry_worktree_paths = set()
     for feature in registry.list_features():
         if feature.worktree_path:
-            registry_worktree_paths.add(project_path / feature.worktree_path)
+            registry_worktree_paths.add(mac_project_path / feature.worktree_path)
 
     for wt_path in worktree_paths:
         if wt_path not in registry_worktree_paths:

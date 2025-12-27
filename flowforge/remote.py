@@ -250,6 +250,180 @@ class RemoteExecutor:
         result = self.run_command(["test", "-d", str(dir_path)], timeout=5)
         return result.success
 
+    def write_file(self, file_path: Path, content: str) -> RemoteResult:
+        """
+        Write content to a file on the remote Mac.
+
+        Uses base64 encoding to safely transfer content via SSH.
+
+        Args:
+            file_path: Path to file on remote Mac
+            content: Content to write
+
+        Returns:
+            RemoteResult with success status
+        """
+        import base64
+        import shlex
+
+        # Base64 encode to avoid shell escaping issues
+        encoded = base64.b64encode(content.encode()).decode()
+
+        # Ensure parent directory exists
+        self.run_command(["mkdir", "-p", str(file_path.parent)], timeout=10)
+
+        # Write via base64 decode
+        result = self.run_command(
+            ["bash", "-c", f"echo {shlex.quote(encoded)} | base64 -d > {shlex.quote(str(file_path))}"],
+            timeout=30,
+        )
+        return result
+
+    # Git-specific operations for worktree management
+
+    def run_git_command(
+        self,
+        project_path: Path,
+        git_args: list[str],
+        timeout: int = 60,
+    ) -> RemoteResult:
+        """
+        Run a git command on the remote Mac.
+
+        Args:
+            project_path: Path to the git repository
+            git_args: Arguments to pass to git (e.g., ["status", "-s"])
+            timeout: Command timeout in seconds
+
+        Returns:
+            RemoteResult
+        """
+        command = ["git"] + git_args
+        return self.run_command(command, cwd=project_path, timeout=timeout)
+
+    def create_worktree(
+        self,
+        project_path: Path,
+        worktree_path: Path,
+        branch_name: str,
+        create_branch: bool = True,
+        timeout: int = 60,
+    ) -> RemoteResult:
+        """
+        Create a git worktree on the remote Mac.
+
+        Args:
+            project_path: Path to the main git repository
+            worktree_path: Path where the worktree should be created
+            branch_name: Name of the branch for the worktree
+            create_branch: If True, create a new branch (-b flag)
+            timeout: Command timeout in seconds
+
+        Returns:
+            RemoteResult with success status
+        """
+        git_args = ["worktree", "add"]
+        if create_branch:
+            git_args.extend(["-b", branch_name])
+        git_args.append(str(worktree_path))
+        if not create_branch:
+            git_args.append(branch_name)
+
+        return self.run_git_command(project_path, git_args, timeout=timeout)
+
+    def remove_worktree(
+        self,
+        project_path: Path,
+        worktree_path: Path,
+        force: bool = False,
+        timeout: int = 60,
+    ) -> RemoteResult:
+        """
+        Remove a git worktree on the remote Mac.
+
+        Args:
+            project_path: Path to the main git repository
+            worktree_path: Path to the worktree to remove
+            force: If True, use --force flag
+            timeout: Command timeout in seconds
+
+        Returns:
+            RemoteResult with success status
+        """
+        git_args = ["worktree", "remove"]
+        if force:
+            git_args.append("--force")
+        git_args.append(str(worktree_path))
+
+        return self.run_git_command(project_path, git_args, timeout=timeout)
+
+    def list_worktrees(self, project_path: Path, timeout: int = 30) -> RemoteResult:
+        """
+        List git worktrees on the remote Mac.
+
+        Args:
+            project_path: Path to the git repository
+
+        Returns:
+            RemoteResult with worktree list in stdout (porcelain format)
+        """
+        return self.run_git_command(
+            project_path,
+            ["worktree", "list", "--porcelain"],
+            timeout=timeout,
+        )
+
+    def get_merged_branches(
+        self,
+        project_path: Path,
+        main_branch: str = "main",
+        timeout: int = 30,
+    ) -> RemoteResult:
+        """
+        Get branches that have been merged into the main branch.
+
+        Args:
+            project_path: Path to the git repository
+            main_branch: Name of the main branch
+
+        Returns:
+            RemoteResult with merged branch names in stdout
+        """
+        return self.run_git_command(
+            project_path,
+            ["branch", "--merged", main_branch],
+            timeout=timeout,
+        )
+
+    def check_merge_conflicts(
+        self,
+        project_path: Path,
+        branch_name: str,
+        timeout: int = 60,
+    ) -> RemoteResult:
+        """
+        Check if merging a branch would cause conflicts (dry-run).
+
+        Args:
+            project_path: Path to the git repository
+            branch_name: Branch to check for conflicts
+
+        Returns:
+            RemoteResult - success means no conflicts
+        """
+        # Do a dry-run merge: merge --no-commit --no-ff, then abort
+        # This is safer than actual merge testing
+        result = self.run_git_command(
+            project_path,
+            ["merge", "--no-commit", "--no-ff", branch_name],
+            timeout=timeout,
+        )
+
+        # Always abort the merge (whether it succeeded or failed)
+        self.run_git_command(project_path, ["merge", "--abort"], timeout=10)
+
+        return result
+
 
 class LocalOrRemoteExecutor:
     """
