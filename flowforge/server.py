@@ -1085,8 +1085,10 @@ async def refine_feature(project: str, feature_id: str):
             )
         )
 
-    # Refine: inbox → idea
-    registry.update_feature(feature_id, status=FeatureStatus.IDEA)
+    # Refine: inbox → idea (use MCP server's update which handles SSH)
+    result = mcp_server._update_feature(project, feature_id, status="idea")
+    if not result.success:
+        raise HTTPException(status_code=500, detail=result.message)
 
     # Broadcast update
     await ws_manager.broadcast_feature_update(project, feature_id, "updated")
