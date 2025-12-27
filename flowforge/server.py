@@ -988,16 +988,33 @@ async def update_feature_spec(
     Used when refining an inbox item through the brainstorm chat.
     Updates title, description, and stores spec metadata.
     """
+    import json
+    from datetime import datetime
+    from .registry import FeatureStatus
+
     # Get project context
     try:
         project_path, config, registry = mcp_server._get_project_context(project)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    # Get the feature
-    feature = registry.get_feature(feature_id)
-    if not feature:
+    # Read registry via SSH (Pi can't write directly to Mac)
+    registry_path = project_path / ".flowforge" / "registry.json"
+
+    if not remote_executor:
+        raise HTTPException(status_code=500, detail="Remote executor not available")
+
+    registry_content = remote_executor.read_file(registry_path)
+    if not registry_content:
+        raise HTTPException(status_code=500, detail="Could not read registry")
+
+    registry_data = json.loads(registry_content)
+
+    if feature_id not in registry_data.get("features", {}):
         raise HTTPException(status_code=404, detail=f"Feature not found: {feature_id}")
+
+    feature_data = registry_data["features"][feature_id]
+    old_status = feature_data.get("status")
 
     # Build description with spec details
     full_description = request.description
@@ -1008,24 +1025,24 @@ async def update_feature_spec(
     if request.estimated_scope:
         full_description += f"\n\nEstimated scope: {request.estimated_scope}"
 
-    # Update the feature - also promote inbox → idea (refined)
-    from .registry import FeatureStatus
-
-    update_kwargs = {
-        "title": request.title,
-        "description": full_description,
-    }
+    # Update feature data
+    feature_data["title"] = request.title
+    feature_data["description"] = full_description
+    feature_data["updated_at"] = datetime.now().isoformat()
 
     # If it's an inbox item, refining promotes it to idea
-    if feature.status == FeatureStatus.INBOX:
-        update_kwargs["status"] = FeatureStatus.IDEA
+    if old_status == "inbox":
+        feature_data["status"] = "idea"
 
-    registry.update_feature(feature_id, **update_kwargs)
+    # Write updated registry via SSH
+    updated_json = json.dumps(registry_data, indent=2)
+    remote_executor.write_file(registry_path, updated_json)
+    mcp_server._invalidate_cache(project)
 
     # Broadcast update
     await ws_manager.broadcast_feature_update(project, feature_id, "updated")
 
-    status_msg = " (promoted to idea)" if feature.status == FeatureStatus.INBOX else ""
+    status_msg = " (promoted to idea)" if old_status == "inbox" else ""
     return {"success": True, "message": f"Updated feature with refined spec: {request.title}{status_msg}"}
 
 
