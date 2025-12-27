@@ -332,8 +332,9 @@ def add(
         console.print(f"[red]Feature already exists: {feature_id}[/red]")
         raise typer.Exit(1)
 
-    # Interactive prompts for missing info
-    if not description:
+    # Interactive prompts for missing info (skip if not a TTY)
+    import sys
+    if not description and sys.stdin.isatty():
         description = Prompt.ask("Description", default="")
 
     # Parse tags
