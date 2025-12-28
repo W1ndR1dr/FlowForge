@@ -995,17 +995,13 @@ class FlowForgeMCPServer:
         self,
         project: str,
         feature_id: str,
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        status: Optional[str] = None,
-        priority: Optional[int] = None,
-        complexity: Optional[str] = None,
-        tags: Optional[list[str]] = None,
+        **updates,
     ) -> MCPToolResult:
         """
         Update a feature's attributes.
 
         This is a Pi-local operation - works even when Mac is offline.
+        Supports clearing fields by explicitly passing None values.
         """
         try:
             project_path, config, registry = self._get_project_context(project)
@@ -1019,21 +1015,6 @@ class FlowForgeMCPServer:
                 message=f"Feature not found: {feature_id}",
             )
 
-        # Build updates dict from non-None values
-        updates = {}
-        if title is not None:
-            updates["title"] = title
-        if description is not None:
-            updates["description"] = description
-        if status is not None:
-            updates["status"] = status
-        if priority is not None:
-            updates["priority"] = priority
-        if complexity is not None:
-            updates["complexity"] = complexity
-        if tags is not None:
-            updates["tags"] = tags
-
         if not updates:
             return MCPToolResult(
                 success=False,
@@ -1041,6 +1022,7 @@ class FlowForgeMCPServer:
             )
 
         # Update registry locally (Pi-local write - works offline!)
+        # Pass all updates including None values to allow clearing fields
         registry.update_feature(feature_id, **updates)
 
         # Save to Pi-local storage

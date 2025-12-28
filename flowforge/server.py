@@ -757,6 +757,10 @@ class UpdateFeatureRequest(BaseModel):
     priority: Optional[int] = None
     complexity: Optional[str] = None
     tags: Optional[list[str]] = None
+    # Fields that can be cleared (set to null)
+    worktree_path: Optional[str] = None
+    branch: Optional[str] = None
+    completed_at: Optional[str] = None
 
 
 @app.patch("/api/{project}/features/{feature_id}")
@@ -765,17 +769,15 @@ async def update_feature(
     feature_id: str,
     request: UpdateFeatureRequest,
 ):
-    """Update a feature's attributes."""
-    result = mcp_server._update_feature(
-        project,
-        feature_id,
-        title=request.title,
-        description=request.description,
-        status=request.status,
-        priority=request.priority,
-        complexity=request.complexity,
-        tags=request.tags,
-    )
+    """Update a feature's attributes. Supports clearing fields by setting them to null."""
+    # Use model_fields_set to detect which fields were explicitly provided
+    # This allows distinguishing between "not provided" and "explicitly set to null"
+    updates = {
+        field: getattr(request, field)
+        for field in request.model_fields_set
+    }
+
+    result = mcp_server._update_feature(project, feature_id, **updates)
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
 
