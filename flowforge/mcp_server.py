@@ -19,7 +19,7 @@ Architecture (Pi-native):
 - This allows idea capture even when MacBook is asleep
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional
 import json
@@ -1174,10 +1174,10 @@ class FlowForgeMCPServer:
         if direction == "pi-to-mac":
             # Write Pi registry to Mac
             registry_data = {
-                "version": pi_registry.version,
-                "features": [f.to_dict() for f in pi_registry.list_features()],
-                "merge_queue": pi_registry.merge_queue,
-                "shipping_stats": pi_registry.shipping_stats,
+                "version": "1.0.0",
+                "features": {f.id: f.to_dict() for f in pi_registry.list_features()},
+                "merge_queue": [asdict(item) for item in pi_registry._merge_queue],
+                "shipping_stats": pi_registry._shipping_stats.to_dict(),
             }
             registry_json = json.dumps(registry_data, indent=2, default=str)
             result = self.remote_executor.write_file(mac_registry_path, registry_json)
@@ -1209,10 +1209,10 @@ class FlowForgeMCPServer:
             # Get Pi registry data as list
             pi_features_list = [f.to_dict() for f in pi_registry.list_features()]
             pi_data = {
-                "version": pi_registry.version,
+                "version": "1.0.0",
                 "features": pi_features_list,
-                "merge_queue": pi_registry.merge_queue,
-                "shipping_stats": pi_registry.shipping_stats,
+                "merge_queue": [asdict(item) for item in pi_registry._merge_queue],
+                "shipping_stats": pi_registry._shipping_stats.to_dict(),
             }
 
             # Handle both dict and list format for Mac features
