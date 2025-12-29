@@ -25,7 +25,7 @@ import asyncio
 from .mcp_server import FlowForgeMCPServer, create_mcp_response
 from .brainstorm import parse_proposals, Proposal, ProposalStatus, check_shippable
 from .prompt_builder import PromptBuilder
-from .registry import FeatureRegistry
+from .registry import FeatureRegistry, Feature
 from .intelligence import IntelligenceEngine
 from .remote import RemoteExecutor
 from .worktree import WorktreeManager
