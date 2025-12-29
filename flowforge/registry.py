@@ -1,6 +1,6 @@
 """Feature registry for FlowForge."""
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, fields
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -86,7 +86,10 @@ class Feature:
         data = data.copy()
         data["status"] = FeatureStatus(data.get("status", "idea"))
         data["complexity"] = Complexity(data.get("complexity", "medium"))
-        return cls(**data)
+        # Filter to only known fields (handles schema migrations gracefully)
+        known_fields = {f.name for f in fields(cls)}
+        filtered_data = {k: v for k, v in data.items() if k in known_fields}
+        return cls(**filtered_data)
 
 
 @dataclass
