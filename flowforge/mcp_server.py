@@ -1051,7 +1051,8 @@ class FlowForgeMCPServer:
         """
         Delete a feature from the registry.
 
-        This is a Pi-local operation - works even when Mac is offline.
+        Registry deletion is a Pi-local operation (works offline).
+        Worktree cleanup requires Mac to be online.
         """
         try:
             project_path, config, registry = self._get_project_context(project)
@@ -1063,6 +1064,22 @@ class FlowForgeMCPServer:
             return MCPToolResult(success=False, message=f"Feature not found: {feature_id}")
 
         feature_title = feature.title
+        had_worktree = bool(feature.worktree_path)
+
+        # Clean up worktree if exists and Mac is online
+        worktree_cleaned = False
+        if had_worktree and self._check_mac_online() and self.remote_executor:
+            worktree_path = project_path / ".flowforge-worktrees" / feature_id
+            if self.remote_executor.dir_exists(worktree_path):
+                cleanup_result = self.remote_executor.remove_worktree(
+                    project_path, worktree_path, force=True
+                )
+                worktree_cleaned = cleanup_result.success
+
+            # Also remove prompt file
+            prompt_file = project_path / ".flowforge" / "prompts" / f"{feature_id}.md"
+            if self.remote_executor.file_exists(prompt_file):
+                self.remote_executor.run_command(["rm", "-f", str(prompt_file)])
 
         # Delete from registry locally (Pi-local write - works offline!)
         try:
@@ -1073,10 +1090,190 @@ class FlowForgeMCPServer:
         # Save to Pi-local storage
         self._save_registry(project, registry)
 
+        message = f"Deleted feature: {feature_title}"
+        if had_worktree:
+            message += f" (worktree cleaned: {worktree_cleaned})"
+
         return MCPToolResult(
             success=True,
-            message=f"Deleted feature: {feature_title}",
-            data={"feature_id": feature_id},
+            message=message,
+            data={"feature_id": feature_id, "worktree_cleaned": worktree_cleaned},
+        )
+
+    def _cleanup_orphans(self, project: str) -> MCPToolResult:
+        """
+        Remove worktrees for features that are completed or deleted.
+
+        This operation requires Mac to be online.
+        """
+        if not self._check_mac_online() or not self.remote_executor:
+            return MCPToolResult(
+                success=False, message="Mac offline - cannot clean worktrees"
+            )
+
+        try:
+            project_path, config, registry = self._get_project_context(project)
+        except ValueError as e:
+            return MCPToolResult(success=False, message=str(e))
+
+        worktree_base = project_path / ".flowforge-worktrees"
+
+        # Get active feature IDs (in-progress or review)
+        active_ids = {
+            f.id
+            for f in registry.list_features()
+            if f.status in (FeatureStatus.IN_PROGRESS, FeatureStatus.REVIEW)
+        }
+
+        # List worktree directories on Mac
+        result = self.remote_executor.run_command(["ls", str(worktree_base)])
+        if not result.success:
+            return MCPToolResult(
+                success=True,
+                message="No worktrees directory found",
+                data={"cleaned": 0, "orphans": []},
+            )
+
+        orphans_cleaned = []
+        for dirname in result.stdout.strip().split("\n"):
+            if dirname and dirname not in active_ids:
+                worktree_path = worktree_base / dirname
+                cleanup_result = self.remote_executor.remove_worktree(
+                    project_path, worktree_path, force=True
+                )
+                if cleanup_result.success:
+                    orphans_cleaned.append(dirname)
+
+        return MCPToolResult(
+            success=True,
+            message=f"Cleaned {len(orphans_cleaned)} orphaned worktrees",
+            data={"cleaned": len(orphans_cleaned), "orphans": orphans_cleaned},
+        )
+
+    def _sync_registry(self, project: str, direction: str = "pi-to-mac") -> MCPToolResult:
+        """
+        Sync registries between Pi and Mac.
+
+        Args:
+            project: Project name
+            direction: One of:
+                - "pi-to-mac": Write Pi's registry to Mac's .flowforge/registry.json
+                - "mac-to-pi": Read Mac's registry and replace Pi's
+                - "bidirectional": Merge both, most recent updated_at wins per-feature
+        """
+        if not self._check_mac_online() or not self.remote_executor:
+            return MCPToolResult(success=False, message="Mac offline - cannot sync")
+
+        try:
+            project_path, config, pi_registry = self._get_project_context(project)
+        except ValueError as e:
+            return MCPToolResult(success=False, message=str(e))
+
+        mac_registry_path = project_path / ".flowforge" / "registry.json"
+
+        if direction == "pi-to-mac":
+            # Write Pi registry to Mac
+            registry_data = {
+                "version": pi_registry.version,
+                "features": [f.to_dict() for f in pi_registry.features.values()],
+                "merge_queue": pi_registry.merge_queue,
+                "shipping_stats": pi_registry.shipping_stats,
+            }
+            registry_json = json.dumps(registry_data, indent=2, default=str)
+            result = self.remote_executor.write_file(mac_registry_path, registry_json)
+            if result.success:
+                return MCPToolResult(
+                    success=True,
+                    message="Synced Pi registry to Mac",
+                    data={"direction": direction, "feature_count": len(pi_registry.features)},
+                )
+            return MCPToolResult(success=False, message=f"Failed to write Mac registry: {result.stderr}")
+
+        elif direction == "mac-to-pi":
+            # Read Mac registry and import to Pi
+            mac_content = self.remote_executor.read_file(mac_registry_path)
+            if not mac_content:
+                return MCPToolResult(success=False, message="Could not read Mac registry")
+            self.pi_registry.import_from_mac(project, mac_content, mac_path=str(project_path))
+            return MCPToolResult(
+                success=True,
+                message="Synced Mac registry to Pi",
+                data={"direction": direction},
+            )
+
+        elif direction == "bidirectional":
+            # Read Mac registry
+            mac_content = self.remote_executor.read_file(mac_registry_path)
+            mac_data = json.loads(mac_content) if mac_content else {"features": []}
+
+            # Get Pi registry data
+            pi_data = {
+                "version": pi_registry.version,
+                "features": [f.to_dict() for f in pi_registry.features.values()],
+                "merge_queue": pi_registry.merge_queue,
+                "shipping_stats": pi_registry.shipping_stats,
+            }
+
+            # Build merged feature list (most recent updated_at wins)
+            merged = {}
+            for f in mac_data.get("features", []) + pi_data.get("features", []):
+                fid = f["id"]
+                if fid not in merged or f.get("updated_at", "") > merged[fid].get("updated_at", ""):
+                    merged[fid] = f
+
+            # Save merged to both
+            merged_data = {**pi_data, "features": list(merged.values())}
+            merged_json = json.dumps(merged_data, indent=2, default=str)
+
+            # Write to Mac
+            self.remote_executor.write_file(mac_registry_path, merged_json)
+            # Re-import to Pi
+            self.pi_registry.import_from_mac(project, merged_json, mac_path=str(project_path))
+
+            return MCPToolResult(
+                success=True,
+                message=f"Bidirectional sync complete ({len(merged)} features)",
+                data={"direction": direction, "feature_count": len(merged)},
+            )
+
+        return MCPToolResult(
+            success=False,
+            message=f"Invalid direction: {direction}. Use 'pi-to-mac', 'mac-to-pi', or 'bidirectional'",
+        )
+
+    def _sync_status(self, project: str) -> MCPToolResult:
+        """Check if registries are in sync, show diff if not."""
+        if not self._check_mac_online() or not self.remote_executor:
+            return MCPToolResult(success=False, message="Mac offline - cannot check sync status")
+
+        try:
+            project_path, config, pi_registry = self._get_project_context(project)
+        except ValueError as e:
+            return MCPToolResult(success=False, message=str(e))
+
+        mac_registry_path = project_path / ".flowforge" / "registry.json"
+
+        mac_content = self.remote_executor.read_file(mac_registry_path)
+        mac_data = json.loads(mac_content) if mac_content else {"features": []}
+
+        mac_ids = {f["id"] for f in mac_data.get("features", [])}
+        pi_ids = set(pi_registry.features.keys())
+
+        only_mac = mac_ids - pi_ids
+        only_pi = pi_ids - mac_ids
+        in_both = mac_ids & pi_ids
+
+        return MCPToolResult(
+            success=True,
+            message="Sync status retrieved",
+            data={
+                "in_sync": not only_mac and not only_pi,
+                "mac_count": len(mac_ids),
+                "pi_count": len(pi_ids),
+                "only_on_mac": list(only_mac),
+                "only_on_pi": list(only_pi),
+                "in_both": len(in_both),
+            },
         )
 
     def _init_project(

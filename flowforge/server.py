@@ -208,6 +208,41 @@ async def mcp_manifest():
 # =============================================================================
 
 
+@app.get("/api")
+async def api_discovery():
+    """List all available API endpoints for discoverability."""
+    return {
+        "version": "1.0.0",
+        "documentation": "/docs",
+        "openapi": "/openapi.json",
+        "endpoints": {
+            "system": {
+                "GET /api": "API discovery (this endpoint)",
+                "GET /api/projects": "List all FlowForge projects",
+                "GET /api/system/status": "System status with Mac connectivity",
+            },
+            "project": {
+                "POST /api/{project}/init": "Initialize FlowForge in project",
+                "GET /api/{project}/status": "Get project statistics",
+                "GET /api/{project}/health": "Check registry vs git state",
+                "GET /api/{project}/features": "List all features",
+                "POST /api/{project}/features": "Create new feature",
+                "GET /api/{project}/merge-check": "Check all features for merge readiness",
+                "POST /api/{project}/sync": "Sync registry between Pi and Mac",
+                "GET /api/{project}/sync/status": "Check if registries are in sync",
+                "POST /api/{project}/cleanup": "Clean orphaned worktrees",
+            },
+            "feature": {
+                "PATCH /api/{project}/features/{id}": "Update feature attributes",
+                "DELETE /api/{project}/features/{id}": "Delete feature (cleans worktree)",
+                "POST /api/{project}/features/{id}/start": "Start working on feature",
+                "POST /api/{project}/features/{id}/stop": "Mark ready for review",
+                "POST /api/{project}/features/{id}/merge": "Merge to main",
+            },
+        },
+    }
+
+
 @app.get("/api/projects")
 async def list_projects():
     """
@@ -701,6 +736,55 @@ async def merge_feature(
         raise HTTPException(status_code=400, detail=result.message)
 
     result.data["mac_online"] = True
+    return result.data
+
+
+@app.post("/api/{project}/cleanup")
+async def cleanup_orphans(project: str):
+    """
+    Remove worktrees for features that are completed or deleted.
+
+    This operation requires Mac to be online.
+    """
+    result = mcp_server._cleanup_orphans(project)
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+class SyncRequest(BaseModel):
+    direction: str = "pi-to-mac"  # "pi-to-mac", "mac-to-pi", or "bidirectional"
+
+
+@app.post("/api/{project}/sync")
+async def sync_registries(project: str, request: SyncRequest):
+    """
+    Sync registries between Pi and Mac.
+
+    Args:
+        direction: One of:
+            - "pi-to-mac": Write Pi's registry to Mac (default)
+            - "mac-to-pi": Read Mac's registry and replace Pi's
+            - "bidirectional": Merge both, most recent updated_at wins per-feature
+
+    This operation requires Mac to be online.
+    """
+    result = mcp_server._sync_registry(project, request.direction)
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return {"message": result.message, **result.data}
+
+
+@app.get("/api/{project}/sync/status")
+async def sync_status(project: str):
+    """
+    Check if registries are in sync, show diff if not.
+
+    This operation requires Mac to be online.
+    """
+    result = mcp_server._sync_status(project)
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
     return result.data
 
 
