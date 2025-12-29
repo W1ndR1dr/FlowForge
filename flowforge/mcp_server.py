@@ -1204,19 +1204,27 @@ class FlowForgeMCPServer:
         elif direction == "bidirectional":
             # Read Mac registry
             mac_content = self.remote_executor.read_file(mac_registry_path)
-            mac_data = json.loads(mac_content) if mac_content else {"features": []}
+            mac_data = json.loads(mac_content) if mac_content else {"features": {}}
 
-            # Get Pi registry data
+            # Get Pi registry data as list
+            pi_features_list = [f.to_dict() for f in pi_registry.features.values()]
             pi_data = {
                 "version": pi_registry.version,
-                "features": [f.to_dict() for f in pi_registry.features.values()],
+                "features": pi_features_list,
                 "merge_queue": pi_registry.merge_queue,
                 "shipping_stats": pi_registry.shipping_stats,
             }
 
+            # Handle both dict and list format for Mac features
+            mac_features = mac_data.get("features", {})
+            if isinstance(mac_features, dict):
+                mac_features_list = list(mac_features.values())
+            else:
+                mac_features_list = mac_features
+
             # Build merged feature list (most recent updated_at wins)
             merged = {}
-            for f in mac_data.get("features", []) + pi_data.get("features", []):
+            for f in mac_features_list + pi_features_list:
                 fid = f["id"]
                 if fid not in merged or f.get("updated_at", "") > merged[fid].get("updated_at", ""):
                     merged[fid] = f
@@ -1254,9 +1262,14 @@ class FlowForgeMCPServer:
         mac_registry_path = project_path / ".flowforge" / "registry.json"
 
         mac_content = self.remote_executor.read_file(mac_registry_path)
-        mac_data = json.loads(mac_content) if mac_content else {"features": []}
+        mac_data = json.loads(mac_content) if mac_content else {"features": {}}
 
-        mac_ids = {f["id"] for f in mac_data.get("features", [])}
+        # Handle both dict and list format for features
+        mac_features = mac_data.get("features", {})
+        if isinstance(mac_features, dict):
+            mac_ids = set(mac_features.keys())
+        else:
+            mac_ids = {f["id"] for f in mac_features}
         pi_ids = set(pi_registry.features.keys())
 
         only_mac = mac_ids - pi_ids
