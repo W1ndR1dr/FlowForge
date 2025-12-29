@@ -730,7 +730,7 @@
     },
     "should-move-the-brain-button-and-the-plus-button-s": {
       "id": "should-move-the-brain-button-and-the-plus-button-s",
-      "title": "Generate Ideas",
+      "title": "Quick Brainstorm Button (Contextual Idea Generator)",
       "description": "Separates the capture UI into two distinct buttons: a + button for freetext quick capture, and a brain button that generates 3 contextual idea suggestions based on the project's existing features and recent commits. Users tap any suggestion to add it to the inbox instantly.\n\nHow it works:\n- + button opens existing quick capture input (freetext, low friction)\n- Brain button shows a popover with loading state (pulsing brain or skeleton chips)\n- Backend fetches: project name, existing feature titles, last ~15 git commits\n- AI generates 3 short-phrase ideas that don't duplicate existing/completed features\n- Ideas appear as tappable chips in the popover\n- Tapping a chip instantly adds it to inbox as \"idea\" status\n- User can tap brain again for 3 more if nothing resonates (magic 8-ball style)\n- Popover dismisses after selection or tap-outside\n\nFiles likely affected:\n- `FlowForgeApp/Views/VibeInput.swift` (split into + and brain buttons)\n- `flowforge/server.py` (new `/brainstorm/quick` endpoint)\n- `flowforge/intelligence.py` (quick brainstorm prompt generation)\n- `FlowForgeApp/Services/APIClient.swift` (new endpoint call)\n- `FlowForgeApp/Views/Components/BrainstormPopover.swift` (new view)\n\nEstimated scope: Medium (1-3 hours)",
       "status": "idea",
       "priority": 5,
@@ -742,16 +742,14 @@
       "branch": null,
       "worktree_path": null,
       "created_at": "2025-12-26T22:23:13.293773",
-      "updated_at": "2025-12-27T14:05:47.085119",
+      "updated_at": "2025-12-28T14:24:44.340599",
       "started_at": "2025-12-27T10:44:31.333809",
       "completed_at": null,
       "spec_path": null,
       "prompt_path": "/Users/Brian/Projects/Active/FlowForge/.flowforge/prompts/should-move-the-brain-button-and-the-plus-button-s.md",
-      "notes": null,
       "tags": [],
-      "session_id": null,
       "extensions": {
-        "crystallization_history": [
+        "refinement_history": [
           {
             "role": "user",
             "content": "Help me crystallize this idea: should move the brain button and the plus button.  + should be to add a freetext idea and the brain button should generate ?a few? ideas in simple short words from which the user can select any to add to the inbox (bootstrapping creativity)"
@@ -799,6 +797,30 @@
           {
             "role": "assistant",
             "content": "Ha! Yes, exactly - this is literally the second pass in action. Quick capture \u2192 crystallize \u2192 implement. The system working as designed.\n\nAlright, I think we've got enough clarity here. Let me write this up:\n\n---\n\nSPEC_READY\n\nFEATURE: Quick Brainstorm Button (Contextual Idea Generator)\n\nWHAT IT DOES:\nSeparates the capture UI into two distinct buttons: a + button for freetext quick capture, and a brain button that generates 3 contextual idea suggestions based on the project's existing features and recent commits. Users tap any suggestion to add it to the inbox instantly.\n\nHOW IT WORKS:\n- + button opens existing quick capture input (freetext, low friction)\n- Brain button shows a popover with loading state (pulsing brain or skeleton chips)\n- Backend fetches: project name, existing feature titles, last ~15 git commits\n- AI generates 3 short-phrase ideas that don't duplicate existing/completed features\n- Ideas appear as tappable chips in the popover\n- Tapping a chip instantly adds it to inbox as \"idea\" status\n- User can tap brain again for 3 more if nothing resonates (magic 8-ball style)\n- Popover dismisses after selection or tap-outside\n\nFILES LIKELY AFFECTED:\n- `FlowForgeApp/Views/VibeInput.swift` (split into + and brain buttons)\n- `flowforge/server.py` (new `/brainstorm/quick` endpoint)\n- `flowforge/intelligence.py` (quick brainstorm prompt generation)\n- `FlowForgeApp/Services/APIClient.swift` (new endpoint call)\n- `FlowForgeApp/Views/Components/BrainstormPopover.swift` (new view)\n\nESTIMATED SCOPE:\nMedium (1-3 hours)\n"
+          },
+          {
+            "role": "user",
+            "content": "I want to narrow the scope of this completely. It should be a feature that only exists on the macOS app for one specific reason. I want to narrow this to just a quick brainstorm button. The brainstorm button would exist somewhere around the area of the idea inbox or around the idea of what do you want to ship. And on hover over, it would expand some text with an animation from that brain icon that says Generate new ideas or generate inspiration or something like that. Yeah, maybe generate new ideas. And it would launch a Claude Code session in the background. So still via our the same, you know, in-app UI, chat UI that we use for refining. No, actually, I don't even know if I want a chat UI. But it would launch in the background a Claude Code session in headless mode with a prompt that gives a very good prompt that says explore the code base and generate three clever and useful ideas as if it was a thoughtful, world-class design consultant like Johnny Ive or someone similar. And then let it from there constrain the output to outputting three contextual suggestions based on the project's existing features and recent commits. And then have that create a popover where a user can select one, two, or three of those things which would get populated into the idea inbox in a sort of a raw format. Does that make sense?"
+          },
+          {
+            "role": "assistant",
+            "content": "Yes, that makes perfect sense! This is much cleaner and more focused. Let me make sure I've got it right:\n\n**The flow:**\n1. Brain button lives near the Idea Inbox area (macOS only)\n2. On hover, it animates/expands to show \"Generate new ideas\" text\n3. On click, it launches Claude Code in **headless mode** (no chat UI needed)\n4. Claude Code explores the actual codebase + git history\n5. Returns exactly 3 ideas framed from a \"world-class design consultant\" perspective\n6. Results appear in a popover with 3 selectable chips\n7. User picks 1, 2, or all 3 \u2192 they get added to the Idea Inbox as raw ideas\n\n**Key difference from before:** Instead of hitting a quick API endpoint with summarized context, you're giving Claude Code full codebase access to discover insights. Much richer suggestions because it can actually read the code.\n\n**One clarification question:** For the headless Claude Code session - is this using the existing `claude` CLI with `--print` mode (outputs to stdout, no interactive session), or a different mechanism you have in mind?\n\nI'm thinking something like:\n```bash\nclaude --print -p \"You are a world-class design consultant like Jony Ive. Explore this codebase and suggest 3 clever, useful feature ideas...\" \n```\n\nThen parse the structured output to populate the popover?\n"
+          },
+          {
+            "role": "user",
+            "content": "sure prompt from here"
+          },
+          {
+            "role": "assistant",
+            "content": "Got it! So we'd generate the prompt right here during crystallization, and it becomes part of the spec that gets used when implementing.\n\nLet me draft a prompt that would work well for this:\n\n---\n\n**Draft prompt for Claude Code headless session:**\n\n```\nYou are a world-class product design consultant in the spirit of Jony Ive\u2014thoughtful, opinionated, obsessed with simplicity and delight.\n\nExplore this codebase. Understand what it does, how it's built, and what problems it solves for users.\n\nThen generate exactly 3 feature ideas that would genuinely improve this product. Each idea should be:\n- Clever but practical (not pie-in-sky)\n- Specific to THIS codebase (not generic advice)\n- Expressible in 5-10 words\n\nFormat your response as exactly 3 lines, one idea per line, nothing else:\n[idea 1]\n[idea 2]  \n[idea 3]\n```\n\n---\n\n**Question:** Does this prompt feel right, or would you tweak the framing? \n\nAlso\u2014should it explicitly look at git history for \"what's been shipped recently\" context, or is exploring the codebase enough?\n"
+          },
+          {
+            "role": "user",
+            "content": "idk if we should hobble the model with a single persona, we should ask claude code to think of the perfect consultant or group of consultants given the app?  although i do philosophically like the apple human design group etc... idk what do you think.  only worry would be unhobbling the model...  AGI pilled philosophy.  im not sure what the workflow would be for flowforge to explore the codebase in this state?  what is visible to the iphone version of this app, and what is visible to the mac version of the app?  i.e. codebase is local to the mac but all the iphone app is for is idea capture and refinement (like we are CURRENTLY doing).  Maybe the iphone version should have a watered down version unless we can get meaningful signal/context to feed via the pi (which should have some list of git commits?). The mac version should actually be able to look at the whole codebase and send off explore agent(s) with legendary persona(s) as consultants to propose raw ideas from which to refine?  Help me out here in distilling these ideas..."
+          },
+          {
+            "role": "assistant",
+            "content": "This is great thinking - let me help untangle this.\n\n**The platform split makes sense:**\n\n| Platform | What it sees | What it can do |\n|----------|-------------|----------------|\n| **iPhone** | Feature list, git commits (via Pi) | Lightweight: \"Based on recent commits, here are 3 ideas\" |\n| **Mac** | Full codebase locally | Full power: Claude Code explores code, runs agents |\n\n**On the consultant persona question:**\n\nI actually like your instinct to \"unhobble\" - instead of hardcoding Jony Ive, let Claude pick the right lens:\n\n```\nFirst, consider: given what this app does and who it serves, \nwhich legendary designers/thinkers would give the most relevant perspective?\n(e.g., Tufte for data-heavy, Ive for consumer delight, Spolsky for dev tools)\n\nAdopt that mindset, then explore the codebase and suggest 3 ideas.\n```\n\nThis is more AGI-pilled - the model picks its own expert frame based on context.\n\n**Distilling the scope:**\n\nFor THIS feature spec, I'd suggest:\n\n1. **macOS only for v1** - full Claude Code headless exploration with dynamic persona selection\n2. **iPhone gets a simpler version later** - we already have commits on Pi, could do a lightweight `/brainstorm/quick` endpoint that doesn't need codebase access\n\n**Clarifying question:** Should we spec just the macOS version now (Claude Code headless with full codebase access), and leave iPhone as a separate future feature? That keeps this focused and shippable.\n"
           }
         ]
       }
@@ -847,8 +869,158 @@
       "spec_path": null,
       "prompt_path": null,
       "notes": "Files modified: flowforge/server.py, flowforge/mcp_server.py",
-      "tags": ["backend", "api", "sync", "cleanup"],
+      "tags": [
+        "backend",
+        "api",
+        "sync",
+        "cleanup"
+      ],
       "session_id": null,
+      "extensions": {}
+    },
+    "refine-feature-doesnt-work-in-ios-should-consider-": {
+      "id": "refine-feature-doesnt-work-in-ios-should-consider-",
+      "title": "Refine feature doesn\u2019t work in iOS. Should consider screen size optimal UI for chat",
+      "description": "",
+      "status": "idea",
+      "priority": 5,
+      "complexity": "medium",
+      "parent_id": null,
+      "children": [],
+      "depends_on": [],
+      "blocked_by": [],
+      "branch": null,
+      "worktree_path": null,
+      "created_at": "2025-12-27T23:51:18.676902",
+      "updated_at": "2025-12-27T23:51:18.676912",
+      "started_at": null,
+      "completed_at": null,
+      "spec_path": null,
+      "prompt_path": null,
+      "tags": [],
+      "extensions": {}
+    },
+    "the-done-button-gives-unclear-outcome": {
+      "id": "the-done-button-gives-unclear-outcome",
+      "title": "Smart \"Mark as Done\" with Clear Feedback",
+      "description": "The \"Mark as Done\" button intelligently detects whether a feature has already been merged to main and either ships it immediately or marks it for review. It shows a loading state during the operation and provides clear feedback about what action was taken.\n\nHow it works:\n- When pressed, show a loading spinner/state on the button\n- Check if the feature's branch has been merged to main (git branch --merged main)\n- If already merged: Clean up worktree, move feature to \"Shipped\", show \"\u2713 Shipped!\" toast\n- If not merged: Move to \"Ready for Review\", show \"Marked for review - merge when ready\" toast\n- If worktree doesn't exist but status is \"building\": Allow manual status advancement with warning\n- Handle server latency gracefully (disable button during operation, show spinner)\n\nFiles likely affected:\n- FlowForgeApp/Views/FeatureRow.swift (button UI, loading state)\n- FlowForgeApp/Services/APIClient.swift (new endpoint or enhanced mark-done logic)\n- flowforge/server.py or flowforge/mcp_server.py (smart merge detection endpoint)\n- flowforge/worktree.py (helper to check if branch merged to main)\n\nEstimated scope: Medium (1-3 hours)",
+      "status": "completed",
+      "priority": 5,
+      "complexity": "medium",
+      "parent_id": null,
+      "children": [],
+      "depends_on": [],
+      "blocked_by": [],
+      "branch": null,
+      "worktree_path": null,
+      "created_at": "2025-12-28T08:51:49.985125",
+      "updated_at": "2025-12-28T16:42:33.839497",
+      "started_at": "2025-12-28T08:57:47.039741",
+      "completed_at": "2025-12-28T14:30:00.000000",
+      "spec_path": null,
+      "prompt_path": "/Users/Brian/Projects/Active/FlowForge/.flowforge/prompts/the-done-button-gives-unclear-outcome.md",
+      "tags": [],
+      "extensions": {
+        "refinement_history": [
+          {
+            "role": "user",
+            "content": "Help me refine this idea: the done button gives unclear outcome"
+          },
+          {
+            "role": "assistant",
+            "content": "I see you're frustrated with the \"done\" button - that's one of those UI elements that can really break the flow if it's not clear what it does!\n\nLet me make sure I understand the context. Which \"done\" button are you referring to? Is this:\n\n1. The button in the **Brainstorm/Refine chat** (when you're done refining an idea)?\n2. A button on the **Kanban board** (marking a feature as completed)?\n3. Something else in the iOS or macOS app?\n\nOnce I know which button, I can help clarify what outcome you'd expect it to have.\n"
+          },
+          {
+            "role": "user",
+            "content": "More specifically the done button. I had a work tree that I was working on with a project and that went through the build status. I think it did a full correct feature input and then I merged everything to main and the status took a second to update after I pressed the mark as done button on a feature that was in the build status, like i.e., I'd gone through a Claude code session. So we should at least give it loading state or something like that when you press the mark as done if there's some latency from the server internet interaction or whatever. But then it says ready for review. I think actually that the Claude code session had already sent through like all of the correct forge commands or whatever, but there's no way for me to clear it from the actively building status. The feature that I'm discussing is within the AirFit project, and it was the Fix the Whisper Kit integration, which we've now successfully done and should be moved to the shipped this week section now that we've done it. But something in that final piece of the workflow is broken. So can you help me troubleshoot that, please?"
+          },
+          {
+            "role": "assistant",
+            "content": "Great, this is really helpful context! Let me make sure I understand the issue clearly.\n\nIt sounds like there are actually **two related problems**:\n\n1. **No loading state** on the \"Mark as Done\" button when there's server latency\n2. **The feature got stuck** - you completed the work, merged to main, but the feature stayed in \"building\" status instead of moving to \"shipped\"\n\nLet me ask a clarifying question about the second issue:\n\nWhen you pressed \"Mark as Done\" on the AirFit \"Fix the Whisper Kit integration\" feature, what **did** happen? Did it:\n- Change to \"Ready for Review\" (as you mentioned) and then stop there?\n- Stay stuck in the \"building\" column?\n- Show an error?\n\nAnd a follow-up: After the Claude Code session finished and merged to main, did you run `forge stop <feature-id>` from the terminal, or were you relying entirely on the GUI button?\n\nThis will help me understand whether the issue is:\n- The GUI button not triggering the right backend command\n- The feature lifecycle not advancing correctly (building \u2192 review \u2192 shipped)\n- A sync/display issue where the backend updated but the UI didn't reflect it\n"
+          },
+          {
+            "role": "user",
+            "content": "Well, actually, the process of the build to entry into a work tree with a cloud code session to execution of that cloud code session to feature completion did finish. And then I said ship it I did press forge stop and then I didn't enter the feature IDE because that seems a little bit too esoteric for me. So maybe that's important, but I don't think the forge stop command did anything in the cloud code session that I was in. And then I did press the GUI button so that I may have just been relying entirely on the GUI button. But a future cloud code session will have more context than you, so don't need to know specifically about that. I think we're good to go with the prompt from here. That's specifically descriptive."
+          },
+          {
+            "role": "assistant",
+            "content": "Got it! So the core issue is that the **\"Mark as Done\" button's outcome is unclear** - it says \"Ready for Review\" but you expected it to ship/complete the feature, and there's no loading state during the server call.\n\nLet me clarify one more thing to nail down the expected behavior:\n\nWhen you press \"Mark as Done\" on a feature that's in the **building** status (with an active worktree), what **should** happen?\n\nOption A: **Just advance status** - Move to \"Ready for Review\", keep the worktree, user runs `forge merge` separately later\n\nOption B: **Full ship** - Merge to main, clean up worktree, move to \"Shipped\" column (all-in-one)\n\nOption C: **Smart behavior** - Detect if already merged to main \u2192 ship it; otherwise \u2192 mark as review\n\nWhich matches your mental model? I'm guessing you want something closer to B or C since you'd already merged in the Claude Code session.\n"
+          },
+          {
+            "role": "user",
+            "content": "Option C makes sense. Yeah, option C makes sense. But also, it sounds like we need to review whatever script exists in the project that we're working in and make sure that the claude.md in the project that we're working in is up to date with those commands that help it interact with Forge to show GUI completion events. Is that correct, or am I off base there? If I'm correct, then let's write the prompt."
+          },
+          {
+            "role": "assistant",
+            "content": "You're on the right track, but let me clarify the architecture:\n\nThe **Claude Code session inside a worktree** doesn't need special CLAUDE.md instructions to interact with FlowForge - it's the other way around. The **FlowForge GUI and CLI** should detect the state of the git repo (merged to main? branch still exists? worktree active?) and infer the right action.\n\nSo the fix is:\n\n1. **\"Mark as Done\" button gets smarter** (Option C) - detects merge state and either ships or marks for review\n2. **Add loading state** to the button during server calls\n3. **Clearer feedback** - tell the user exactly what happened (\"Merged and shipped!\" vs \"Marked for review - run `forge merge` when ready\")\n\nThe CLAUDE.md in target projects (like AirFit) doesn't need FlowForge-specific instructions because the feature lifecycle is managed externally by FlowForge's registry, not by the project itself.\n\nLet me write this up:\n\n---\n\n```\nSPEC_READY\n\nFEATURE: Smart \"Mark as Done\" with Clear Feedback\n\nWHAT IT DOES:\nThe \"Mark as Done\" button intelligently detects whether a feature has already been merged to main and either ships it immediately or marks it for review. It shows a loading state during the operation and provides clear feedback about what action was taken.\n\nHOW IT WORKS:\n- When pressed, show a loading spinner/state on the button\n- Check if the feature's branch has been merged to main (git branch --merged main)\n- If already merged: Clean up worktree, move feature to \"Shipped\", show \"\u2713 Shipped!\" toast\n- If not merged: Move to \"Ready for Review\", show \"Marked for review - merge when ready\" toast\n- If worktree doesn't exist but status is \"building\": Allow manual status advancement with warning\n- Handle server latency gracefully (disable button during operation, show spinner)\n\nFILES LIKELY AFFECTED:\n- FlowForgeApp/Views/FeatureRow.swift (button UI, loading state)\n- FlowForgeApp/Services/APIClient.swift (new endpoint or enhanced mark-done logic)\n- flowforge/server.py or flowforge/mcp_server.py (smart merge detection endpoint)\n- flowforge/worktree.py (helper to check if branch merged to main)\n\nESTIMATED SCOPE:\nMedium (1-3 hours)\n```\n"
+          }
+        ]
+      }
+    },
+    "need-to-fix-ios-refine-feature-get-a-pop-up-but-th": {
+      "id": "need-to-fix-ios-refine-feature-get-a-pop-up-but-th",
+      "title": "Need to fix iOS refine feature.\nGet a pop up but then nothing\u2026\n\nWant feature parity for that with and Mac.",
+      "description": "",
+      "status": "inbox",
+      "priority": 5,
+      "complexity": "medium",
+      "parent_id": null,
+      "children": [],
+      "depends_on": [],
+      "blocked_by": [],
+      "branch": null,
+      "worktree_path": null,
+      "created_at": "2025-12-29T00:35:52.250327",
+      "updated_at": "2025-12-29T00:35:52.250337",
+      "started_at": null,
+      "completed_at": null,
+      "spec_path": null,
+      "prompt_path": null,
+      "tags": [],
+      "extensions": {}
+    },
+    "the-add-button-for-quick-capture-should-auto-dismi": {
+      "id": "the-add-button-for-quick-capture-should-auto-dismi",
+      "title": "The add button for quick capture should auto dismiss the entry",
+      "description": "",
+      "status": "inbox",
+      "priority": 5,
+      "complexity": "medium",
+      "parent_id": null,
+      "children": [],
+      "depends_on": [],
+      "blocked_by": [],
+      "branch": null,
+      "worktree_path": null,
+      "created_at": "2025-12-29T00:36:31.847117",
+      "updated_at": "2025-12-29T00:36:31.847126",
+      "started_at": null,
+      "completed_at": null,
+      "spec_path": null,
+      "prompt_path": null,
+      "tags": [],
+      "extensions": {}
+    },
+    "should-be-able-to-view-all-idea-statuses-including": {
+      "id": "should-be-able-to-view-all-idea-statuses-including",
+      "title": "Should be able to view all idea statuses including ideas in progress, building, and completed. Only the raw idea input and ideas in progress would be interactive iPhone just idea incubator basically",
+      "description": "",
+      "status": "inbox",
+      "priority": 5,
+      "complexity": "medium",
+      "parent_id": null,
+      "children": [],
+      "depends_on": [],
+      "blocked_by": [],
+      "branch": null,
+      "worktree_path": null,
+      "created_at": "2025-12-29T00:38:06.171191",
+      "updated_at": "2025-12-29T00:38:06.171201",
+      "started_at": null,
+      "completed_at": null,
+      "spec_path": null,
+      "prompt_path": null,
+      "tags": [],
       "extensions": {}
     }
   },
