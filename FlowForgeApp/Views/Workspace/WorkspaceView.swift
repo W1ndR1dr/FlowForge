@@ -998,178 +998,6 @@ struct PromptPreviewSheet: View {
     #endif
 }
 
-// MARK: - Idea Queue Card (Simplified Flow)
-
-struct IdeaQueueCard: View {
-    let feature: Feature
-    let position: Int
-    var onRefine: (() -> Void)?
-    var onStart: (() -> Void)?
-
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: Spacing.medium) {
-            // Position badge
-            Text("\(position)")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .frame(width: 24, height: 24)
-                .background(Accent.primary)
-                .clipShape(Circle())
-
-            // Title
-            Text(feature.title)
-                .font(Typography.body)
-                .lineLimit(2)
-
-            Spacer()
-
-            // Actions (always visible for clarity)
-            HStack(spacing: Spacing.small) {
-                // Refine button - opens Brainstorm chat
-                Button(action: { onRefine?() }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "sparkles")
-                        Text("Refine")
-                    }
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Accent.primary)
-                    .padding(.horizontal, Spacing.small)
-                    .padding(.vertical, 4)
-                    .background(Accent.primary.opacity(0.1))
-                    .cornerRadius(CornerRadius.small)
-                }
-                .buttonStyle(.plain)
-
-                // START button - generates prompt, launches Claude Code
-                Button(action: { onStart?() }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "play.fill")
-                        Text("START")
-                    }
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, Spacing.medium)
-                    .padding(.vertical, 6)
-                    .background(Accent.success)
-                    .cornerRadius(CornerRadius.small)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(Spacing.medium)
-        .background(isHovered ? Surface.highlighted : Surface.elevated)
-        .cornerRadius(CornerRadius.medium)
-        .onHover { isHovered = $0 }
-    }
-}
-
-// MARK: - Up Next Card
-
-struct UpNextCard: View {
-    let feature: Feature
-    let position: Int
-    var isSafeToParallelize: Bool = true  // Default to safe for vibecoders
-    var onRefine: (() -> Void)?  // Optional refine action
-
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: Spacing.medium) {
-            // Position indicator
-            Text("\(position)")
-                .font(Typography.caption)
-                .fontWeight(.bold)
-                .foregroundColor(.secondary)
-                .frame(width: 20)
-
-            VStack(alignment: .leading, spacing: Spacing.micro) {
-                HStack(spacing: Spacing.small) {
-                    Text(feature.title)
-                        .font(Typography.body)
-                        .lineLimit(1)
-
-                    // Safe to parallelize badge
-                    if isSafeToParallelize {
-                        ParallelSafeBadge()
-                    }
-                }
-
-                if !feature.tags.isEmpty {
-                    Text(feature.tags.joined(separator: " · "))
-                        .font(Typography.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            Spacer()
-
-            // Refine button (show on hover) - opens BrainstormChatView
-            if isHovered, let onRefine = onRefine {
-                Button(action: onRefine) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "sparkles")
-                        Text("Refine")
-                    }
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Accent.primary)
-                    .padding(.horizontal, Spacing.small)
-                    .padding(.vertical, 4)
-                    .background(Accent.primary.opacity(0.1))
-                    .cornerRadius(CornerRadius.small)
-                }
-                .buttonStyle(.plain)
-                .transition(.opacity)
-            }
-
-            // Complexity indicator (Tufte - the color IS the information)
-            if let complexity = feature.complexity {
-                Circle()
-                    .fill(complexityColor(complexity))
-                    .frame(width: 8, height: 8)
-            }
-        }
-        .padding(Spacing.medium)
-        .background(isHovered ? Surface.highlighted : Color.clear)
-        .cornerRadius(CornerRadius.medium)
-        .onHover { isHovered = $0 }
-        .animation(SpringPreset.snappy, value: isHovered)
-    }
-
-    private func complexityColor(_ complexity: Complexity) -> Color {
-        switch complexity {
-        case .small: return ComplexityColor.small
-        case .medium: return ComplexityColor.medium
-        case .large: return ComplexityColor.large
-        case .epic: return ComplexityColor.epic
-        }
-    }
-}
-
-// MARK: - Parallel Safe Badge
-// Shows when a feature can be worked on alongside others
-
-struct ParallelSafeBadge: View {
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: 2) {
-            Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 8))
-            Text("parallel ok")
-                .font(.system(size: 9, weight: .medium))
-        }
-        .foregroundColor(Accent.success)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .background(Accent.success.opacity(0.15))
-        .cornerRadius(4)
-        .help("Safe to work on this while other features are in progress")
-        .onHover { isHovered = $0 }
-    }
-}
-
 // MARK: - Blocked Card
 
 struct BlockedCard: View {
@@ -1234,11 +1062,9 @@ struct IdeaFeatureCard: View {
     @State private var isHovered = false
     @State private var showingDeleteConfirmation = false
     @State private var showingPromptPreview = false
-    @State private var showingResearchSheet = false
     @State private var isLoadingPrompt = false
     @State private var promptText: String?
     @State private var promptError: String?
-    @State private var researchReports: ResearchReportList?
 
     private let apiClient = APIClient()
 
@@ -1251,28 +1077,10 @@ struct IdeaFeatureCard: View {
 
             // Title and description
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: Spacing.small) {
-                    Text(feature.title)
-                        .font(Typography.body)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-
-                    // Research badge indicator
-                    if let reports = researchReports, reports.reportCount > 0 {
-                        HStack(spacing: 2) {
-                            Image(systemName: "brain.head.profile")
-                                .font(.system(size: 8))
-                            Text("\(reports.reportCount)")
-                                .font(.system(size: 9, weight: .medium))
-                        }
-                        .foregroundColor(reports.hasSynthesis ? Accent.success : Accent.primary)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(reports.hasSynthesis ? Accent.success.opacity(0.15) : Accent.primary.opacity(0.15))
-                        .cornerRadius(4)
-                        .help(reports.hasSynthesis ? "Synthesized research ready" : "\(reports.reportCount) research report(s)")
-                    }
-                }
+                Text(feature.title)
+                    .font(Typography.body)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
 
                 if let desc = feature.description, !desc.isEmpty {
                     Text(desc.components(separatedBy: "\n").first ?? "")
@@ -1313,15 +1121,6 @@ struct IdeaFeatureCard: View {
                     .buttonStyle(.plain)
                     .help("Preview implementation prompt")
                     .disabled(isLoadingPrompt)
-
-                    // Research button
-                    Button(action: { showingResearchSheet = true }) {
-                        Image(systemName: "brain.head.profile")
-                            .font(Typography.caption)
-                            .foregroundColor(researchReports?.reportCount ?? 0 > 0 ? Accent.primary : .secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Deep research")
 
                     Button(action: onRefine) {
                         HStack(spacing: 4) {
@@ -1373,35 +1172,8 @@ struct IdeaFeatureCard: View {
                 onDismiss: { showingPromptPreview = false }
             )
         }
-        .sheet(isPresented: $showingResearchSheet) {
-            if let project = appState.selectedProject {
-                ResearchSheet(
-                    project: project.name,
-                    featureId: feature.id,
-                    featureTitle: feature.title
-                )
-                .environment(appState)
-            }
-        }
         .onHover { isHovered = $0 }
-        .onAppear {
-            Task { await loadResearchReports() }
-        }
         .animation(SpringPreset.snappy, value: isHovered)
-    }
-
-    @MainActor
-    private func loadResearchReports() async {
-        guard let project = appState.selectedProject else { return }
-
-        do {
-            researchReports = try await apiClient.getResearchReports(
-                project: project.name,
-                featureId: feature.id
-            )
-        } catch {
-            // Silently fail - research status is optional
-        }
     }
 
     @MainActor

@@ -61,31 +61,23 @@ struct ProjectConfig: Codable {
     var projectRoot: String
     var worktreeBase: String
     var defaultBranch: String
-    var aiProvider: String?
-    var intelligenceLevel: Int
 
     enum CodingKeys: String, CodingKey {
         case projectName = "project_name"
         case projectRoot = "project_root"
         case worktreeBase = "worktree_base"
         case defaultBranch = "default_branch"
-        case aiProvider = "ai_provider"
-        case intelligenceLevel = "intelligence_level"
     }
 
     init(
         projectName: String,
         projectRoot: String,
         worktreeBase: String = ".flowforge-worktrees",
-        defaultBranch: String = "main",
-        aiProvider: String? = nil,
-        intelligenceLevel: Int = 1
+        defaultBranch: String = "main"
     ) {
         self.projectName = projectName
         self.projectRoot = projectRoot
         self.worktreeBase = worktreeBase
         self.defaultBranch = defaultBranch
-        self.aiProvider = aiProvider
-        self.intelligenceLevel = intelligenceLevel
     }
 }

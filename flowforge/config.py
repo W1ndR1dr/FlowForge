@@ -14,9 +14,7 @@ class ProjectConfig:
     main_branch: str = "main"
     claude_md_path: str = "CLAUDE.md"
     build_command: Optional[str] = None
-    test_command: Optional[str] = None
     worktree_base: str = ".flowforge-worktrees"
-    default_persona: Optional[str] = None
 
     # Claude Code integration
     claude_command: str = "claude"
@@ -64,9 +62,7 @@ class FlowForgeConfig:
                 "main_branch": self.project.main_branch,
                 "claude_md_path": self.project.claude_md_path,
                 "build_command": self.project.build_command,
-                "test_command": self.project.test_command,
                 "worktree_base": self.project.worktree_base,
-                "default_persona": self.project.default_persona,
                 "claude_command": self.project.claude_command,
                 "claude_flags": self.project.claude_flags,
             }

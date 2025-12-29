@@ -68,11 +68,9 @@ class Feature:
     # Documentation
     spec_path: Optional[str] = None
     prompt_path: Optional[str] = None
-    notes: Optional[str] = None
 
     # Metadata
     tags: list[str] = field(default_factory=list)
-    session_id: Optional[str] = None  # Claude Code session for continuity
     extensions: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -98,8 +96,6 @@ class MergeQueueItem:
     feature_id: str
     queued_at: str = field(default_factory=lambda: datetime.now().isoformat())
     status: str = "pending"  # pending, validating, ready, conflict, merged
-    validation_status: Optional[str] = None
-    conflict_files: list[str] = field(default_factory=list)
 
 
 @dataclass

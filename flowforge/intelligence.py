@@ -17,7 +17,6 @@ from datetime import datetime
 import subprocess
 import json
 import webbrowser
-import urllib.parse
 
 
 @dataclass

@@ -105,31 +105,6 @@ struct StreakBadge: View {
     }
 }
 
-// MARK: - Compact Streak Badge
-// For tight spaces — just the essential info
-
-struct CompactStreakBadge: View {
-    let currentStreak: Int
-
-    var body: some View {
-        HStack(spacing: Spacing.micro) {
-            if currentStreak > 0 {
-                Text("🔥")
-                    .font(.system(size: 14))
-            }
-
-            Text("\(currentStreak)")
-                .font(Typography.badge)
-                .fontWeight(.bold)
-                .foregroundColor(currentStreak > 0 ? Accent.streak : .secondary)
-        }
-        .padding(.horizontal, Spacing.small)
-        .padding(.vertical, Spacing.micro)
-        .background(Accent.streak.opacity(currentStreak > 0 ? 0.15 : 0.05))
-        .cornerRadius(CornerRadius.small)
-    }
-}
-
 // MARK: - Preview
 
 #if DEBUG
@@ -146,15 +121,6 @@ struct StreakBadgePreview: View {
                 StreakBadge(currentStreak: 0, totalShipped: 0)
                 StreakBadge(currentStreak: 3, longestStreak: 7, totalShipped: 15)
                 StreakBadge(currentStreak: 7, longestStreak: 7, totalShipped: 42)
-            }
-
-            Divider()
-
-            // Compact badges
-            HStack(spacing: Spacing.medium) {
-                CompactStreakBadge(currentStreak: 0)
-                CompactStreakBadge(currentStreak: 5)
-                CompactStreakBadge(currentStreak: 14)
             }
 
             Divider()

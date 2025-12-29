@@ -281,7 +281,7 @@ class AppState {
                 connectionState = .connected
                 isConnectedToServer = true
             } else {
-                connectionState = .piOnlyMode(pending: status.pendingOperations ?? 0)
+                connectionState = .piOnlyMode(pending: 0)
                 isConnectedToServer = true  // Pi is reachable, just Mac is offline
             }
         } catch {
@@ -428,26 +428,6 @@ class AppState {
         }
 
         await loadFeatures()
-    }
-
-    /// Enable API mode (for connecting to remote server)
-    func enableAPIMode() {
-        #if os(macOS)
-        useAPIMode = true
-        if let project = selectedProject {
-            Task { @MainActor in
-                webSocketClient?.connect(project: project.name)
-            }
-        }
-        #endif
-    }
-
-    /// Disable API mode (for local CLI usage)
-    func disableAPIMode() {
-        #if os(macOS)
-        useAPIMode = false
-        webSocketClient?.disconnect()
-        #endif
     }
 
     private func discoverProjects() async -> [Project] {

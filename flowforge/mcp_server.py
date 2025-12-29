@@ -21,11 +21,10 @@ Architecture (Pi-native):
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 import json
-import os
 
-from .config import FlowForgeConfig, find_project_root
+from .config import FlowForgeConfig
 from .registry import FeatureRegistry, FeatureStatus, Feature, Complexity
 from .prompt_builder import PromptBuilder
 from .intelligence import IntelligenceEngine

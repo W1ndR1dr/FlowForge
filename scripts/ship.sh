@@ -100,28 +100,10 @@ if [[ "$macos_needed" == "yes" ]]; then
     echo -e "${BLUE}💻 Deploying macOS...${NC}"
     echo "─────────────────────────────────────"
 
-    cd "$PROJECT_DIR/FlowForgeApp"
+    # Use release-macos.sh for proper versioning, LLM notes, and Sparkle signing
+    ./scripts/release-macos.sh --auto
 
-    # Regenerate project
-    if command -v xcodegen &> /dev/null; then
-        xcodegen generate
-    fi
-
-    # Build
-    xcodebuild -project FlowForgeApp.xcodeproj \
-        -scheme FlowForgeApp \
-        -configuration Release \
-        -derivedDataPath build \
-        ONLY_ACTIVE_ARCH=YES \
-        -quiet
-
-    # Install
-    rm -rf /Applications/FlowForge.app
-    cp -R build/Build/Products/Release/FlowForge.app /Applications/
-
-    echo -e "${GREEN}✅ macOS app installed to /Applications${NC}"
-
-    cd "$PROJECT_DIR"
+    echo -e "${GREEN}✅ macOS app deployed${NC}"
 fi
 
 # Deploy iOS
@@ -168,7 +150,7 @@ fi
 echo ""
 echo -e "${GREEN}🎉 Ship complete!${NC}"
 echo ""
-[[ "$macos_needed" == "yes" ]] && echo "   💻 macOS: Installed to /Applications"
+[[ "$macos_needed" == "yes" ]] && echo "   💻 macOS: Released via Sparkle (GitHub + /Applications)"
 [[ "$ios_needed" == "yes" ]] && echo "   📱 iOS: Uploaded to TestFlight (check App Store Connect in ~10 min)"
 echo ""
 

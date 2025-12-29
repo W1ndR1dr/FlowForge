@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 import subprocess
-import shutil
 
 
 @dataclass
@@ -289,79 +288,3 @@ class WorktreeManager:
         self._run_git(["worktree", "prune"])
         after = len(self.list_worktrees())
         return before - after
-
-
-class ClaudeCodeLauncher:
-    """
-    Launches Claude Code CLI in a worktree with proper configuration.
-
-    Handles:
-    - Setting working directory to worktree
-    - Injecting feature prompt via stdin or file
-    - Using --dangerously-skip-permissions when configured
-    - Session continuity via --resume
-    """
-
-    def __init__(
-        self,
-        claude_command: str = "claude",
-        default_flags: list[str] = None,
-    ):
-        self.claude_command = claude_command
-        self.default_flags = default_flags or ["--dangerously-skip-permissions"]
-
-    def build_command(
-        self,
-        worktree_path: Path,
-        prompt: Optional[str] = None,
-        session_id: Optional[str] = None,
-        extra_flags: list[str] = None,
-    ) -> list[str]:
-        """
-        Build the Claude Code command.
-
-        Returns the command as a list suitable for subprocess.
-        """
-        cmd = [self.claude_command]
-
-        # Add default flags
-        cmd.extend(self.default_flags)
-
-        # Add session resume if provided
-        if session_id:
-            cmd.extend(["--resume", session_id])
-
-        # Add extra flags
-        if extra_flags:
-            cmd.extend(extra_flags)
-
-        # Add prompt if provided (as the final argument)
-        if prompt:
-            cmd.extend(["--print", "-p", prompt])
-
-        return cmd
-
-    def get_launch_instructions(
-        self,
-        worktree_path: Path,
-        prompt_path: Optional[Path] = None,
-        session_id: Optional[str] = None,
-    ) -> str:
-        """
-        Get human-readable instructions for launching Claude Code.
-
-        For manual launch (recommended for interactive use).
-        """
-        lines = [
-            f"cd {worktree_path}",
-            f"{self.claude_command} {' '.join(self.default_flags)}",
-        ]
-
-        if prompt_path:
-            lines.append(f"\n# Prompt saved to: {prompt_path}")
-            lines.append("# Paste the prompt from your clipboard to begin.")
-
-        if session_id:
-            lines.insert(1, f"# To resume previous session: --resume {session_id}")
-
-        return "\n".join(lines)

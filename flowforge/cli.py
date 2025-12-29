@@ -34,7 +34,7 @@ from .config import (
     detect_project_settings,
 )
 from .registry import Feature, FeatureRegistry, FeatureStatus, Complexity
-from .worktree import WorktreeManager, ClaudeCodeLauncher
+from .worktree import WorktreeManager
 from .terminal import start_feature_in_terminal, detect_terminal
 from .intelligence import IntelligenceEngine
 from .prompt_builder import PromptBuilder
@@ -153,7 +153,6 @@ def init(
 
 @app.command()
 def brainstorm(
-    project: Optional[str] = typer.Option(None, "--project", "-p", help="Project name (for multi-project)"),
     paste: bool = typer.Option(False, "--paste", help="Paste Claude output to parse proposals"),
     review: Optional[str] = typer.Option(None, "--review", "-r", help="Review saved brainstorm session"),
 ):
