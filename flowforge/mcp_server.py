@@ -1175,7 +1175,7 @@ class FlowForgeMCPServer:
             # Write Pi registry to Mac
             registry_data = {
                 "version": pi_registry.version,
-                "features": [f.to_dict() for f in pi_registry.features.values()],
+                "features": [f.to_dict() for f in pi_registry.list_features()],
                 "merge_queue": pi_registry.merge_queue,
                 "shipping_stats": pi_registry.shipping_stats,
             }
@@ -1185,7 +1185,7 @@ class FlowForgeMCPServer:
                 return MCPToolResult(
                     success=True,
                     message="Synced Pi registry to Mac",
-                    data={"direction": direction, "feature_count": len(pi_registry.features)},
+                    data={"direction": direction, "feature_count": len(pi_registry.list_features())},
                 )
             return MCPToolResult(success=False, message=f"Failed to write Mac registry: {result.stderr}")
 
@@ -1207,7 +1207,7 @@ class FlowForgeMCPServer:
             mac_data = json.loads(mac_content) if mac_content else {"features": {}}
 
             # Get Pi registry data as list
-            pi_features_list = [f.to_dict() for f in pi_registry.features.values()]
+            pi_features_list = [f.to_dict() for f in pi_registry.list_features()]
             pi_data = {
                 "version": pi_registry.version,
                 "features": pi_features_list,
@@ -1270,7 +1270,7 @@ class FlowForgeMCPServer:
             mac_ids = set(mac_features.keys())
         else:
             mac_ids = {f["id"] for f in mac_features}
-        pi_ids = set(pi_registry.features.keys())
+        pi_ids = {f.id for f in pi_registry.list_features()}
 
         only_mac = mac_ids - pi_ids
         only_pi = pi_ids - mac_ids
