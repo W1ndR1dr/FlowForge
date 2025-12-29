@@ -7,24 +7,24 @@
         <language>en</language>
 
         <item>
-            <title>FlowForge 1.1.1</title>
+            <title>FlowForge 1.2.0</title>
             <description><![CDATA[
-                <h2>What's New in 1.1.1</h2>
+                <h2>What's New in 1.2.0</h2>
                 <ul>
 ---NOTES---
-                    <li>Fixed release script to properly generate update notes</li>
-                    <li>Removed ~2,500 lines of unused code for a leaner, faster app</li>
-                    <li>Cleaner codebase means easier maintenance and fewer bugs</li>
+                    <li>Fixed prompt generation for better Claude Code integration</li>
+                    <li>Improved stability when projects update their config schemas</li>
+                    <li>Enhanced reliability for remote workflows via Pi server</li>
 ---PLATFORMS---
                 </ul>
             ]]></description>
-            <pubDate>Sun, 28 Dec 2025 16:45:03 -0800</pubDate>
+            <pubDate>Mon, 29 Dec 2025 14:07:56 -0800</pubDate>
             <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>1.1.1</sparkle:shortVersionString>
+            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure
-                url="https://github.com/W1ndR1dr/FlowForge/releases/download/v1.1.1/FlowForge-1.1.1.zip"
-                sparkle:edSignature="sparkle:edSignature="m8a8nSGly1pTQInsEBVyO5++H7VenPZPr+il/Papoo12Ks20oq6k30/aA+UEuyaU+3Um22FrZ+uqumROKFexDg==" length="2535451""
+                url="https://github.com/W1ndR1dr/FlowForge/releases/download/v1.2.0/FlowForge-1.2.0.zip"
+                sparkle:edSignature="sparkle:edSignature="+rPQ5urRpxIUVZ3r3wlTikEUYKIAV57+U0pWdhMqwWvmU1qErsdU6bYnF5hQQvuDVyExy4Q3ssTPrLSjReQUAw==" length="2535451""
                 length="2535451"
                 type="application/octet-stream"/>
         </item>
