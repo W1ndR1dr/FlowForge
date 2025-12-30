@@ -238,6 +238,7 @@ async def api_discovery():
                 "POST /api/{project}/features/{id}/start": "Start working on feature",
                 "POST /api/{project}/features/{id}/stop": "Mark ready for review",
                 "POST /api/{project}/features/{id}/merge": "Merge to main",
+                "POST /api/{project}/features/{id}/ship": "Cleanup worktree and mark completed",
             },
         },
     }
@@ -752,6 +753,86 @@ async def merge_feature(
 
     result.data["mac_online"] = True
     return result.data
+
+
+@app.post("/api/{project}/features/{feature_id}/ship")
+async def ship_feature(project: str, feature_id: str):
+    """
+    Ship a feature - cleanup worktree and mark as completed.
+
+    This is called AFTER Claude Code has committed and pushed changes.
+    It does NOT perform the git merge - that should already be done.
+    This endpoint only:
+    1. Removes the worktree directory (cleanup)
+    2. Marks the feature as completed in the registry
+
+    Works even if Mac is offline (just marks as completed without cleanup).
+    """
+    from datetime import datetime
+    from .registry import FeatureStatus
+
+    # Get project context from Pi-local storage
+    try:
+        mac_path, config, registry = mcp_server._get_project_context(project)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    feature = registry.get_feature(feature_id)
+    if not feature:
+        raise HTTPException(status_code=404, detail=f"Feature not found: {feature_id}")
+
+    # Feature should be in review status (or in-progress if user is shipping directly)
+    if feature.status not in (FeatureStatus.REVIEW, FeatureStatus.IN_PROGRESS):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot ship feature in {feature.status.value} status. Must be in-progress or review."
+        )
+
+    worktree_removed = False
+    mac_online = mcp_server._check_mac_online() if mcp_server else True
+
+    # Try to remove worktree if it exists
+    if feature.worktree_path and mac_online:
+        try:
+            worktree_full_path = mac_path / feature.worktree_path
+            if remote_executor:
+                # Remote mode - remove via SSH
+                result = remote_executor.run_command(
+                    ["git", "-C", str(mac_path), "worktree", "remove", str(worktree_full_path), "--force"],
+                    timeout=30
+                )
+                worktree_removed = result.success
+            else:
+                # Local mode
+                worktree_manager = WorktreeManager(mac_path)
+                worktree_manager.remove_worktree(feature_id)
+                worktree_removed = True
+        except Exception as e:
+            # Log but don't fail - worktree cleanup is best-effort
+            print(f"Warning: Failed to remove worktree for {feature_id}: {e}")
+
+    # Mark as completed
+    registry.update_feature(
+        feature_id,
+        status=FeatureStatus.COMPLETED,
+        worktree_path=None,
+        completed_at=datetime.now().isoformat(),
+    )
+
+    # Save to Pi-local storage
+    mcp_server._save_registry(project, registry)
+
+    # Broadcast update
+    await ws_manager.broadcast_feature_update(project, feature_id, "completed")
+
+    return {
+        "success": True,
+        "message": f"Shipped: {feature.title}",
+        "feature_id": feature_id,
+        "new_status": "completed",
+        "worktree_removed": worktree_removed,
+        "mac_online": mac_online,
+    }
 
 
 @app.post("/api/{project}/cleanup")

@@ -27,6 +27,10 @@ struct WorkspaceCard: View {
     @State private var doneToastMessage = ""
     @State private var doneToastIsSuccess = true
 
+    // Ship confirmation state
+    @State private var isShipping = false
+    @State private var showingShipConfirmation = false
+
     private let apiClient = APIClient()
 
     /// Status indicator color
@@ -182,6 +186,21 @@ struct WorkspaceCard: View {
                     .tint(Accent.success)
                     .disabled(isMarkingDone)
                 }
+
+                // Ship button for review-status features
+                if feature.status == .review {
+                    Button(action: { showingShipConfirmation = true }) {
+                        Label(
+                            isShipping ? "Shipping..." : "Ship It",
+                            systemImage: isShipping ? "hourglass" : "paperplane.fill"
+                        )
+                        .font(Typography.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(Accent.success)
+                    .disabled(isShipping)
+                }
                 #endif
             }
         }
@@ -224,6 +243,16 @@ struct WorkspaceCard: View {
         } message: {
             Text("Delete \"\(feature.title)\"? This will remove the feature and clean up the worktree.")
         }
+        .confirmationDialog(
+            "Ship Feature?",
+            isPresented: $showingShipConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Ship It") { Task { await shipFeature() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Clean up worktree and mark \"\(feature.title)\" as shipped? Make sure you've pushed your changes first.")
+        }
     }
 
     // MARK: - Actions
@@ -263,6 +292,33 @@ struct WorkspaceCard: View {
             withAnimation {
                 showDoneToast = false
             }
+        }
+    }
+
+    /// Ship feature: cleanup worktree and mark as completed
+    /// Called after Claude Code has pushed changes to remote
+    @MainActor
+    private func shipFeature() async {
+        isShipping = true
+        defer { isShipping = false }
+
+        guard let project = appState.selectedProject else {
+            showToast(message: "No project selected", isSuccess: false)
+            return
+        }
+
+        do {
+            // Call API to cleanup worktree and mark as shipped
+            try await apiClient.shipFeature(
+                project: project.name,
+                featureId: feature.id
+            )
+            showToast(message: "Shipped!", isSuccess: true)
+
+            // Refresh features to update UI
+            await appState.loadFeatures()
+        } catch {
+            showToast(message: "Ship failed: \(error.localizedDescription)", isSuccess: false)
         }
     }
 

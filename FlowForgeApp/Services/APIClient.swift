@@ -251,6 +251,14 @@ actor APIClient {
         return try await post(url: url, body: [:])
     }
 
+    /// Ship a feature - cleanup worktree and mark as completed
+    /// Called AFTER Claude Code has pushed changes to remote
+    /// This only does cleanup, not the git merge (that's already done)
+    func shipFeature(project: String, featureId: String) async throws {
+        let url = baseURL.appendingPathComponent("api/\(project)/features/\(featureId)/ship")
+        let _: ShipFeatureResponse = try await post(url: url, body: [:])
+    }
+
     // MARK: - Project Initialization
 
     /// Initialize FlowForge in a project directory
@@ -550,4 +558,21 @@ struct HealthIssue: Decodable, Identifiable {
 private struct ReconcileResponse: Decodable {
     let success: Bool
     let message: String?
+}
+
+/// Response from shipping a feature (worktree cleanup)
+private struct ShipFeatureResponse: Decodable {
+    let success: Bool
+    let message: String?
+    let featureId: String?
+    let newStatus: String?
+    let worktreeRemoved: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case success
+        case message
+        case featureId = "feature_id"
+        case newStatus = "new_status"
+        case worktreeRemoved = "worktree_removed"
+    }
 }
