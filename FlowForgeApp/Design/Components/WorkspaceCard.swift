@@ -398,26 +398,28 @@ struct ActiveWorkspacesSection: View {
             }
 
             if activeFeatures.isEmpty {
-                // Empty state - show "Start next" if we have ideas ready
-                if let nextFeature = nextIdea {
-                    StartNextCard(feature: nextFeature)
-                } else {
-                    VStack(spacing: Spacing.small) {
-                        Image(systemName: "laptopcomputer")
-                            .font(.system(size: 24))
-                            .foregroundColor(.secondary.opacity(0.5))
-                        Text("Nothing in progress")
-                            .font(Typography.body)
-                            .foregroundColor(.secondary)
-                        Text("Add ideas above, then start one")
+                // Empty state - point to Ideas section (don't duplicate features here)
+                VStack(spacing: Spacing.small) {
+                    Image(systemName: "hammer")
+                        .font(.system(size: 24))
+                        .foregroundColor(.secondary.opacity(0.5))
+                    Text("No active worktrees")
+                        .font(Typography.body)
+                        .foregroundColor(.secondary)
+                    if nextIdea != nil {
+                        Text("Start an idea above to begin building")
+                            .font(Typography.caption)
+                            .foregroundColor(.secondary.opacity(0.7))
+                    } else {
+                        Text("Refine an idea first, then start it")
                             .font(Typography.caption)
                             .foregroundColor(.secondary.opacity(0.7))
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(Spacing.large)
-                    .background(Surface.elevated)
-                    .cornerRadius(CornerRadius.medium)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(Spacing.large)
+                .background(Surface.elevated)
+                .cornerRadius(CornerRadius.medium)
             } else {
                 // Workspace cards grid
                 LazyVGrid(columns: [

@@ -1077,10 +1077,20 @@ struct IdeaFeatureCard: View {
 
             // Title and description
             VStack(alignment: .leading, spacing: 2) {
-                Text(feature.title)
-                    .font(Typography.body)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
+                HStack(spacing: Spacing.micro) {
+                    Text(feature.title)
+                        .font(Typography.body)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+
+                    // Prompt indicator - subtle doc icon when prompt exists
+                    if feature.promptPath != nil {
+                        Image(systemName: "doc.text.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(Accent.primary.opacity(0.6))
+                            .help("Implementation prompt ready")
+                    }
+                }
 
                 if let desc = feature.description, !desc.isEmpty {
                     Text(desc.components(separatedBy: "\n").first ?? "")
