@@ -714,25 +714,25 @@ class FlowForgeMCPServer:
         worktree_cleaned = False
         branch_cleaned = False
         if feature.worktree_path or feature.branch:
-            if self.remote:
+            if self._check_mac_online() and self.remote_executor:
                 try:
                     # Remove worktree via SSH
                     if feature.worktree_path:
                         worktree_full_path = f"{project_path}/{feature.worktree_path}"
-                        self.remote.run_command(
+                        self.remote_executor.run_command(
                             f"cd {project_path} && git worktree remove {worktree_full_path} --force"
                         )
                         worktree_cleaned = True
                     # Remove branch via SSH (safe delete only)
                     if feature.branch:
                         try:
-                            self.remote.run_command(
+                            self.remote_executor.run_command(
                                 f"cd {project_path} && git branch -d {feature.branch}"
                             )
                             branch_cleaned = True
                         except Exception:
                             pass  # Branch might not exist or have unmerged changes
-                except Exception as e:
+                except Exception:
                     # Worktree cleanup failed but we can still update status
                     pass
 
