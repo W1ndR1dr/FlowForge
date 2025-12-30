@@ -167,19 +167,20 @@ enum Spacing {
 
 // MARK: - Corner Radius
 // Consistent curves — considered, not arbitrary
+// Linear style: tighter radii (6-8px for cards)
 
 enum CornerRadius {
     /// Small — 4pt (badges, chips)
     static let small: CGFloat = 4
 
-    /// Medium — 8pt (buttons, small cards)
-    static let medium: CGFloat = 8
+    /// Medium — 6pt (buttons, inputs)
+    static let medium: CGFloat = 6
 
-    /// Large — 12pt (major cards, containers)
-    static let large: CGFloat = 12
+    /// Large — 8pt (cards, section containers)
+    static let large: CGFloat = 8
 
-    /// XL — 16pt (modals, sheets)
-    static let xl: CGFloat = 16
+    /// XL — 10pt (modals, sheets)
+    static let xl: CGFloat = 10
 }
 
 // MARK: - Shadows
@@ -221,9 +222,69 @@ enum Timing {
     static let long: Double = 0.4
 }
 
+// MARK: - Linear Design System
+// Inspired by Linear's crisp, dark, information-dense aesthetic
+
+enum Linear {
+    // MARK: - Backgrounds (darkest to lightest)
+
+    /// Base window background - pure dark
+    static let base = Color(hex: "0a0a0a")
+
+    /// Elevated surface - section containers
+    static let elevated = Color(hex: "141414")
+
+    /// Card surface - nested cards within sections
+    static let card = Color(hex: "1a1a1a")
+
+    /// Hover state - subtle highlight
+    static let hover = Color(hex: "242424")
+
+    // MARK: - Borders
+
+    /// Subtle hairline border - default
+    static let borderSubtle = Color(hex: "2a2a2a")
+
+    /// Visible border - emphasized
+    static let borderVisible = Color(hex: "333333")
+
+    /// Focus border - interactive elements
+    static let borderFocus = Color.white.opacity(0.15)
+
+    // MARK: - Text Hierarchy
+
+    /// Primary text - headings, important content
+    static let textPrimary = Color(hex: "fafafa")
+
+    /// Secondary text - descriptions, body
+    static let textSecondary = Color(hex: "a0a0a0")
+
+    /// Tertiary text - metadata, timestamps, section headers
+    static let textTertiary = Color(hex: "666666")
+
+    /// Muted text - disabled, placeholders
+    static let textMuted = Color(hex: "4a4a4a")
+}
+
 // MARK: - Helper Extensions
 
 extension Color {
+    /// Create a color from hex string
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r, g, b: UInt64
+        (r, g, b) = ((int >> 16) & 0xFF, (int >> 8) & 0xFF, int & 0xFF)
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: 1
+        )
+    }
+
     /// Create a color that adapts to light/dark mode
     init(light: Color, dark: Color) {
         #if os(macOS)
@@ -269,9 +330,33 @@ extension View {
         self
             .font(Typography.caption)
             .fontWeight(.semibold)
-            .foregroundColor(.secondary)
+            .foregroundColor(Linear.textTertiary)
             .textCase(.uppercase)
             .tracking(0.5)
+    }
+
+    /// Apply Linear-style section container with dark background and hairline border
+    func linearSection() -> some View {
+        self
+            .padding(Spacing.standard)
+            .background(Linear.elevated)
+            .cornerRadius(CornerRadius.large)
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.large)
+                    .stroke(Linear.borderSubtle, lineWidth: 1)
+            )
+    }
+
+    /// Apply Linear-style card styling (for nested cards within sections)
+    func linearCard() -> some View {
+        self
+            .padding(Spacing.medium)
+            .background(Linear.card)
+            .cornerRadius(CornerRadius.large)
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.large)
+                    .stroke(Linear.borderSubtle, lineWidth: 1)
+            )
     }
 }
 

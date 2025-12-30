@@ -90,7 +90,7 @@ struct WorkspaceView: View {
                 }
                 .padding(Spacing.large)
             }
-            .background(Surface.window)
+            .background(Linear.base)
         }
     }
 
@@ -177,9 +177,7 @@ struct WorkspaceView: View {
             }
             .frame(maxHeight: 250)
         }
-        .padding(Spacing.standard)
-        .background(Surface.elevated)
-        .cornerRadius(CornerRadius.large)
+        .linearSection()
     }
 
     // MARK: - Inbox Section (Raw Captures)
@@ -238,9 +236,7 @@ struct WorkspaceView: View {
                 .frame(maxHeight: 200)
             }
         }
-        .padding(Spacing.standard)
-        .background(Surface.elevated)
-        .cornerRadius(CornerRadius.large)
+        .linearSection()
     }
 
     private var blockedCard: some View {
@@ -264,8 +260,12 @@ struct WorkspaceView: View {
             }
         }
         .padding(Spacing.standard)
-        .background(Accent.danger.opacity(0.1))
+        .background(Linear.elevated)
         .cornerRadius(CornerRadius.large)
+        .overlay(
+            RoundedRectangle(cornerRadius: CornerRadius.large)
+                .stroke(Accent.danger.opacity(0.3), lineWidth: 1)
+        )
         .frame(width: 200)
     }
 
@@ -294,9 +294,7 @@ struct WorkspaceView: View {
                 }
             }
         }
-        .padding(Spacing.standard)
-        .background(Surface.elevated)
-        .cornerRadius(CornerRadius.large)
+        .linearSection()
     }
 
     // MARK: - Shipped Section
@@ -539,7 +537,7 @@ struct ActiveWorkCard: View {
                     #endif
                 }
                 .padding(Spacing.small)
-                .background(Surface.highlighted)
+                .background(Linear.hover)
                 .cornerRadius(CornerRadius.medium)
                 .onAppear {
                     Task { await loadGitStatus() }
@@ -579,13 +577,13 @@ struct ActiveWorkCard: View {
             }
         }
         .padding(Spacing.standard)
-        .background(Surface.elevated)
+        .background(Linear.card)
         .cornerRadius(CornerRadius.large)
         .overlay(
             RoundedRectangle(cornerRadius: CornerRadius.large)
-                .stroke(StatusColor.inProgressFallback.opacity(0.3), lineWidth: 2)
+                .stroke(StatusColor.inProgressFallback.opacity(isHovered ? 0.5 : 0.3), lineWidth: 1)
         )
-        .hoverable(isHovered: isHovered)
+        .animation(LinearEasing.fast, value: isHovered)
         .onHover { isHovered = $0 }
         .scaleEffect(isVisible ? 1.0 : 0.95)
         .opacity(isVisible ? 1 : 0)
@@ -873,13 +871,13 @@ struct StartWorkCard: View {
             .pressable(isPressed: false)
         }
         .padding(Spacing.standard)
-        .background(Surface.elevated)
+        .background(Linear.card)
         .cornerRadius(CornerRadius.large)
         .overlay(
             RoundedRectangle(cornerRadius: CornerRadius.large)
-                .stroke(Accent.primary.opacity(0.2), lineWidth: 1)
+                .stroke(Accent.primary.opacity(isHovered ? 0.4 : 0.2), lineWidth: 1)
         )
-        .hoverable(isHovered: isHovered)
+        .animation(LinearEasing.fast, value: isHovered)
         .onHover { isHovered = $0 }
         .sheet(isPresented: $showingPromptPreview) {
             PromptPreviewSheet(
@@ -1162,7 +1160,7 @@ struct IdeaFeatureCard: View {
             }
         }
         .padding(Spacing.medium)
-        .background(isHovered ? Accent.success.opacity(0.1) : Color.clear)
+        .background(isHovered ? Linear.hover : Color.clear)
         .cornerRadius(CornerRadius.medium)
         .confirmationDialog(
             "Delete Feature?",
@@ -1183,7 +1181,7 @@ struct IdeaFeatureCard: View {
             )
         }
         .onHover { isHovered = $0 }
-        .animation(SpringPreset.snappy, value: isHovered)
+        .animation(LinearEasing.fast, value: isHovered)
     }
 
     @MainActor
@@ -1305,10 +1303,10 @@ struct InboxCard: View {
             }
         }
         .padding(Spacing.medium)
-        .background(isHovered ? (isRefined ? Accent.success.opacity(0.1) : Color.purple.opacity(0.1)) : Color.clear)
+        .background(isHovered ? Linear.hover : Color.clear)
         .cornerRadius(CornerRadius.medium)
         .onHover { isHovered = $0 }
-        .animation(SpringPreset.snappy, value: isHovered)
+        .animation(LinearEasing.fast, value: isHovered)
         .confirmationDialog(
             "Delete Idea?",
             isPresented: $showingDeleteConfirmation,

@@ -38,11 +38,18 @@ struct VibeInput: View {
 
     private var inputBackground: Color {
         if isFocused {
-            return Surface.highlighted
+            return Linear.card
         } else if isHovered {
-            return Surface.elevated.opacity(0.8)
+            return Linear.hover
         }
-        return Surface.elevated
+        return Linear.elevated
+    }
+
+    private var borderColor: Color {
+        if isFocused {
+            return Linear.borderVisible
+        }
+        return Linear.borderSubtle
     }
 
     var body: some View {
@@ -86,17 +93,10 @@ struct VibeInput: View {
             .cornerRadius(CornerRadius.large)
             .overlay(
                 RoundedRectangle(cornerRadius: CornerRadius.large)
-                    .stroke(
-                        isFocused ? Accent.primary.opacity(0.5) : Color.clear,
-                        lineWidth: 2
-                    )
+                    .stroke(borderColor, lineWidth: 1)
             )
-            .shadow(
-                color: .black.opacity(isFocused ? 0.1 : 0.05),
-                radius: isFocused ? 8 : 2,
-                y: isFocused ? 4 : 1
-            )
-            .animation(SpringPreset.snappy, value: isFocused)
+            .animation(LinearEasing.fast, value: isFocused)
+            .animation(LinearEasing.fast, value: isHovered)
             .onHover { isHovered = $0 }
 
             // Ideas are unlimited - discipline comes at START, not CAPTURE
@@ -157,7 +157,7 @@ struct VibeInputPreview: View {
         }
         .padding(Spacing.large)
         .frame(width: 500, height: 300)
-        .background(Surface.window)
+        .background(Linear.base)
     }
 }
 

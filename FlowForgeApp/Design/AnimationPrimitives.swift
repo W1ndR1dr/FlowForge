@@ -48,6 +48,31 @@ enum TimingCurve {
     static let quickEaseOut = Animation.easeOut(duration: Timing.micro)
 }
 
+// MARK: - Linear Timing
+// Simpler, snappier timing for Linear-style UI (no spring physics)
+
+enum LinearTiming {
+    /// Fast — hovers, button presses (150ms)
+    static let fast: Double = 0.15
+
+    /// Standard — most transitions (200ms)
+    static let standard: Double = 0.2
+
+    /// Slow — modals, large movements (300ms)
+    static let slow: Double = 0.3
+}
+
+enum LinearEasing {
+    /// Fast ease-out for hovers
+    static let fast = Animation.easeOut(duration: LinearTiming.fast)
+
+    /// Standard ease-out for transitions
+    static let standard = Animation.easeOut(duration: LinearTiming.standard)
+
+    /// Slow ease-out for larger movements
+    static let slow = Animation.easeOut(duration: LinearTiming.slow)
+}
+
 // MARK: - Interactive Animation Modifiers
 
 extension View {
@@ -69,6 +94,17 @@ extension View {
                 y: isHovered ? 4 : 1
             )
             .animation(SpringPreset.snappy, value: isHovered)
+    }
+
+    /// Linear-style hover — background color shift instead of scale
+    /// Crisp, minimal, no physics
+    func linearHover(isHovered: Bool, hoverColor: Color = Linear.hover) -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: CornerRadius.large)
+                    .fill(isHovered ? hoverColor : Color.clear)
+            )
+            .animation(LinearEasing.fast, value: isHovered)
     }
 
     /// Card drag effect — physics-based with rotation hint

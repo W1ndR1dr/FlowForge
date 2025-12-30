@@ -186,11 +186,11 @@ struct WorkspaceCard: View {
             }
         }
         .padding(Spacing.medium)
-        .background(Surface.elevated)
+        .background(Linear.card)
         .cornerRadius(CornerRadius.medium)
         .overlay(
             RoundedRectangle(cornerRadius: CornerRadius.medium)
-                .stroke(hasConflicts ? Accent.warning.opacity(0.5) : statusColor.opacity(isHovered ? 0.5 : 0.2), lineWidth: hasConflicts ? 2 : 1)
+                .stroke(hasConflicts ? Accent.warning.opacity(0.5) : statusColor.opacity(isHovered ? 0.5 : 0.2), lineWidth: 1)
         )
         // Toast overlay for mark-done feedback
         .overlay(alignment: .bottom) {
@@ -209,7 +209,7 @@ struct WorkspaceCard: View {
                 .padding(.bottom, Spacing.small)
             }
         }
-        .hoverable(isHovered: isHovered)
+        .animation(LinearEasing.fast, value: isHovered)
         .onHover { isHovered = $0 }
         .onAppear {
             Task { await checkConflicts() }
@@ -418,8 +418,12 @@ struct ActiveWorkspacesSection: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(Spacing.large)
-                .background(Surface.elevated)
+                .background(Linear.elevated)
                 .cornerRadius(CornerRadius.medium)
+                .overlay(
+                    RoundedRectangle(cornerRadius: CornerRadius.medium)
+                        .stroke(Linear.borderSubtle, lineWidth: 1)
+                )
             } else {
                 // Workspace cards grid
                 LazyVGrid(columns: [
@@ -541,7 +545,7 @@ struct StartNextCard: View {
             .disabled(isStarting)
         }
         .padding(Spacing.standard)
-        .background(Surface.elevated)
+        .background(Linear.card)
         .cornerRadius(CornerRadius.large)
         .overlay(
             RoundedRectangle(cornerRadius: CornerRadius.large)
@@ -583,6 +587,6 @@ struct StartNextCard: View {
     }
     .padding()
     .frame(width: 600)
-    .background(Surface.window)
+    .background(Linear.base)
 }
 #endif

@@ -75,9 +75,10 @@ struct ContentView: View {
                     }
                     .padding(.bottom, Spacing.large)
                 }
-                .animation(SpringPreset.snappy, value: appState.errorMessage)
-                .animation(SpringPreset.snappy, value: appState.successMessage)
+                .animation(LinearEasing.fast, value: appState.errorMessage)
+                .animation(LinearEasing.fast, value: appState.successMessage)
             }
+            .background(Linear.base)
         }
         .sheet(isPresented: Binding(
             get: { appState.showingProposalReview },
