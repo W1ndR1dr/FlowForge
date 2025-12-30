@@ -185,6 +185,7 @@ class BrainstormAgent:
             "-p", user_message,  # Just the new message!
             "--resume", self.session.claude_session_id,
             "--output-format", "stream-json",
+            "--verbose",  # Required for stream-json in print mode
             "--tools", "",
         ]
 
@@ -217,6 +218,7 @@ class BrainstormAgent:
             "claude",
             "-p", prompt,
             "--output-format", "stream-json",
+            "--verbose",  # Required for stream-json in print mode
             "--tools", "",
         ]
 
@@ -247,7 +249,13 @@ class BrainstormAgent:
         process: asyncio.subprocess.Process,
         full_response: list[str],
     ) -> AsyncGenerator[str, None]:
-        """Parse stream-json events from Claude CLI output."""
+        """Parse stream-json events from Claude CLI output.
+
+        With --verbose, format is:
+        - {"type":"system","subtype":"init","session_id":"..."}
+        - {"type":"assistant","message":{"content":[{"type":"text","text":"..."}]}}
+        - {"type":"result","result":"full text"}
+        """
         timeout_seconds = 180  # 3 minute overall timeout
         start_time = asyncio.get_event_loop().time()
         buffer = ""
@@ -283,24 +291,27 @@ class BrainstormAgent:
                         event = json.loads(line)
                         event_type = event.get("type", "")
 
-                        if event_type == "start":
+                        if event_type == "system" and event.get("subtype") == "init":
                             # Capture session_id for future --resume
                             session_id = event.get("session_id")
                             if session_id:
                                 self.session.claude_session_id = session_id
 
-                        elif event_type == "text":
-                            # Stream text to client
-                            content = event.get("content", "")
-                            if content:
-                                full_response.append(content)
-                                yield content
+                        elif event_type == "assistant":
+                            # Extract text from assistant message content
+                            message = event.get("message", {})
+                            content_list = message.get("content", [])
+                            for item in content_list:
+                                if item.get("type") == "text":
+                                    text = item.get("text", "")
+                                    if text:
+                                        full_response.append(text)
+                                        yield text
 
-                        elif event_type == "end":
-                            # Session complete
+                        elif event_type == "result":
+                            # Final result - session complete
+                            # The full text is in result field, but we've already streamed it
                             pass
-
-                        # Ignore tool_use, tool_result events (chat-only mode)
 
                     except json.JSONDecodeError:
                         # Not valid JSON, might be partial - continue
