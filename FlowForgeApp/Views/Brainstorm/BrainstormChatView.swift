@@ -39,9 +39,9 @@ struct BrainstormChatView: View {
                         if client.messages.isEmpty {
                             emptyStateView
                         } else {
-                            ForEach(Array(client.messages.enumerated()), id: \.element.id) { index, message in
+                            ForEach(client.messages) { message in
                                 // Show streaming text for the last assistant message while typing
-                                let isLastAssistant = index == client.messages.count - 1 && message.role == .assistant
+                                let isLastAssistant = message.id == client.messages.last?.id && message.role == .assistant
                                 let displayText = isLastAssistant && client.isTyping ? client.streamingText : message.content
                                 MessageBubble(message: message, displayText: displayText)
                                     .id(message.id)
@@ -421,10 +421,11 @@ struct MessageBubble: View {
                         .foregroundColor(.secondary)
                 }
 
-                // Message content
+                // Message content - constrain width to avoid layout explosion
                 Text(textToShow)
                     .font(Typography.body)
                     .padding(Spacing.medium)
+                    .frame(maxWidth: 500, alignment: message.role == .user ? .trailing : .leading)
                     .background(message.role == .user ? Accent.primary : Surface.elevated)
                     .foregroundColor(message.role == .user ? .white : .primary)
                     .cornerRadius(CornerRadius.large)
