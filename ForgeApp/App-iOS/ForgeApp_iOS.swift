@@ -258,7 +258,7 @@ struct QuickCaptureSheet: View {
                     .lineLimit(3...6)
                     .padding()
                     .background(Color(.secondarySystemBackground))
-                    .cornerRadius(12)
+                    .cornerRadius(CornerRadius.xxl)
 
                 Text("Quick capture adds the idea immediately. You can refine details later on Mac.")
                     .font(.caption)
@@ -465,7 +465,7 @@ struct iOSStreakBadge: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(Color.orange.opacity(0.15))
-            .cornerRadius(8)
+            .cornerRadius(CornerRadius.large)
         }
     }
 }

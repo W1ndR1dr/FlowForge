@@ -683,7 +683,7 @@ struct GitStatusBadge: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
         .background(color.opacity(0.15))
-        .cornerRadius(4)
+        .cornerRadius(CornerRadius.small)
     }
 }
 

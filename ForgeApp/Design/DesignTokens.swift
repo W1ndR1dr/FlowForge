@@ -215,24 +215,27 @@ enum Spacing {
 }
 
 // MARK: - Corner Radius
-// Linear's precise, tight radii
-// Cards: 10px, Buttons: 8px, Inputs: 8px, Popovers: 12px
+// Warp-aligned tight radii — crisp, precise, professional
+// Window/Cards: 8px, Buttons: 6px, Popovers: 10px
 
 enum CornerRadius {
     /// Small — 4pt (badges, chips, inline tags)
     static let small: CGFloat = 4
 
-    /// Medium — 6pt (sidebar rows, small interactive elements)
+    /// Medium — 6pt (buttons, inputs, sidebar rows)
     static let medium: CGFloat = 6
 
-    /// Large — 8pt (buttons, inputs, text fields)
+    /// Large — 8pt (cards, panels, main containers)
     static let large: CGFloat = 8
 
-    /// XL — 10pt (cards, panels)
-    static let xl: CGFloat = 10
+    /// XL — 8pt (same as large for Warp consistency)
+    static let xl: CGFloat = 8
 
-    /// XXL — 12pt (popovers, dropdowns, modals)
-    static let xxl: CGFloat = 12
+    /// XXL — 10pt (popovers, dropdowns, modals)
+    static let xxl: CGFloat = 10
+
+    /// Window — 8pt (main window container, matches Warp terminal)
+    static let window: CGFloat = 8
 }
 
 // MARK: - Shadows
@@ -546,8 +549,8 @@ enum DesignTokens {
 
     enum Radius {
         static let sm: CGFloat = 4
-        static let md: CGFloat = 8
-        static let lg: CGFloat = 12
+        static let md: CGFloat = 6
+        static let lg: CGFloat = 8
     }
 }
 
@@ -569,7 +572,7 @@ struct LinearPrimaryButtonStyle: ButtonStyle {
             .padding(.horizontal, 14)
             .foregroundColor(.white)
             .background(
-                RoundedRectangle(cornerRadius: CornerRadius.large, style: .continuous)
+                RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous)
                     .fill(backgroundColor(isPressed: configuration.isPressed))
             )
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
@@ -596,11 +599,11 @@ struct LinearSecondaryButtonStyle: ButtonStyle {
             .padding(.horizontal, 14)
             .foregroundColor(color)
             .background(
-                RoundedRectangle(cornerRadius: CornerRadius.large, style: .continuous)
+                RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous)
                     .fill(backgroundColor(isPressed: configuration.isPressed))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: CornerRadius.large, style: .continuous)
+                RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous)
                     .strokeBorder(Linear.border, lineWidth: 1)
             )
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
@@ -680,11 +683,11 @@ struct LinearTextFieldStyle: TextFieldStyle {
             .padding(.vertical, 10)
             .padding(.horizontal, 12)
             .background(
-                RoundedRectangle(cornerRadius: CornerRadius.large, style: .continuous)
+                RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous)
                     .fill(Linear.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: CornerRadius.large, style: .continuous)
+                RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous)
                     .strokeBorder(Linear.border, lineWidth: 1)
             )
     }
@@ -727,10 +730,10 @@ struct LinearSearchField: View {
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
         .background(
-            RoundedRectangle(cornerRadius: CornerRadius.large, style: .continuous)
+            RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous)
                 .fill(Linear.surface)
                 .overlay(
-                    RoundedRectangle(cornerRadius: CornerRadius.large, style: .continuous)
+                    RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous)
                         .strokeBorder(borderColor, lineWidth: 1)
                 )
         )
@@ -861,7 +864,7 @@ struct LinearTabBar: View {
         }
         .padding(4)
         .background(
-            RoundedRectangle(cornerRadius: CornerRadius.large, style: .continuous)
+            RoundedRectangle(cornerRadius: CornerRadius.medium, style: .continuous)
                 .fill(Linear.surface)
         )
     }
