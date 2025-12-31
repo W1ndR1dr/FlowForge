@@ -30,7 +30,7 @@ struct ForgeApp: App {
         WindowGroup {
             ContentView()
                 .environment(appState)
-                .frame(minWidth: 1200, minHeight: 800)
+                .frame(minWidth: 700, minHeight: 500)
                 .sheet(isPresented: $showingAddFeature) {
                     QuickAddFeatureSheet(
                         isPresented: $showingAddFeature,
@@ -39,6 +39,8 @@ struct ForgeApp: App {
                     .environment(appState)
                 }
         }
+        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unifiedCompact)
         .commands {
             // App menu - Check for Updates
             CommandGroup(after: .appInfo) {

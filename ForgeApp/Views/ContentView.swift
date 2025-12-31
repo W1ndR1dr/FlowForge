@@ -7,11 +7,13 @@ struct ContentView: View {
         @Bindable var state = appState
 
         NavigationSplitView {
+            // Sidebar - recessed, darker
             ProjectListView()
                 .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
         } detail: {
+            // Main workspace - elevated, foreground
             ZStack {
-                // Main content - Workspace view
+                // Elevated workspace container
                 VStack(spacing: 0) {
                     // Connection status bar at top
                     if !appState.isConnectedToServer {
@@ -51,6 +53,7 @@ struct ContentView: View {
                         }
                     }
                 }
+                .background(Linear.background)
 
                 // Toast notifications overlay (error/success only)
                 VStack {
@@ -82,6 +85,22 @@ struct ContentView: View {
             }
             .background(Linear.background)
         }
+        .toolbar {
+            // Forge branding - leftmost
+            ToolbarItem(placement: .navigation) {
+                HStack(spacing: Spacing.medium) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .interpolation(.high)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 28, height: 28)
+                    Text("Forge")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Linear.textPrimary)
+                }
+                .padding(.horizontal, -4) // Tighten around branding
+            }
+        }
         .preferredColorScheme(.dark)
         .sheet(isPresented: Binding(
             get: { appState.showingProposalReview },
@@ -104,26 +123,6 @@ struct ContentView: View {
             if let project = appState.projectToInitialize {
                 ProjectSetupSheet(project: project)
             }
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                // Refresh button (useful for checking server status)
-                Button {
-                    refreshFeatures()
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .help("Refresh features from server")
-                .keyboardShortcut("r", modifiers: .command)
-            }
-        }
-    }
-
-    // MARK: - Keyboard Shortcut Actions
-
-    func refreshFeatures() {
-        Task {
-            await appState.loadFeatures()
         }
     }
 }
