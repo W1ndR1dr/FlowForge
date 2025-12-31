@@ -85,6 +85,7 @@ struct ContentView: View {
             }
             .background(Linear.background)
         }
+        #if os(macOS)
         .toolbar {
             // Forge branding - leftmost
             ToolbarItem(placement: .navigation) {
@@ -101,6 +102,7 @@ struct ContentView: View {
                 .padding(.horizontal, -4) // Tighten around branding
             }
         }
+        #endif
         .preferredColorScheme(.dark)
         .sheet(isPresented: Binding(
             get: { appState.showingProposalReview },
