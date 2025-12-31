@@ -24,7 +24,7 @@ struct SortPicker: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .background(Color.secondary.opacity(0.1))
-            .cornerRadius(4)
+            .cornerRadius(CornerRadius.small)
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
