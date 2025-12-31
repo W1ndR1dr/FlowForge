@@ -7,25 +7,25 @@
         <language>en</language>
 
         <item>
-            <title>Forge 1.9.0</title>
+            <title>Forge 1.10.0</title>
             <description><![CDATA[
-                <h2>What's New in 1.9.0</h2>
+                <h2>What's New in 1.10.0</h2>
                 <ul>
 ---NOTES---
-                    <li>✨ Completed rebrand from FlowForge to Forge</li>
-                    <li>Fixed registry paths for cleaner project management</li>
-                    <li>Updated app icon with refined dark grey background</li>
-                    <li>Fine-tuned corner radius to match WhatsApp aesthetic</li>
+                    <li>✨ New unified toolbar brings Linear-style workflow to Forge</li>
+                    <li>Project descriptions now expand freely for bigger visions</li>
+                    <li>Cleaner look with refined title display</li>
+                    <li>Fresh app icon with subtle dark background</li>
                 </ul>
             ]]></description>
-            <pubDate>Tue, 30 Dec 2025 21:04:05 -0800</pubDate>
-            <sparkle:version>2</sparkle:version>
-            <sparkle:shortVersionString>1.9.0</sparkle:shortVersionString>
+            <pubDate>Tue, 30 Dec 2025 22:24:41 -0800</pubDate>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>1.10.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure
-                url="https://github.com/W1ndR1dr/Forge/releases/download/v1.9.0/Forge-1.9.0.zip"
-                sparkle:edSignature="sparkle:edSignature="Myf59of/veuZ83JhXwLHJWbyWkb9PRLWBJHzbzwFadBj4t9uFdzhivsUJpEtWF4i9fUqtCw3BYc+99CGpXwjCw==" length="2384043""
-                length="2384043"
+                url="https://github.com/W1ndR1dr/Forge/releases/download/v1.10.0/Forge-1.10.0.zip"
+                sparkle:edSignature="sparkle:edSignature="BHdq1McB18811qhb9ndF6yeKXwq+UEy+zmTWxWHZ42Hk52OMV8CG6VGcBY8AYH4u9DpAr2pJ/dvs/OD2g8WpAQ==" length="1866973""
+                length="1866973"
                 type="application/octet-stream"/>
         </item>
 
