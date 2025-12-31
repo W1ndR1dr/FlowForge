@@ -1,17 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
     <channel>
-        <title>FlowForge Updates</title>
-        <link>https://github.com/W1ndR1dr/FlowForge</link>
-        <description>FlowForge auto-update feed</description>
+        <title>Forge Updates</title>
+        <link>https://github.com/W1ndR1dr/Forge</link>
+        <description>Forge auto-update feed</description>
         <language>en</language>
 
         <item>
-            <title>FlowForge 1.8.0</title>
+            <title>Forge 1.8.0</title>
             <description><![CDATA[
                 <h2>What's New in 1.8.0</h2>
                 <ul>
----NOTES---
                     <li>Refined prompts for better AI-assisted development flow</li>
                     <li>Softer, more subtle UI colors for improved focus</li>
                     <li>Dark mode icon and better project visibility settings</li>
@@ -23,8 +22,8 @@
             <sparkle:shortVersionString>1.8.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure
-                url="https://github.com/W1ndR1dr/FlowForge/releases/download/v1.8.0/FlowForge-1.8.0.zip"
-                sparkle:edSignature="sparkle:edSignature="knB8Hyc4zNqYhLNRPAsi+WlfTtgIVtM0SrjWlKSy0W/EwoSg1fMM+3eFZVkebr3eZmEd+b99EGYjsCuGsfddBQ==" length="2388637""
+                url="https://github.com/W1ndR1dr/Forge/releases/download/v1.8.0/Forge-1.8.0.zip"
+                sparkle:edSignature="knB8Hyc4zNqYhLNRPAsi+WlfTtgIVtM0SrjWlKSy0W/EwoSg1fMM+3eFZVkebr3eZmEd+b99EGYjsCuGsfddBQ=="
                 length="2388637"
                 type="application/octet-stream"/>
         </item>
