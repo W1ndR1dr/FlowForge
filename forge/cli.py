@@ -2013,5 +2013,69 @@ def refactor_done(
         raise typer.Exit(1)
 
 
+@refactor_app.command("analyze")
+def refactor_analyze(
+    refactor_id: str = typer.Argument(..., help="Refactor ID"),
+    goal: str = typer.Option(..., "--goal", "-g", help="What you want to accomplish"),
+):
+    """
+    📊 Analyze the codebase for a refactor.
+
+    Generates PRE_REFACTOR.md with:
+    - Executive Summary of current state
+    - Current Architecture (relevant to goal)
+    - Key Files to understand
+    - Patterns in Use
+    - Known Gaps/Issues
+
+    The analysis is FOCUSED on the refactor goal, not a full codebase dump.
+
+    Example:
+        forge refactor analyze major-api-refactor --goal "Split monolith into microservices"
+    """
+    project_root, config, registry = get_context()
+
+    from .refactor import analyze_codebase, PlanningAgent
+
+    # Verify refactor exists
+    agent = PlanningAgent(project_root)
+    refactor = agent.get_refactor(refactor_id)
+
+    if not refactor:
+        console.print(f"[red]Refactor not found: {refactor_id}[/red]")
+        console.print("[dim]Create one with: forge refactor plan \"Title\" --goal \"...\"[/dim]")
+        raise typer.Exit(1)
+
+    refactor_dir = agent.get_refactor_dir(refactor_id)
+
+    console.print(f"\n📊 [bold]Analyzing codebase[/bold]: {refactor.title}\n")
+    console.print(f"[dim]Goal: {goal}[/dim]\n")
+    console.print("[dim]This may take a minute...[/dim]\n")
+
+    success, message, output_path = analyze_codebase(
+        project_root=project_root,
+        goal=goal,
+        output_dir=refactor_dir,
+    )
+
+    if success:
+        console.print(f"[green]✓[/green] {message}")
+
+        # Show a preview
+        if output_path and output_path.exists():
+            content = output_path.read_text()
+            # Show first ~20 lines
+            preview_lines = content.split("\n")[:25]
+            console.print("\n[dim]Preview:[/dim]")
+            console.print("─" * 60)
+            for line in preview_lines:
+                console.print(f"[dim]{line}[/dim]")
+            console.print("─" * 60)
+            console.print(f"\n[dim]Full analysis at: {output_path}[/dim]")
+    else:
+        console.print(f"[red]✗[/red] {message}")
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()

@@ -38,6 +38,11 @@ from .session import (
     SessionSpec,
     complete_session,
 )
+from .analyzer import (
+    CodebaseAnalyzer,
+    AnalysisResult,
+    analyze_codebase,
+)
 
 __all__ = [
     # Planning
@@ -65,4 +70,8 @@ __all__ = [
     "ExecutionSession",
     "SessionSpec",
     "complete_session",
+    # Analyzer
+    "CodebaseAnalyzer",
+    "AnalysisResult",
+    "analyze_codebase",
 ]
