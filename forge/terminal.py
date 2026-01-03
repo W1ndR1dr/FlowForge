@@ -14,12 +14,81 @@ import subprocess
 import shutil
 import platform
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 from enum import Enum
 
 
 # Terminal launching only works on macOS (uses osascript)
 IS_MACOS = platform.system() == "Darwin"
+
+
+def check_accessibility_permissions() -> Tuple[bool, str]:
+    """
+    Check if we have macOS Accessibility permissions for sending keystrokes.
+
+    Returns (has_permission, message).
+    """
+    if not IS_MACOS:
+        return True, "Not macOS - no permissions needed"
+
+    # Try a harmless keystroke test
+    test_script = '''
+    tell application "System Events"
+        -- Just check if we can access System Events, don't actually send keys
+        return name of first process
+    end tell
+    '''
+
+    result = subprocess.run(
+        ['osascript', '-e', test_script],
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode != 0:
+        return False, (
+            "System Events access denied.\n"
+            "Fix: System Preferences → Privacy & Security → Accessibility\n"
+            "     Add your terminal app (Warp, Terminal, etc.)"
+        )
+
+    # Now test actual keystroke permission with a no-op
+    keystroke_test = '''
+    tell application "System Events"
+        -- This will fail if keystrokes aren't allowed
+        key code 0 using {}
+    end tell
+    '''
+
+    result = subprocess.run(
+        ['osascript', '-e', keystroke_test],
+        capture_output=True,
+        text=True
+    )
+
+    if "not allowed to send keystrokes" in result.stderr:
+        return False, (
+            "Keystroke permissions denied.\n"
+            "Fix: System Preferences → Privacy & Security → Accessibility\n"
+            "     Add your terminal app (Warp, Terminal, etc.)\n\n"
+            "To open settings: open \"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility\""
+        )
+
+    return True, "Accessibility permissions OK"
+
+
+def ensure_accessibility_permissions() -> bool:
+    """
+    Check permissions and print helpful message if missing.
+    Returns True if permissions are OK.
+    """
+    has_perms, message = check_accessibility_permissions()
+
+    if not has_perms:
+        print(f"\n⚠️  {message}\n")
+        return False
+
+    return True
 
 
 class Terminal(str, Enum):
@@ -63,6 +132,10 @@ def open_terminal_in_directory(
         # Terminal launching requires macOS osascript
         return False
 
+    # Check permissions before attempting
+    if not ensure_accessibility_permissions():
+        return False
+
     if terminal == Terminal.AUTO:
         terminal = detect_terminal()
 
@@ -92,19 +165,25 @@ def _open_warp(
         '    activate',
     ]
 
+    # Escape the directory path for use inside AppleScript strings
+    # AppleScript uses \" to escape quotes inside strings
+    # In Python, we need \\\" to get a literal \" in the output
+    dir_str = str(directory)
+
     # Create a new tab and cd to directory
     if command:
-        # If we have a command, combine cd and command
-        full_command = f'cd "{directory}" && {command}'
-        script_parts.append(f'    tell application "System Events" to keystroke "t" using command down')
+        # Build the shell command with proper quoting for AppleScript
+        full_command = 'cd \\"' + dir_str + '\\" && ' + command
+        script_parts.append('    tell application "System Events" to keystroke "t" using command down')
         script_parts.append('    delay 0.5')
-        script_parts.append(f'    tell application "System Events" to keystroke "{full_command}"')
+        script_parts.append('    tell application "System Events" to keystroke "' + full_command + '"')
         script_parts.append('    tell application "System Events" to keystroke return')
     else:
         # Just open in the directory
-        script_parts.append(f'    tell application "System Events" to keystroke "t" using command down')
+        cd_command = 'cd \\"' + dir_str + '\\"'
+        script_parts.append('    tell application "System Events" to keystroke "t" using command down')
         script_parts.append('    delay 0.5')
-        script_parts.append(f'    tell application "System Events" to keystroke "cd \\"{directory}\\""')
+        script_parts.append('    tell application "System Events" to keystroke "' + cd_command + '"')
         script_parts.append('    tell application "System Events" to keystroke return')
 
     script_parts.append('end tell')
@@ -116,6 +195,9 @@ def _open_warp(
         capture_output=True,
         text=True
     )
+
+    if result.returncode != 0 and result.stderr:
+        print(f"AppleScript error: {result.stderr}")
 
     return result.returncode == 0
 
