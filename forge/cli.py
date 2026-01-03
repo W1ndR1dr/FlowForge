@@ -35,7 +35,7 @@ from .config import (
 )
 from .registry import Feature, FeatureRegistry, FeatureStatus, Complexity
 from .worktree import WorktreeManager
-from .terminal import start_feature_in_terminal, detect_terminal
+from .terminal import start_feature_in_terminal, detect_terminal, open_terminal_in_directory
 from .intelligence import IntelligenceEngine
 from .prompt_builder import PromptBuilder
 from .merge import MergeOrchestrator
@@ -547,6 +547,7 @@ def ship(
     feature_id: Optional[str] = typer.Argument(None, help="Feature ID to ship (auto-detects if only one in-progress)"),
     skip_validation: bool = typer.Option(False, "--skip-validation", "-s", help="Skip build validation"),
     keep_worktree: bool = typer.Option(False, "--keep", "-k", help="Keep worktree after shipping"),
+    _from_main: bool = typer.Option(False, "--from-main", hidden=True, help="Internal: confirms running from main project"),
 ):
     """
     🚢 SHIP: One-click merge and celebrate.
@@ -565,6 +566,56 @@ def ship(
     If you have multiple features in-progress, specify the ID.
     """
     project_root, config, registry = get_context()
+
+    # Check if we're running from inside a worktree
+    # Worktrees are in .forge-worktrees/ which is a sibling to .forge/
+    cwd = Path.cwd()
+    worktree_marker = ".forge-worktrees"
+    in_worktree = worktree_marker in str(cwd)
+
+    if in_worktree and not _from_main:
+        # We're in a worktree - need to spawn a new terminal in main project to ship
+        # This prevents the shell from breaking when the worktree is deleted
+
+        # Try to auto-detect feature ID from worktree path
+        if not feature_id:
+            # Extract feature ID from path like /project/.forge-worktrees/feature-id/...
+            try:
+                worktree_parts = str(cwd).split(worktree_marker + "/")
+                if len(worktree_parts) > 1:
+                    # Get first path component after .forge-worktrees/
+                    feature_id = worktree_parts[1].split("/")[0]
+            except (IndexError, ValueError):
+                pass
+
+        # Build the ship command to run in main project
+        ship_cmd = "forge ship"
+        if feature_id:
+            ship_cmd += f" {feature_id}"
+        if skip_validation:
+            ship_cmd += " --skip-validation"
+        ship_cmd += " --from-main"  # Mark that we're running from main now
+
+        console.print("\n🚢 [bold]Shipping from worktree...[/bold]\n")
+        console.print(f"[dim]Spawning new terminal in main project to complete ship.[/dim]")
+        console.print(f"[dim]This terminal can be closed after ship completes.[/dim]\n")
+
+        # Launch new terminal in main project with ship command
+        success = open_terminal_in_directory(
+            project_root,
+            command=ship_cmd,
+            title="Forge Ship",
+        )
+
+        if success:
+            console.print(f"[green]✓[/green] Ship initiated in new terminal")
+            console.print(f"\n[yellow]You can close this terminal now.[/yellow]")
+        else:
+            console.print(f"[red]Failed to open terminal. Run manually:[/red]")
+            console.print(f"  cd {project_root}")
+            console.print(f"  {ship_cmd}")
+
+        raise typer.Exit(0)
 
     # Find feature to ship
     if feature_id:
@@ -1438,7 +1489,12 @@ def merge(
     keep_worktree: bool = typer.Option(False, "--keep", "-k", help="Keep worktree after merge"),
 ):
     """
-    Merge a feature into main.
+    Merge a feature into main (advanced).
+
+    💡 TIP: Vibecoders should use 'forge ship' instead - it's simpler!
+
+    This command is for batch operations (--auto) or when you need
+    more control over the merge process.
 
     Performs a pre-flight conflict check, merges the feature branch,
     runs build validation (if configured), and cleans up the worktree.
@@ -1446,6 +1502,12 @@ def merge(
     Use --auto to merge all conflict-free features in dependency order.
     """
     project_root, config, registry = get_context()
+
+    # Warn if running from inside a worktree
+    cwd = Path.cwd()
+    if ".forge-worktrees" in str(cwd):
+        console.print("[yellow]⚠️  Running merge from inside a worktree.[/yellow]")
+        console.print("[dim]Consider using 'forge ship' instead - it handles this automatically.[/dim]\n")
 
     orchestrator = MergeOrchestrator(
         project_root,

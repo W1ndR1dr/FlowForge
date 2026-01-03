@@ -77,7 +77,7 @@ forge/
 
 1. **Feature Lifecycle**: `planned` → `in-progress` → `review` → `completed`
 2. **Start Feature** (`forge start`): Creates worktree → generates prompt with expert suggestions → copies to clipboard
-3. **Merge Feature** (`forge merge`): Conflict check (dry-run) → merge → validation (build command) → cleanup
+3. **Ship Feature** (`forge ship`): Conflict check → merge → validation → cleanup worktree → celebrate!
 
 ### Per-Project Data (`.forge/`)
 
@@ -138,12 +138,14 @@ forge start <id> --skip-experts      # Skip expert suggestion phase
 forge stop <id>                      # Mark ready for review
 forge status                         # Show all active worktrees
 
-# Merge Operations
+# Shipping (the vibecoder way)
+forge ship                           # One-click: merge + cleanup + celebrate!
+forge ship <id>                      # Ship specific feature
+
+# Advanced Merge Operations
 forge sync <id>                      # Rebase feature onto latest main
 forge merge-check                    # Check all review features for conflicts
-forge merge-check <id>               # Check specific feature
-forge merge <id>                     # Merge with validation
-forge merge --auto                   # Merge all safe features in order
+forge merge --auto                   # Merge all safe features in batch
 ```
 
 ## Coding Style
