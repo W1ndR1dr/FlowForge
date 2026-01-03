@@ -19,6 +19,13 @@ final class UpdaterController: ObservableObject {
     }
 }
 
+/// Data passed to the refine window
+struct RefineWindowData: Codable, Hashable {
+    let projectName: String
+    let featureId: String?
+    let featureTitle: String?
+}
+
 @main
 struct ForgeApp: App {
     @StateObject private var updaterController = UpdaterController()
@@ -115,5 +122,34 @@ struct ForgeApp: App {
             SettingsView()
                 .environment(appState)
         }
+
+        // Refine chat window (resizable)
+        WindowGroup(id: "refine", for: RefineWindowData.self) { $data in
+            if let data = data {
+                RefineWindowView(data: data)
+                    .environment(appState)
+            }
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .defaultSize(width: 750, height: 700)
+    }
+}
+
+/// Wrapper view for the refine window that finds the feature
+struct RefineWindowView: View {
+    @Environment(AppState.self) private var appState
+    let data: RefineWindowData
+
+    private var feature: Feature? {
+        guard let featureId = data.featureId else { return nil }
+        return appState.features.first { $0.id == featureId }
+    }
+
+    var body: some View {
+        BrainstormChatView(
+            project: data.projectName,
+            existingFeature: feature
+        )
     }
 }

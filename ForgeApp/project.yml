@@ -38,6 +38,7 @@ targets:
         ENABLE_PREVIEWS: YES
         DEVELOPMENT_TEAM: "2H43Q8Y3CR"
         ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
       configs:
         Debug:
           SWIFT_OPTIMIZATION_LEVEL: "-Onone"

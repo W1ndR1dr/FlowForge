@@ -8,6 +8,12 @@ Forge is an AI-assisted parallel development orchestrator. It enables systematic
 
 **Philosophy**: Built for "vibecoders" - developers who work extensively with AI assistance but may not be Git experts. Forge handles the complexity so users can focus on features.
 
+## Prerequisites
+
+- Python 3.11+
+- XcodeGen (for macOS/iOS app development): `brew install xcodegen`
+- Xcode 15.0+ (for macOS/iOS app development)
+
 ## Terminology
 
 These terms have specific meanings in Forge:
@@ -105,6 +111,13 @@ FORGE_MAC_USER=Brian
 ```
 
 The CLI (`forge` command) only works directly on Mac - it's not wrapped for remote use.
+
+**Server management:**
+```bash
+ssh brian@raspberrypi "sudo systemctl status forge"    # Check status
+ssh brian@raspberrypi "sudo journalctl -u forge -f"    # View logs
+ssh brian@raspberrypi "sudo systemctl restart forge"   # Restart
+```
 
 ## CLI Commands
 
@@ -220,28 +233,6 @@ refactor(registry): Simplify dependency tracking
 ## macOS App (ForgeApp)
 
 The SwiftUI macOS app lives in `ForgeApp/`. Uses XcodeGen to manage the Xcode project.
-
-### Server (Pi-Only Architecture)
-
-The Forge server **always runs on the Raspberry Pi**, not locally on Mac. The Mac/iOS apps connect via Tailscale.
-
-```
-iPhone/Mac App → Tailscale → Pi Server (port 8081) → SSH → Mac (git/worktrees)
-```
-
-**Server management:**
-```bash
-# Check server status
-ssh brian@raspberrypi "sudo systemctl status forge"
-
-# View logs
-ssh brian@raspberrypi "sudo journalctl -u forge -f"
-
-# Restart server
-ssh brian@raspberrypi "sudo systemctl restart forge"
-```
-
-The apps connect to `http://raspberrypi:8081` (configured in `PlatformConfig.swift`).
 
 ### Deploy Everything (when user says "ship it", "deploy", "update all the things", etc.)
 

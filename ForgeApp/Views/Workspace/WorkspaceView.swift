@@ -15,10 +15,10 @@ import AppKit
 
 struct WorkspaceView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.openWindow) private var openWindow
 
     @State private var vibeText = ""
     @State private var isSubmitting = false
-    @State private var brainstormFeature: Feature?  // Set to show brainstorm sheet
 
     // MARK: - Computed Properties
 
@@ -108,15 +108,6 @@ struct WorkspaceView: View {
                 isAnalyzing: isSubmitting,
                 slotsRemaining: slotsRemaining
             )
-        }
-        .sheet(item: $brainstormFeature) { feature in
-            if let project = appState.selectedProject {
-                BrainstormChatView(
-                    project: project.name,
-                    existingFeature: feature  // Feature being refined
-                )
-                .environment(appState)
-            }
         }
     }
 
@@ -334,7 +325,13 @@ struct WorkspaceView: View {
 
     /// Open brainstorm chat to refine a feature
     private func refineFeature(_ feature: Feature) {
-        brainstormFeature = feature  // Setting this shows the sheet
+        guard let project = appState.selectedProject else { return }
+        let data = RefineWindowData(
+            projectName: project.name,
+            featureId: feature.id,
+            featureTitle: feature.title
+        )
+        openWindow(id: "refine", value: data)
     }
 
     private func shipFeature(_ feature: Feature) {
