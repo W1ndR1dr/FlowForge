@@ -1518,9 +1518,36 @@ The feature is now ready for use!
 
 ---
 
-### Session 1.2: CLI Commands & Doc Templates
-**Date**: (not started)
-**Status**: PENDING
+### Session 1.2: Execution Session Launcher
+**Date**: 2026-01-03
+**Status**: DONE
+
+**Completed**:
+- [x] `forge/refactor/session.py` exists with ExecutionSession class
+- [x] `forge refactor start {id} {session}` launches terminal with Claude
+- [x] Generated CLAUDE.md includes PHILOSOPHY.md reference and session prompt
+- [x] RefactorState is updated when session starts
+- [x] SESSION_STARTED signal is written
+- [x] `forge refactor done {session}` updates state and writes SESSION_DONE signal
+
+**Discoveries**:
+- SessionSpec parses session info from EXECUTION_PLAN.md using regex patterns
+- CLAUDE.md generation creates a complete instruction set for execution agents
+- Auto-detection of refactor_id in `done` command by checking current_session in state
+- Can fall back to per-session spec files at sessions/{id}/spec.md
+
+**Files Created**:
+- `forge/refactor/session.py` - ExecutionSession class, SessionSpec dataclass, complete_session function
+
+**Files Modified**:
+- `forge/cli.py` - Added `forge refactor start` and `forge refactor done` commands
+- `forge/refactor/__init__.py` - Exports ExecutionSession, SessionSpec, complete_session
+
+**For Next Session (2.1)**:
+- Phase 1 Foundation is complete!
+- Use `forge refactor start <id> <session>` to launch execution sessions
+- Execution agents read generated CLAUDE.md with session prompt
+- State and signals now track session lifecycle
 
 ---
 

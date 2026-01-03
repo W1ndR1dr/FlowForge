@@ -33,6 +33,11 @@ from .signals import (
     signal_revision_needed,
     signal_question,
 )
+from .session import (
+    ExecutionSession,
+    SessionSpec,
+    complete_session,
+)
 
 __all__ = [
     # Planning
@@ -56,4 +61,8 @@ __all__ = [
     "signal_audit_passed",
     "signal_revision_needed",
     "signal_question",
+    # Execution Sessions
+    "ExecutionSession",
+    "SessionSpec",
+    "complete_session",
 ]

@@ -1900,5 +1900,118 @@ def refactor_resume(
         console.print(f"  {claude_command}")
 
 
+@refactor_app.command("start")
+def refactor_start(
+    refactor_id: str = typer.Argument(..., help="Refactor ID"),
+    session_id: str = typer.Argument(..., help="Session ID (e.g., '1.1', '2.1')"),
+    terminal: str = typer.Option("auto", "--terminal", "-t", help="Terminal: warp, iterm, terminal, auto"),
+):
+    """
+    🚀 Start an execution session for a refactor.
+
+    Launches Claude Code with the session-specific CLAUDE.md that includes:
+    - The session prompt from EXECUTION_PLAN.md
+    - Exit criteria to verify
+    - Git instructions
+
+    Example:
+        forge refactor start major-refactor-mode-phase-1 1.1
+    """
+    project_root, config, registry = get_context()
+
+    from .refactor.session import ExecutionSession
+
+    console.print(f"\n🚀 [bold]Starting Session {session_id}[/bold]\n")
+
+    session = ExecutionSession(
+        refactor_id=refactor_id,
+        session_id=session_id,
+        project_root=project_root,
+    )
+
+    success, message = session.launch(terminal=terminal)
+
+    if success:
+        console.print(f"[green]✓[/green] {message}")
+    else:
+        console.print(f"[red]✗[/red] {message}")
+        raise typer.Exit(1)
+
+
+@refactor_app.command("done")
+def refactor_done(
+    session_id: str = typer.Argument(..., help="Session ID that was completed"),
+    refactor_id: str = typer.Option(None, "--refactor", "-r", help="Refactor ID (auto-detected if omitted)"),
+    notes: str = typer.Option("", "--notes", "-n", help="Handoff notes for next session"),
+):
+    """
+    ✅ Mark a session as complete.
+
+    Updates RefactorState and writes a SESSION_DONE signal.
+    Called when an execution session finishes its work.
+
+    Example:
+        forge refactor done 1.1
+        forge refactor done 1.1 --notes "Built state infrastructure"
+    """
+    project_root, config, registry = get_context()
+
+    from .refactor import PlanningAgent
+    from .refactor.session import complete_session
+
+    # Auto-detect refactor_id from current active refactor if not provided
+    if not refactor_id:
+        agent = PlanningAgent(project_root)
+        refactors = agent.list_refactors()
+        executing = [r for r in refactors if r.status == "executing"]
+        if len(executing) == 1:
+            refactor_id = executing[0].id
+        elif len(executing) > 1:
+            console.print("[yellow]Multiple refactors executing. Specify --refactor ID[/yellow]")
+            for r in executing:
+                console.print(f"  - {r.id}")
+            raise typer.Exit(1)
+        else:
+            # Check for any refactor with this session in progress
+            for r in refactors:
+                state_path = project_root / ".forge" / "refactors" / r.id / "state.json"
+                if state_path.exists():
+                    from .refactor.state import RefactorState
+                    state = RefactorState.load(state_path)
+                    if state.current_session == session_id:
+                        refactor_id = r.id
+                        break
+
+        if not refactor_id:
+            console.print("[red]Could not determine refactor. Specify --refactor ID[/red]")
+            raise typer.Exit(1)
+
+    success, message = complete_session(
+        refactor_id=refactor_id,
+        session_id=session_id,
+        project_root=project_root,
+        notes=notes,
+    )
+
+    if success:
+        console.print(f"\n[green]✓[/green] {message}")
+
+        # Show what's next
+        state_path = project_root / ".forge" / "refactors" / refactor_id / "state.json"
+        if state_path.exists():
+            from .refactor.state import RefactorState
+            state = RefactorState.load(state_path)
+            pending = state.get_pending_sessions()
+            if pending:
+                next_session = pending[0]
+                console.print(f"\n[dim]Next session: {next_session.session_id}[/dim]")
+                console.print(f"[dim]Run: forge refactor start {refactor_id} {next_session.session_id}[/dim]")
+            elif state.is_complete():
+                console.print("\n🎉 [bold green]All sessions complete![/bold green]")
+    else:
+        console.print(f"[red]✗[/red] {message}")
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()
