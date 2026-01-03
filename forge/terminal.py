@@ -170,18 +170,18 @@ def _open_warp(
     # In Python, we need \\\" to get a literal \" in the output
     dir_str = str(directory)
 
-    # Create a new tab and cd to directory
+    # Create a new window (Cmd+N) and cd to directory
     if command:
         # Build the shell command with proper quoting for AppleScript
         full_command = 'cd \\"' + dir_str + '\\" && ' + command
-        script_parts.append('    tell application "System Events" to keystroke "t" using command down')
+        script_parts.append('    tell application "System Events" to keystroke "n" using command down')
         script_parts.append('    delay 0.5')
         script_parts.append('    tell application "System Events" to keystroke "' + full_command + '"')
         script_parts.append('    tell application "System Events" to keystroke return')
     else:
         # Just open in the directory
         cd_command = 'cd \\"' + dir_str + '\\"'
-        script_parts.append('    tell application "System Events" to keystroke "t" using command down')
+        script_parts.append('    tell application "System Events" to keystroke "n" using command down')
         script_parts.append('    delay 0.5')
         script_parts.append('    tell application "System Events" to keystroke "' + cd_command + '"')
         script_parts.append('    tell application "System Events" to keystroke return')
