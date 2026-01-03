@@ -54,6 +54,27 @@ class SpecResult:
 
 
 @dataclass
+class MajorRefactorResult:
+    """A major refactor recommendation from brainstorming.
+
+    Triggered when Claude detects the scope is too big for one session.
+    AGI-pilled: Claude decides based on judgment, not hardcoded rules.
+    """
+    reason: str  # Why this is bigger than one session
+    affected_areas: list[str]
+    estimated_phases: int
+    raw_recommendation: str
+
+    def to_dict(self) -> dict:
+        return {
+            "reason": self.reason,
+            "affected_areas": self.affected_areas,
+            "estimated_phases": self.estimated_phases,
+            "raw_recommendation": self.raw_recommendation,
+        }
+
+
+@dataclass
 class BrainstormSession:
     """A brainstorming session with Claude."""
     project_name: str
@@ -63,6 +84,8 @@ class BrainstormSession:
     messages: list[BrainstormMessage] = field(default_factory=list)
     spec_ready: bool = False
     current_spec: Optional[SpecResult] = None
+    major_refactor_detected: bool = False  # Claude detected scope too big
+    current_major_refactor: Optional[MajorRefactorResult] = None
     claude_session_id: Optional[str] = None  # Claude Code session for --resume
 
     @property
@@ -141,10 +164,17 @@ class BrainstormAgent:
         async for chunk in self._run_claude_streaming(user_message):
             yield chunk
 
-        # After streaming complete, check if spec is ready
+        # After streaming complete, check for markers
         if self.session.messages and self.session.messages[-1].role == "assistant":
             last_response = self.session.messages[-1].content
-            if "SPEC_READY" in last_response:
+
+            # Check for major refactor recommendation (AGI-pilled detection)
+            if "MAJOR_REFACTOR_RECOMMENDED" in last_response:
+                self.session.major_refactor_detected = True
+                self.session.current_major_refactor = self._parse_major_refactor(last_response)
+
+            # Check if spec is ready (normal single-session feature)
+            elif "SPEC_READY" in last_response:
                 self.session.spec_ready = True
                 self.session.current_spec = self._parse_spec(last_response)
 
@@ -441,6 +471,57 @@ class BrainstormAgent:
         except Exception:
             return None
 
+    def _parse_major_refactor(self, response: str) -> Optional[MajorRefactorResult]:
+        """Parse a MAJOR_REFACTOR_RECOMMENDED response.
+
+        AGI-pilled: Claude decides when scope is too big based on judgment,
+        not hardcoded rules. This parses Claude's recommendation.
+        """
+        try:
+            refactor_match = re.search(r"MAJOR_REFACTOR_RECOMMENDED\s*\n(.*)", response, re.DOTALL)
+            if not refactor_match:
+                return None
+
+            refactor_text = refactor_match.group(1).strip()
+
+            # Parse reason (Why this is bigger than one session)
+            reason = ""
+            reason_match = re.search(
+                r"\*\*Why this is bigger than one session:\*\*\s*\n(.+?)(?=\n\n|\n\*\*Affected Areas)",
+                refactor_text, re.DOTALL
+            )
+            if reason_match:
+                reason = reason_match.group(1).strip()
+
+            # Parse affected areas
+            affected_areas = []
+            areas_match = re.search(
+                r"\*\*Affected Areas:\*\*\s*\n(.+?)(?=\n\n|\n\*\*Estimated Phases)",
+                refactor_text, re.DOTALL
+            )
+            if areas_match:
+                areas_text = areas_match.group(1)
+                affected_areas = [
+                    line.strip().lstrip("- ")
+                    for line in areas_text.split("\n")
+                    if line.strip() and line.strip().startswith("-")
+                ]
+
+            # Parse estimated phases
+            estimated_phases = 3  # Default
+            phases_match = re.search(r"\*\*Estimated Phases:\*\*\s*(\d+)", refactor_text)
+            if phases_match:
+                estimated_phases = int(phases_match.group(1))
+
+            return MajorRefactorResult(
+                reason=reason,
+                affected_areas=affected_areas,
+                estimated_phases=estimated_phases,
+                raw_recommendation=refactor_text,
+            )
+        except Exception:
+            return None
+
     def get_conversation_state(self) -> dict:
         """Get the current state of the conversation."""
         return {
@@ -448,6 +529,8 @@ class BrainstormAgent:
             "message_count": len(self.session.messages),
             "spec_ready": self.session.spec_ready,
             "current_spec": self.session.current_spec.to_dict() if self.session.current_spec else None,
+            "major_refactor_detected": self.session.major_refactor_detected,
+            "current_major_refactor": self.session.current_major_refactor.to_dict() if self.session.current_major_refactor else None,
             "messages": [
                 {"role": msg.role, "content": msg.content}
                 for msg in self.session.messages
@@ -461,6 +544,17 @@ class BrainstormAgent:
     def get_spec(self) -> Optional[SpecResult]:
         """Get the refined spec, if ready."""
         return self.session.current_spec
+
+    def is_major_refactor_detected(self) -> bool:
+        """Check if Claude detected this is a major refactor.
+
+        AGI-pilled: Claude decides when scope is too big based on judgment.
+        """
+        return self.session.major_refactor_detected
+
+    def get_major_refactor(self) -> Optional[MajorRefactorResult]:
+        """Get the major refactor recommendation, if detected."""
+        return self.session.current_major_refactor
 
 
 async def test_brainstorm():

@@ -51,9 +51,41 @@ The user has captured this idea and wants to refine it. Your job is to ask clari
 
 The build agent has full codebase context and will make these decisions intelligently.
 
+## Major Refactor Detection
+
+If the idea being refined turns out to be a major architectural change - something that would require multiple implementation sessions rather than one focused task - you should recommend Major Refactor Mode.
+
+Signs this might be a major refactor (use your judgment, not rigid rules):
+- Fundamental restructuring of how things work
+- Changes that span multiple subsystems
+- Introducing new architectural patterns
+- Large-scale migrations or rewrites
+- Changes that need careful phasing to avoid breaking things
+
+When you detect this, output:
+
+```
+MAJOR_REFACTOR_RECOMMENDED
+
+This looks like a major architectural change. I'd recommend breaking it into multiple phases for safer implementation.
+
+**Why this is bigger than one session:**
+[Brief explanation of why this needs phasing]
+
+**Affected Areas:**
+- [area 1]
+- [area 2]
+
+**Estimated Phases:** [number]
+
+Would you like to switch to Major Refactor Mode? This will help us plan it properly with docs, phases, and coordinated execution.
+```
+
+Then wait for the user's response before proceeding.
+
 ## When the Idea is Clear
 
-When you have enough detail about the user's intent, output:
+When you have enough detail about the user's intent (and it's NOT a major refactor), output:
 
 ```
 SPEC_READY
@@ -79,7 +111,7 @@ COMPLEXITY:
 - One question at a time
 - Celebrate when clarity emerges
 
-Remember: The user already has the vision. You're helping them articulate WHAT they want clearly. The build agent will figure out HOW.
+Remember: The user already has the vision. You're helping them articulate WHAT they want clearly. The build agent will figure out HOW. But if the scope turns out to be massive, recognize it and recommend Major Refactor Mode - vibecoders often don't realize how big their ideas are!
 """
 
 BRAINSTORM_SYSTEM_PROMPT = """You are a product strategist and feature architect for {project_name}.
@@ -111,9 +143,41 @@ Your role is to have a natural conversation about feature ideas, helping the use
 4. **Think Scope**: Is this one feature or several? Can it ship in one session?
 5. **Be Specific About Behavior**: Vague specs lead to vague implementations
 
+## Major Refactor Detection
+
+If the user's request is a major architectural change - something that would require multiple implementation sessions rather than one focused task - you should recommend Major Refactor Mode.
+
+Signs this might be a major refactor (use your judgment, not rigid rules):
+- Fundamental restructuring of how things work
+- Changes that span multiple subsystems
+- Introducing new architectural patterns
+- Large-scale migrations or rewrites
+- Changes that need careful phasing to avoid breaking things
+
+When you detect this, output:
+
+```
+MAJOR_REFACTOR_RECOMMENDED
+
+This looks like a major architectural change. I'd recommend breaking it into multiple phases for safer implementation.
+
+**Why this is bigger than one session:**
+[Brief explanation of why this needs phasing]
+
+**Affected Areas:**
+- [area 1]
+- [area 2]
+
+**Estimated Phases:** [number]
+
+Would you like to switch to Major Refactor Mode? This will help us plan it properly with docs, phases, and coordinated execution.
+```
+
+Then wait for the user's response before proceeding.
+
 ## When the Idea is Clear
 
-When you feel the spec is specific enough about user intent, output:
+When you feel the spec is specific enough about user intent (and it's NOT a major refactor), output:
 
 ```
 SPEC_READY
@@ -140,7 +204,7 @@ COMPLEXITY:
 - Gently push back on scope creep
 - Celebrate when the idea becomes clear
 
-Remember: Your goal is to turn vibes into specs. Capture WHAT the user wants. The build agent will figure out HOW.
+Remember: Your goal is to turn vibes into specs. Capture WHAT the user wants. The build agent will figure out HOW. But if the scope is massive, recognize it and recommend Major Refactor Mode - vibecoders often don't realize how big their ideas are!
 """
 
 SPEC_EVALUATOR_PROMPT = """You are a spec quality evaluator. Your job is to determine if a feature spec is "excellent" - ready for an AI to implement without further clarification.
