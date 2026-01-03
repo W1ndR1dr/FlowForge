@@ -3,8 +3,8 @@ import SwiftUI
 #if os(macOS)
 import AppKit
 
-/// Efficient text view for long content using native NSTextView.
-/// SwiftUI's Text + textSelection is expensive for long text.
+/// Efficient text view for long content using native NSTextField.
+/// Uses NSTextField in label mode which properly reports intrinsic size.
 struct NativeTextView: NSViewRepresentable {
     let text: String
     let font: NSFont
@@ -26,43 +26,22 @@ struct NativeTextView: NSViewRepresentable {
         self.isSelectable = isSelectable
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
-        let textView = scrollView.documentView as! NSTextView
-
-        // Configure for display (not editing)
-        textView.isEditable = false
-        textView.isSelectable = isSelectable
-        textView.drawsBackground = true
-        textView.backgroundColor = backgroundColor
-        textView.textContainerInset = .zero
-
-        // Disable scroll view's scrolling - let parent handle it
-        scrollView.hasVerticalScroller = false
-        scrollView.hasHorizontalScroller = false
-        scrollView.borderType = .noBorder
-        scrollView.drawsBackground = false
-
-        // Size to fit content
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.textContainer?.widthTracksTextView = true
-        textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
-
-        return scrollView
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField(wrappingLabelWithString: "")
+        textField.isEditable = false
+        textField.isSelectable = isSelectable
+        textField.drawsBackground = false
+        textField.isBordered = false
+        textField.lineBreakMode = .byWordWrapping
+        textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return textField
     }
 
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? NSTextView else { return }
-
-        // Only update if text actually changed
-        if textView.string != text {
-            textView.string = text
-            textView.font = font
-            textView.textColor = textColor
-            textView.backgroundColor = backgroundColor
-            textView.isSelectable = isSelectable
-        }
+    func updateNSView(_ textField: NSTextField, context: Context) {
+        textField.stringValue = text
+        textField.font = font
+        textField.textColor = textColor
+        textField.isSelectable = isSelectable
     }
 }
 

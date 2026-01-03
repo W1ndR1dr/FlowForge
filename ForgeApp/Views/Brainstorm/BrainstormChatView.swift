@@ -40,13 +40,19 @@ struct BrainstormChatView: View {
                             emptyStateView
                         } else {
                             ForEach(client.messages) { message in
-                                // Show streaming text for the last assistant message while typing
+                                // Show animated streaming text for the last assistant message while typing
                                 let isLastAssistant = message.id == client.messages.last?.id && message.role == .assistant
-                                let displayText = isLastAssistant && client.isTyping ? client.streamingText : nil
-                                // EquatableView prevents re-renders when content unchanged
-                                EquatableView(content: MessageBubble(message: message, displayText: displayText))
+                                let displayText = isLastAssistant && client.isTyping ? client.displayedText : nil
+                                MessageBubble(message: message, displayText: displayText)
                                     .id(message.id)
                             }
+                        }
+
+                        // Thinking indicator when waiting for response
+                        if client.isTyping && client.streamingText.isEmpty {
+                            ThinkingIndicator()
+                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                                .animation(.easeInOut(duration: 0.2), value: client.isTyping)
                         }
 
                         // Scroll anchor
@@ -60,6 +66,17 @@ struct BrainstormChatView: View {
                     withAnimation(.spring(response: 0.3)) {
                         proxy.scrollTo("bottom", anchor: .bottom)
                     }
+                }
+                .onChange(of: client.isTyping) { _, isTyping in
+                    if isTyping {
+                        withAnimation(.spring(response: 0.3)) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    }
+                }
+                .onChange(of: client.displayedText) { _, _ in
+                    // Scroll as text animates in
+                    proxy.scrollTo("bottom", anchor: .bottom)
                 }
             }
 
@@ -655,6 +672,96 @@ struct SpecPreviewSheet: View {
     }
 }
 
+// MARK: - Thinking Indicator
+
+/// Elegant flowing waveform indicator using TimelineView for smooth 60fps animation.
+/// Creates an organic, professional wave animation while Claude thinks.
+struct ThinkingIndicator: View {
+    private let barCount = 5
+    private let barWidth: CGFloat = 3
+    private let barSpacing: CGFloat = 4
+    private let maxHeight: CGFloat = 24
+    private let minHeight: CGFloat = 8
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Spacing.medium) {
+            VStack(alignment: .leading, spacing: Spacing.micro) {
+                // Role indicator
+                HStack(spacing: Spacing.micro) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.caption)
+                        .foregroundColor(Accent.primary)
+                    Text("Claude is thinking")
+                        .font(Typography.caption)
+                        .foregroundColor(Linear.textSecondary)
+                }
+
+                // Smooth flowing waveform using TimelineView
+                TimelineView(.animation(minimumInterval: 1/60)) { timeline in
+                    let phase = timeline.date.timeIntervalSinceReferenceDate * 2.5
+
+                    HStack(alignment: .center, spacing: barSpacing) {
+                        ForEach(0..<barCount, id: \.self) { index in
+                            WaveBar(
+                                phase: phase,
+                                index: index,
+                                barCount: barCount,
+                                barWidth: barWidth,
+                                minHeight: minHeight,
+                                maxHeight: maxHeight
+                            )
+                        }
+                    }
+                    .frame(height: maxHeight)
+                }
+                .padding(.horizontal, Spacing.medium)
+                .padding(.vertical, Spacing.small)
+                .background(Linear.card)
+                .cornerRadius(CornerRadius.large)
+                .overlay(
+                    RoundedRectangle(cornerRadius: CornerRadius.large)
+                        .stroke(Linear.borderSubtle, lineWidth: 1)
+                )
+            }
+
+            Spacer(minLength: 60)
+        }
+    }
+}
+
+/// Individual wave bar with smooth animation
+private struct WaveBar: View {
+    let phase: Double
+    let index: Int
+    let barCount: Int
+    let barWidth: CGFloat
+    let minHeight: CGFloat
+    let maxHeight: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: barWidth / 2)
+            .fill(
+                LinearGradient(
+                    colors: [Accent.primary, Accent.primary.opacity(0.4)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(width: barWidth, height: barHeight)
+    }
+
+    private var barHeight: CGFloat {
+        // Create a smooth wave that flows across the bars
+        let normalizedIndex = Double(index) / Double(barCount - 1)
+        let waveOffset = normalizedIndex * .pi * 2
+        let wave = sin(phase + waveOffset)
+        // Map from -1...1 to minHeight...maxHeight with easing
+        let normalized = (wave + 1) / 2
+        let eased = normalized * normalized * (3 - 2 * normalized) // smoothstep
+        return minHeight + (maxHeight - minHeight) * eased
+    }
+}
+
 // MARK: - Previews
 
 #if DEBUG
@@ -662,5 +769,12 @@ struct SpecPreviewSheet: View {
     BrainstormChatView(project: "Forge")
         .environment(AppState())
         .frame(width: 600, height: 700)
+}
+
+#Preview("Thinking Indicator") {
+    ThinkingIndicator()
+        .padding()
+        .background(Linear.base)
+        .environment(\.colorScheme, .dark)
 }
 #endif

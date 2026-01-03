@@ -14,7 +14,8 @@ final class BrainstormClient: ObservableObject {
     @Published private(set) var messages: [BrainstormMessage] = []
     @Published private(set) var currentSpec: RefinedSpec?
     @Published private(set) var lastError: Error?
-    @Published private(set) var streamingText: String = ""  // Current streaming response (debounced)
+    @Published private(set) var streamingText: String = ""  // Current streaming response (animated)
+    @Published private(set) var displayedText: String = ""  // Text shown in UI (word-by-word animated)
 
     // MARK: - Types
 
@@ -57,6 +58,9 @@ final class BrainstormClient: ObservableObject {
     private var currentAssistantMessage: BrainstormMessage?
     private var streamingBuffer: String = ""  // Accumulates chunks before publishing
     private var lastStreamUpdate: Date = .distantPast
+    private var animationTask: Task<Void, Never>?
+    private var wordsToAnimate: [String] = []
+    private var animatedWordIndex: Int = 0
 
     // MARK: - Callbacks
 
@@ -118,7 +122,11 @@ final class BrainstormClient: ObservableObject {
         // Reset streaming state
         streamingBuffer = ""
         streamingText = ""
+        displayedText = ""
         lastStreamUpdate = .distantPast
+        currentAssistantMessage = nil
+        animationTask?.cancel()
+        animationTask = nil
 
         // Add user message
         let userMessage = BrainstormMessage(
@@ -128,13 +136,8 @@ final class BrainstormClient: ObservableObject {
         )
         messages.append(userMessage)
 
-        // Prepare assistant message placeholder
-        currentAssistantMessage = BrainstormMessage(
-            role: .assistant,
-            content: "",
-            timestamp: Date()
-        )
-        messages.append(currentAssistantMessage!)
+        // Don't add assistant placeholder yet - ThinkingIndicator shows during thinking
+        // Assistant message will be created when first chunk arrives
 
         isTyping = true
 
@@ -259,17 +262,23 @@ final class BrainstormClient: ObservableObject {
             }
 
         case "chunk":
-            // Streaming chunk - accumulate in buffer, throttle UI updates
+            // Streaming chunk - accumulate and animate word-by-word
             if let content = json["content"] as? String {
-                streamingBuffer += content
-
-                // Only update UI every 100ms to prevent layout hangs
-                // SwiftUI Text layout with textSelection can be expensive
-                let now = Date()
-                if now.timeIntervalSince(lastStreamUpdate) > 0.1 {
-                    streamingText = streamingBuffer
-                    lastStreamUpdate = now
+                // Create assistant message on first chunk (replaces ThinkingIndicator)
+                if currentAssistantMessage == nil {
+                    currentAssistantMessage = BrainstormMessage(
+                        role: .assistant,
+                        content: "",
+                        timestamp: Date()
+                    )
+                    messages.append(currentAssistantMessage!)
                 }
+
+                streamingBuffer += content
+                streamingText = streamingBuffer
+
+                // Animate the text word-by-word for polished feel
+                animateStreamingText(streamingBuffer)
             }
 
         case "message_complete":
@@ -278,8 +287,10 @@ final class BrainstormClient: ObservableObject {
             if !finalContent.isEmpty {
                 finalizeStreamingMessage(finalContent)
             }
+            // Stop animation and reset streaming state
+            finishAnimation(with: "")
             streamingBuffer = ""
-            streamingText = ""
+            displayedText = ""
             isTyping = false
             currentAssistantMessage = nil
 
@@ -350,5 +361,50 @@ final class BrainstormClient: ObservableObject {
     private func sendPing() {
         let pingMessage = #"{"type": "ping"}"#
         webSocketTask?.send(.string(pingMessage)) { _ in }
+    }
+
+    // MARK: - Text Animation
+
+    /// Animate text appearing word-by-word for a polished streaming feel
+    private func animateStreamingText(_ newText: String) {
+        // Cancel any existing animation
+        animationTask?.cancel()
+
+        // Split into words, preserving whitespace
+        let words = newText.components(separatedBy: " ")
+        let currentWordCount = displayedText.components(separatedBy: " ").count
+
+        // Only animate new words
+        guard words.count > currentWordCount else {
+            displayedText = newText
+            return
+        }
+
+        let newWords = Array(words.dropFirst(max(0, currentWordCount - 1)))
+
+        animationTask = Task { @MainActor in
+            for (index, _) in newWords.enumerated() {
+                guard !Task.isCancelled else { return }
+
+                // Build text up to current word
+                let wordIndex = currentWordCount + index
+                let visibleWords = Array(words.prefix(wordIndex + 1))
+                displayedText = visibleWords.joined(separator: " ")
+
+                // Delay between words - 60ms for readable streaming feel
+                try? await Task.sleep(nanoseconds: 60_000_000)
+            }
+
+            // Ensure we show the complete text
+            displayedText = newText
+        }
+    }
+
+    /// Stop animation and show all text immediately
+    private func finishAnimation(with finalText: String) {
+        animationTask?.cancel()
+        animationTask = nil
+        displayedText = finalText
+        streamingText = finalText
     }
 }
