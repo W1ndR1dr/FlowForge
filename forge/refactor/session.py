@@ -319,10 +319,9 @@ The orchestrator will handle the rest.
         terminal_enum = Terminal(terminal) if terminal != "auto" else Terminal.AUTO
         claude_command = "claude --dangerously-skip-permissions"
 
-        # Brief tab title: "2.2 Codebase" (session_id + first word of title)
-        # First word distinguishes better: "4.1 Phase" vs "4.2 Audit"
-        brief_title = spec.title.split()[0] if spec.title else "Session"
-        tab_title = f"{self.session_id} {brief_title}"
+        # Brief tab title showing phase + role
+        # Format: "2.2 Builder" for execution sessions
+        tab_title = f"{self.session_id} Builder"
 
         success = open_terminal_in_directory(
             directory=session_dir,

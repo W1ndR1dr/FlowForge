@@ -364,7 +364,7 @@ Every session in EXECUTION.md should have:
             directory=refactor_dir,  # Launch IN the refactor dir so Claude reads its CLAUDE.md
             terminal=terminal_enum,
             command=claude_command,
-            title=f"Forge Planning: {title}",
+            title="P0 Planner",  # Brief: Phase 0 = Planning
             initial_input="Let's begin!",  # Enthusiastic trigger - Claude decides thinking depth from CLAUDE.md
         )
 

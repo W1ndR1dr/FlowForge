@@ -1887,7 +1887,7 @@ def refactor_resume(
         directory=refactor_dir,
         terminal=terminal_enum,
         command=claude_command,
-        title=f"Forge Planning: {refactor.title}",
+        title="P0 Planner",  # Brief: Phase 0 = Planning (resume)
         initial_input="Let's continue!",  # Auto-type to resume the session
     )
 
