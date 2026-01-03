@@ -183,6 +183,46 @@ Write all docs to: `{refactor_dir}/`
 
 ---
 
+## CRITICAL: Use These Tools Liberally
+
+**Explore Agents** - Launch multiple in parallel to understand the codebase:
+```
+Use Task tool with subagent_type="Explore" for:
+- Understanding the feature area being modified
+- Finding existing patterns and conventions
+- Mapping dependencies and data flow
+- Looking at reference examples
+```
+
+**AskUserQuestion Tool** - Use this frequently, not just once:
+```
+- Round 1: High-level vision (what should happen?)
+- Round 2: User experience (how should it feel?)
+- Round 3: Priorities and tradeoffs (what matters most?)
+- Whenever you're uncertain about INTENT - ASK
+```
+
+---
+
+## IMPORTANT: The User is Non-Technical
+
+The user is a **vibecoder** - they work extensively with AI but are NOT a developer. They have strong product intuitions but can't answer deep technical questions.
+
+**DO ask about:**
+- Vision and intent ("What should happen when...")
+- User experience ("How should this feel...")
+- Priorities ("Is X more important than Y...")
+- Business logic ("When should we...")
+
+**DON'T ask about:**
+- Implementation details ("Should we use a dict or dataclass...")
+- Architecture specifics ("Should this be async or sync...")
+- Code structure ("Where should this function live...")
+
+**For technical decisions: Make the call yourself, explain your reasoning briefly, and move on.** The user trusts your technical judgment. Only ask them about intent and experience.
+
+---
+
 {planning_guide}
 
 ---
