@@ -173,17 +173,25 @@ def _open_warp(
     # In Python, we need \\\" to get a literal \" in the output
     dir_str = str(directory)
 
+    # Build tab title escape sequence if title provided
+    # Uses ANSI escape: \033]0;title\007
+    title_cmd = ''
+    if title:
+        # Sanitize title for shell (keep alphanumeric, spaces, dots, hyphens)
+        safe_title = ''.join(c for c in title if c.isalnum() or c in ' .-:#')
+        title_cmd = f'echo -ne \\"\\\\033]0;{safe_title}\\\\007\\" && '
+
     # Create a new window (Cmd+N) and cd to directory
     if command:
         # Build the shell command with proper quoting for AppleScript
-        full_command = 'cd \\"' + dir_str + '\\" && ' + command
+        full_command = title_cmd + 'cd \\"' + dir_str + '\\" && ' + command
         script_parts.append('    tell application "System Events" to keystroke "n" using command down')
         script_parts.append('    delay 0.5')
         script_parts.append('    tell application "System Events" to keystroke "' + full_command + '"')
         script_parts.append('    tell application "System Events" to keystroke return')
     else:
-        # Just open in the directory
-        cd_command = 'cd \\"' + dir_str + '\\"'
+        # Just open in the directory (with optional title)
+        cd_command = title_cmd + 'cd \\"' + dir_str + '\\"'
         script_parts.append('    tell application "System Events" to keystroke "n" using command down')
         script_parts.append('    delay 0.5')
         script_parts.append('    tell application "System Events" to keystroke "' + cd_command + '"')

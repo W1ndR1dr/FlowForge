@@ -319,11 +319,16 @@ The orchestrator will handle the rest.
         terminal_enum = Terminal(terminal) if terminal != "auto" else Terminal.AUTO
         claude_command = "claude --dangerously-skip-permissions"
 
+        # Brief tab title: "2.2 Codebase" (session_id + first word of title)
+        # First word distinguishes better: "4.1 Phase" vs "4.2 Audit"
+        brief_title = spec.title.split()[0] if spec.title else "Session"
+        tab_title = f"{self.session_id} {brief_title}"
+
         success = open_terminal_in_directory(
             directory=session_dir,
             terminal=terminal_enum,
             command=claude_command,
-            title=f"Session {self.session_id}: {spec.title}",
+            title=tab_title,
             initial_input="Let's begin!",
         )
 
