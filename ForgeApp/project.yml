@@ -59,7 +59,7 @@ targets:
       - Design
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.forge.app.ios
+        PRODUCT_BUNDLE_IDENTIFIER: com.flowforge.app.ios
         INFOPLIST_FILE: App-iOS/Info.plist
         PRODUCT_NAME: Forge
         SDKROOT: iphoneos
