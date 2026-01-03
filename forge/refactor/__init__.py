@@ -3,13 +3,57 @@ Forge Refactor Module - Major Refactor Mode for multi-session refactors.
 
 Components:
     - PlanningAgent: Interactive planning conversation that generates refactor docs
-    - RefactorState: State management for refactors (coming in Phase 1)
-    - Signals: File-based agent communication (coming in Phase 1)
+    - RefactorState: State management for refactors
+    - SessionState: State for individual execution sessions
+    - Signals: File-based agent communication
 
 Philosophy: "Docs ARE the memory" - agents read from files, no accumulated context.
 See docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md for guiding principles.
 """
 
 from .planning_agent import PlanningAgent
+from .state import (
+    RefactorState,
+    RefactorStatus,
+    SessionState,
+    SessionStatus,
+    AuditResult,
+)
+from .signals import (
+    Signal,
+    SignalType,
+    write_signal,
+    read_signals,
+    read_latest_signal,
+    clear_signals,
+    get_signals_dir,
+    signal_session_started,
+    signal_session_done,
+    signal_audit_passed,
+    signal_revision_needed,
+    signal_question,
+)
 
-__all__ = ["PlanningAgent"]
+__all__ = [
+    # Planning
+    "PlanningAgent",
+    # State
+    "RefactorState",
+    "RefactorStatus",
+    "SessionState",
+    "SessionStatus",
+    "AuditResult",
+    # Signals
+    "Signal",
+    "SignalType",
+    "write_signal",
+    "read_signals",
+    "read_latest_signal",
+    "clear_signals",
+    "get_signals_dir",
+    "signal_session_started",
+    "signal_session_done",
+    "signal_audit_passed",
+    "signal_revision_needed",
+    "signal_question",
+]

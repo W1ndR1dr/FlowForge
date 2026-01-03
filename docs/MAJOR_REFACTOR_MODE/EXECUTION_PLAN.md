@@ -342,7 +342,7 @@ Build this FIRST.
 | | |
 |---|---|
 | **Worktree** | NO - Direct to main branch |
-| **Scope** | IN: State dataclass, signal file I/O. OUT: CLI commands, templates (that's 1.2) |
+| **Scope** | IN: RefactorState dataclass, SessionState, signal file I/O. OUT: Session launcher (that's 1.2) |
 | **Start When** | Fresh session, no prerequisites |
 | **Stop When** | All exit criteria checked, code committed |
 
@@ -355,53 +355,94 @@ Read these docs first:
 - docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md (principles)
 - docs/MAJOR_REFACTOR_MODE/DECISIONS.md (architecture decisions)
 
-Then implement the foundation for Major Refactor Mode:
+Note: forge/refactor/ already exists with planning_agent.py and prompts.py.
+You're ADDING to this module, not creating it from scratch.
 
-1. Create forge/refactor/ module:
-   - __init__.py (empty, just makes it a package)
-   - state.py - RefactorState dataclass with JSON persistence
-   - signals.py - Signal file reading/writing
+Implement the execution state infrastructure:
 
-2. RefactorState (in state.py) should have:
-   - refactor_id: str
-   - title: str
-   - status: str (planning, active, paused, completed)
-   - current_phase: str
-   - phases: list of phase definitions
-   - created_at, updated_at: datetime
+1. Create forge/refactor/state.py with these dataclasses:
 
-   Include save() and load() methods. Follow patterns from forge/registry.py.
+   @dataclass
+   class SessionState:
+       """State for a single execution session."""
+       session_id: str  # e.g., "1.1", "2.1"
+       status: str  # "pending" | "in_progress" | "completed" | "needs_revision"
+       started_at: Optional[str] = None
+       completed_at: Optional[str] = None
+       commit_hash: Optional[str] = None
+       audit_result: Optional[str] = None  # "pending" | "passed" | "failed"
+       notes: str = ""  # Handoff notes for next session
 
-3. Signals (in signals.py):
-   - write_signal(path, signal_type, payload) - atomic write (temp file + rename)
-   - read_signal(path) - read and parse JSON
-   - Signal types: phase_complete, audit_complete, iterate_phase
+   @dataclass
+   class RefactorState:
+       """Runtime state for a refactor execution."""
+       refactor_id: str
+       status: str  # "planning" | "executing" | "paused" | "completed"
+       current_session: Optional[str] = None  # e.g., "1.1"
+       sessions: dict = field(default_factory=dict)  # session_id -> SessionState
+       started_at: Optional[str] = None
+       updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
+       completed_at: Optional[str] = None
 
-After implementing, show me a quick demo that:
-- Creates a RefactorState
-- Saves it to JSON
-- Writes a signal file
-- Reads it back
+   Include:
+   - to_dict() and from_dict() methods (follow registry.py patterns)
+   - save(path) and load(path) class methods
+   - Location: .forge/refactors/{id}/state.json
+
+2. Create forge/refactor/signals.py with:
+
+   Signal types (use an Enum):
+   - SESSION_STARTED: Agent began work on a session
+   - SESSION_DONE: Agent finished work (includes commit_hash, summary)
+   - AUDIT_PASSED: Audit agent approved the session
+   - REVISION_NEEDED: Audit found issues (includes issues list)
+   - QUESTION: Agent needs user input (includes question, options)
+   - PAUSED: User paused the refactor
+
+   Functions:
+   - write_signal(signals_dir, signal_type, payload) -> Path
+     - Atomic write (write to temp file, then rename)
+     - Filename: {timestamp}_{signal_type}.json
+   - read_signals(signals_dir) -> list[Signal]
+     - Returns all signals, sorted by timestamp
+   - clear_signals(signals_dir)
+     - Archives old signals to signals/archive/
+
+   Signal file format:
+   {
+     "type": "SESSION_DONE",
+     "session_id": "1.1",
+     "timestamp": "2026-01-03T14:30:00",
+     "payload": {...}
+   }
+
+3. Update forge/refactor/__init__.py to export the new classes.
+
+After implementing, show a quick demo:
+- Create a RefactorState with two sessions
+- Save to JSON, load it back
+- Write a SESSION_DONE signal
+- Read signals back
 ```
 
 ---
 
 **ASK USER IF...**
 
-- You're unsure about the state structure (show proposed dataclass first)
-- You find conflicting patterns in existing code
-- Something in PHILOSOPHY.md or DECISIONS.md seems wrong
+- The state structure looks right (show the dataclass first)
+- Signal archiving behavior is correct
+- You find patterns in registry.py that conflict
 
 ---
 
 **EXIT CRITERIA**
 
-- [ ] `forge/refactor/__init__.py` exists
-- [ ] `forge/refactor/state.py` exists with `RefactorState` dataclass
-- [ ] `forge/refactor/signals.py` exists with read/write functions
-- [ ] Demo shows state can be saved and loaded
-- [ ] Demo shows signal can be written and read
-- [ ] Code follows existing Forge patterns
+- [ ] `forge/refactor/state.py` exists with RefactorState and SessionState
+- [ ] `forge/refactor/signals.py` exists with SignalType enum and read/write functions
+- [ ] State can be saved to JSON and loaded back
+- [ ] Signals can be written atomically and read back
+- [ ] Signal files use timestamp prefix for ordering
+- [ ] Code follows existing Forge patterns (see registry.py)
 
 ---
 
@@ -409,12 +450,12 @@ After implementing, show me a quick demo that:
 
 When done, commit:
 ```bash
-git add forge/refactor/
+git add forge/refactor/state.py forge/refactor/signals.py forge/refactor/__init__.py
 git commit -m "feat(refactor): Session 1.1 - Core state and signal infrastructure
 
-- Add RefactorState dataclass with JSON persistence
-- Add atomic signal file read/write utilities
-- Foundation for Major Refactor Mode"
+- Add RefactorState and SessionState dataclasses
+- Add atomic signal file read/write with SignalType enum
+- Foundation for multi-session refactor execution"
 ```
 
 Ask user: "Ready to push to remote?" (only push if they say yes)
@@ -423,29 +464,32 @@ Ask user: "Ready to push to remote?" (only push if they say yes)
 
 **HANDOFF**
 
-Update the Session Log at the bottom of this file with:
-- Status: DONE
-- What was completed
-- Any discoveries or decisions made
-- Files created
+Session 1.2 will use this infrastructure to:
+- Load RefactorState to know current position
+- Update state when launching a session
+- Write SESSION_STARTED signal
+
+Key files: state.py (RefactorState, SessionState), signals.py (SignalType, write_signal, read_signals)
 
 ---
 
 **Files to create:**
-- `forge/refactor/__init__.py`
 - `forge/refactor/state.py`
 - `forge/refactor/signals.py`
 
+**Files to modify:**
+- `forge/refactor/__init__.py`
+
 ---
 
-### Session 1.2: CLI Commands & Doc Templates
+### Session 1.2: Execution Session Launcher
 
 | | |
 |---|---|
 | **Worktree** | NO - Direct to main branch |
-| **Scope** | IN: CLI commands, doc templates. OUT: Detection, analysis (that's Phase 2) |
+| **Scope** | IN: Session launcher that starts execution sessions. OUT: Orchestrator logic (that's Phase 3) |
 | **Start When** | Session 1.1 is DONE (state.py and signals.py exist) |
-| **Stop When** | Can run `forge refactor init` and see generated docs |
+| **Stop When** | Can run `forge refactor start {id} {session}` and see Claude session launch |
 
 ---
 
@@ -455,53 +499,83 @@ Update the Session Log at the bottom of this file with:
 Read docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md first.
 
 Check that Session 1.1 is complete:
-- forge/refactor/state.py should exist
-- forge/refactor/signals.py should exist
+- forge/refactor/state.py should exist with RefactorState, SessionState
+- forge/refactor/signals.py should exist with write_signal, read_signals
 
-Then continue Major Refactor Mode foundation:
+Note: CLI commands already exist (forge refactor plan/list/status/resume).
+You're adding the execution launcher, not recreating existing commands.
 
-1. Add CLI commands to forge/cli.py:
-   - forge refactor init "Title" - Create new refactor with doc templates
-   - forge refactor status [id] - Show refactor state
-   - forge refactor list - List all refactors
+Implement the execution session launcher:
 
-   Follow existing CLI patterns (Typer + Rich for formatting).
+1. Create forge/refactor/session.py with ExecutionSession class:
 
-2. Create forge/refactor/templates.py:
-   - Template strings for each doc type
-   - Use docs/MAJOR_REFACTOR_MODE/ files as reference for structure
-   - generate_docs(refactor_id, title, goal) function
+   class ExecutionSession:
+       def __init__(self, refactor_id: str, session_id: str, project_root: Path):
+           ...
 
-3. On init, create:
-   .forge/refactors/{id}/
-   ├── PHILOSOPHY.md
-   ├── VISION.md
-   ├── DECISIONS.md
-   ├── EXECUTION.md
-   ├── ISSUES.md
-   ├── metadata.json
-   └── signals/
+       def load_session_spec(self) -> dict:
+           """Load session spec from EXECUTION.md or phases/{session_id}/spec.md"""
+           - Parse the session's PROMPT, EXIT CRITERIA, etc.
+           - Return structured dict
 
-Demo: Run `forge refactor init "Test Feature"` and show the generated structure.
+       def generate_execution_claude_md(self) -> str:
+           """Generate CLAUDE.md for this execution session."""
+           Include:
+           - "Read PHILOSOPHY.md and DECISIONS.md first"
+           - The session PROMPT from spec
+           - EXIT CRITERIA as checklist
+           - GIT INSTRUCTIONS
+           - "When done, run: forge refactor done {session_id}"
+
+       def launch(self) -> tuple[bool, str]:
+           """Launch the session in Warp."""
+           - Load RefactorState
+           - Validate session can start (check prerequisites)
+           - Update state: current_session, status = executing
+           - Write SESSION_STARTED signal
+           - Generate CLAUDE.md to .forge/refactors/{id}/sessions/{session_id}/CLAUDE.md
+           - Open Warp with claude command
+           - Return (success, message)
+
+2. Add CLI commands to forge/cli.py:
+
+   forge refactor start {refactor-id} {session-id}
+     - Creates ExecutionSession and calls launch()
+     - Prints status and instructions
+
+   forge refactor done {session-id}
+     - Marks session complete in RefactorState
+     - Writes SESSION_DONE signal with commit hash
+     - Updates EXECUTION.md session log
+     - Prints "Ready for audit" or next session info
+
+3. Test flow:
+   - Create a test refactor with `forge refactor plan "Test" --goal "test"`
+   - Add a simple session spec to EXECUTION.md
+   - Run `forge refactor start test 1.1`
+   - Verify Warp opens with proper CLAUDE.md
+   - Run `forge refactor done 1.1`
+   - Verify state updated and signal written
 ```
 
 ---
 
 **ASK USER IF...**
 
-- The template content looks right (show a preview before writing)
-- You're unsure how to integrate with existing CLI structure
-- The generated docs need different sections
+- The session CLAUDE.md content looks right (show a preview)
+- Session spec parsing from EXECUTION.md is unclear
+- You need to create phases/{session_id}/ directory structure
 
 ---
 
 **EXIT CRITERIA**
 
-- [ ] `forge refactor init "Test"` creates `.forge/refactors/test/` with all docs
-- [ ] `forge refactor status test` shows current state
-- [ ] `forge refactor list` shows all refactors
-- [ ] Generated docs follow the structure from docs/MAJOR_REFACTOR_MODE/
-- [ ] CLI output uses Rich formatting (matches existing commands)
+- [ ] `forge/refactor/session.py` exists with ExecutionSession class
+- [ ] `forge refactor start {id} {session}` launches Warp with Claude
+- [ ] Generated CLAUDE.md includes PHILOSOPHY.md reference and session prompt
+- [ ] RefactorState is updated when session starts
+- [ ] SESSION_STARTED signal is written
+- [ ] `forge refactor done {session}` updates state and writes SESSION_DONE signal
 
 ---
 
@@ -509,12 +583,13 @@ Demo: Run `forge refactor init "Test Feature"` and show the generated structure.
 
 When done, commit:
 ```bash
-git add forge/cli.py forge/refactor/templates.py
-git commit -m "feat(refactor): Session 1.2 - CLI commands and doc templates
+git add forge/refactor/session.py forge/cli.py
+git commit -m "feat(refactor): Session 1.2 - Execution session launcher
 
-- Add forge refactor init/status/list commands
-- Add doc template generator
-- Creates full refactor directory structure"
+- Add ExecutionSession class for launching execution sessions
+- Add forge refactor start/done CLI commands
+- Generates session-specific CLAUDE.md with prompts
+- Updates RefactorState and writes signals on start/done"
 ```
 
 Ask user: "Ready to push?"
@@ -523,18 +598,21 @@ Ask user: "Ready to push?"
 
 **HANDOFF**
 
-Update Session Log. Key info for Phase 2:
-- Where templates live
-- How to test the CLI commands
-- Any template improvements needed
+Phase 1 Foundation is complete! The orchestrator (Phase 3) will use:
+- ExecutionSession.launch() to start sessions
+- RefactorState to track progress
+- Signals to know when sessions complete
+
+Key insight: The orchestrator doesn't run the sessions - it coordinates them.
+Sessions are independent Claude Code instances that communicate via signals.
 
 ---
 
-**Files to modify:**
-- `forge/cli.py` - Add refactor command group
-
 **Files to create:**
-- `forge/refactor/templates.py`
+- `forge/refactor/session.py`
+
+**Files to modify:**
+- `forge/cli.py` - Add start/done commands
 
 ---
 
@@ -1409,8 +1487,34 @@ The feature is now ready for use!
 ---
 
 ### Session 1.1: Core State & Signals
-**Date**: (not started)
-**Status**: PENDING
+**Date**: 2026-01-03
+**Status**: DONE
+
+**Completed**:
+- [x] `forge/refactor/state.py` exists with RefactorState and SessionState
+- [x] `forge/refactor/signals.py` exists with SignalType enum and read/write functions
+- [x] State can be saved to JSON and loaded back
+- [x] Signals can be written atomically and read back
+- [x] Signal files use timestamp prefix for ordering
+- [x] Code follows existing Forge patterns (see registry.py)
+
+**Discoveries**:
+- Used Enums for all status types (RefactorStatus, SessionStatus, AuditResult, SignalType) for type safety
+- Added convenience functions like `signal_session_done()` for common signal patterns
+- Signal filenames include microsecond precision for proper ordering
+
+**Files Created**:
+- `forge/refactor/state.py` - RefactorState, SessionState dataclasses with to_dict/from_dict, save/load
+- `forge/refactor/signals.py` - SignalType enum, atomic write_signal, read_signals, convenience helpers
+
+**Files Modified**:
+- `forge/refactor/__init__.py` - Exports all new classes and functions
+
+**For Next Session (1.2)**:
+- Use RefactorState.load() to read current state
+- Use state.start_session() when launching a session
+- Use signal_session_started() to write signal when session begins
+- Signals go in .forge/refactors/{id}/signals/
 
 ---
 
