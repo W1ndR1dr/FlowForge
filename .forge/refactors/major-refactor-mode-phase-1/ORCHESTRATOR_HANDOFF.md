@@ -1,75 +1,96 @@
 # Orchestrator Handoff - Major Refactor Mode Phase 1
 
-> **Created**: 2026-01-03
-> **From**: Manual orchestrator session (context exhausted)
+> **Updated**: 2026-01-03
+> **From**: Manual orchestrator session (bash shell broke)
 > **To**: Next Claude session
 
 ---
 
 ## Current State
 
-**Session 0.1**: ✅ DONE - Planning Agent built
-**Phase 1 Planning**: ✅ DONE - Planning Agent updated EXECUTION_PLAN.md
+**Phase 1**: ✅ COMPLETE (Sessions 1.1 + 1.2)
+**Phase 2**: 🔄 Ready to start Session 2.1
 
-**Next**: Execute Session 1.1 (Core State & Signals)
+**Git**: Pushed to origin/main (commits for 1.1 and 1.2)
 
 ---
 
 ## What's Been Built
 
-1. **Planning Agent** (`forge/refactor/planning_agent.py`)
-   - `forge refactor plan "Title" --goal "..."` - launches planning session
-   - `forge refactor list/status/resume` - manage refactors
-   - Auto-launches Warp, types "Let's begin!", submits with key code 36
+### Session 0.1 ✅
+- Planning Agent (`forge refactor plan`)
 
-2. **Terminal auto-input** (`forge/terminal.py`)
-   - `initial_input` parameter for typing into launched sessions
-   - Works with Warp, iTerm, Terminal.app
+### Session 1.1 ✅
+- `forge/refactor/state.py` - RefactorState, SessionState dataclasses
+- `forge/refactor/signals.py` - SignalType enum, atomic signal read/write
 
-3. **Docs created**:
-   - `docs/MAJOR_REFACTOR_MODE/BOOTSTRAPPING.md` - meta-strategy
-   - `docs/MAJOR_REFACTOR_MODE/EXECUTION_PLAN.md` - updated by Planning Agent
+### Session 1.2 ✅
+- `forge/refactor/session.py` - ExecutionSession class, session spec parsing
+- `forge refactor start/done` CLI commands
+- Fixed: Added `initial_input="Let's begin!"` to match planning agent launch
+
+**Audit**: Phase 1 passed all checks.
 
 ---
 
 ## Your Mission
 
-**Execute Session 1.1: Core State & Signals**
+**Execute Session 2.1: Complexity Detection**
 
-The spec is in `docs/MAJOR_REFACTOR_MODE/EXECUTION_PLAN.md` (search for "Session 1.1").
+1. First, commit the session.py fix (added initial_input):
+   ```bash
+   cd /Users/Brian/Projects/Active/Forge
+   git add forge/refactor/session.py
+   git commit -m "fix(refactor): Add initial_input to session launch for auto-start"
+   git push
+   ```
 
-Quick summary:
-1. Create `forge/refactor/state.py` with RefactorState and SessionState dataclasses
-2. Create `forge/refactor/signals.py` with SignalType enum and atomic read/write
-3. Update `forge/refactor/__init__.py` to export new classes
-4. Demo: create state, save/load, write/read signals
+2. Then launch Session 2.1:
+   ```bash
+   forge refactor start major-refactor-mode-phase-1 2.1
+   ```
 
----
-
-## Key Context
-
-- **User is non-technical** (vibecoder) - don't ask implementation questions
-- **You are the manual orchestrator** - scaffolding until Orchestrator Agent exists
-- **Bootstrapping pattern** - each phase builds tools for the next phase
-- **Docs ARE the memory** - agents read from files, no accumulated context
+3. A new Warp window should open with Claude starting automatically.
 
 ---
 
-## How to Execute
+## Session 2.1 Summary
 
-1. Read the Session 1.1 spec in EXECUTION_PLAN.md
-2. Implement state.py and signals.py
-3. Follow the exit criteria checklist
-4. Commit with the provided git message
-5. Update the Session Log in EXECUTION_PLAN.md
-6. Then execute Session 1.2
+**Goal**: Add complexity detection to BrainstormAgent
+
+The session spec is in `docs/MAJOR_REFACTOR_MODE/EXECUTION_PLAN.md` - search for "Session 2.1".
+
+Key points:
+- Modify `forge/agents/prompts.py` - Add detection guidance to REFINE_SYSTEM_PROMPT
+- Claude decides when something is too big (AGI-pilled, no hardcoded thresholds)
+- Output marker: `MAJOR_REFACTOR_RECOMMENDED`
 
 ---
 
-## Files to Read First
+## Bootstrapping Ladder
 
-- `docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md` - principles
-- `docs/MAJOR_REFACTOR_MODE/DECISIONS.md` - architecture decisions
-- `docs/MAJOR_REFACTOR_MODE/EXECUTION_PLAN.md` - the session specs
-- `forge/refactor/` - existing code (planning_agent.py, prompts.py)
-- `forge/registry.py` - patterns to follow for dataclasses
+```
+Step 0: Human + Claude (manual)     ← YOU ARE HERE
+Step 1: Planning Agent              ✅ DONE
+Step 2: Phase 1 Foundation          ✅ DONE
+Step 3: Phase 2 Detection           🔄 NEXT (2.1, 2.2)
+Step 4: Phase 3 Orchestrator        ⬜ Flywheel kicks in here
+Step 5: Self-sustaining             ⬜
+```
+
+---
+
+## Key Files
+
+- `docs/MAJOR_REFACTOR_MODE/EXECUTION_PLAN.md` - All session specs
+- `docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md` - Principles (read first!)
+- `docs/MAJOR_REFACTOR_MODE/DECISIONS.md` - Architecture decisions
+- `forge/refactor/` - All the infrastructure
+
+---
+
+## Notes
+
+- User wants methodical, low-error execution - no shortcuts
+- User is non-technical (vibecoder) - don't ask implementation questions
+- Commit after each session, update session log in EXECUTION_PLAN.md

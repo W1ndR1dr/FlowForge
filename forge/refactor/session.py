@@ -324,6 +324,7 @@ The orchestrator will handle the rest.
             terminal=terminal_enum,
             command=claude_command,
             title=f"Session {self.session_id}: {spec.title}",
+            initial_input="Let's begin!",
         )
 
         if success:
