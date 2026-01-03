@@ -131,7 +131,7 @@ struct ForgeApp: App {
             }
         }
         .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)  // Allow resizing larger than content
         .defaultSize(width: 750, height: 700)
     }
 }

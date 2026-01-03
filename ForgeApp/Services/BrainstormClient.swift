@@ -51,6 +51,7 @@ final class BrainstormClient: ObservableObject {
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var pingTimer: Timer?
+    private var responseTimeoutTask: Task<Void, Never>?  // Timeout for hung responses
     private var currentProject: String?
     private var currentFeatureId: String?
     private var currentFeatureTitle: String?
@@ -58,6 +59,9 @@ final class BrainstormClient: ObservableObject {
     private var currentAssistantMessage: BrainstormMessage?
     private var streamingBuffer: String = ""  // Accumulates chunks before publishing
     private var lastStreamUpdate: Date = .distantPast
+
+    // Timeout duration for responses (2 minutes - Claude can take a while with web search)
+    private let responseTimeout: TimeInterval = 120
     private var animationTask: Task<Void, Never>?
     private var wordsToAnimate: [String] = []
     private var animatedWordIndex: Int = 0
@@ -96,11 +100,16 @@ final class BrainstormClient: ObservableObject {
     func disconnect() {
         pingTimer?.invalidate()
         pingTimer = nil
+        responseTimeoutTask?.cancel()
+        responseTimeoutTask = nil
+        animationTask?.cancel()
+        animationTask = nil
 
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         currentProject = nil
         isConnected = false
+        isTyping = false
     }
 
     /// Reset the brainstorm session (start fresh)
@@ -127,6 +136,8 @@ final class BrainstormClient: ObservableObject {
         currentAssistantMessage = nil
         animationTask?.cancel()
         animationTask = nil
+        responseTimeoutTask?.cancel()
+        responseTimeoutTask = nil
 
         // Add user message
         let userMessage = BrainstormMessage(
@@ -141,6 +152,9 @@ final class BrainstormClient: ObservableObject {
 
         isTyping = true
 
+        // Start response timeout
+        startResponseTimeout()
+
         // Send to server
         let payload: [String: Any] = [
             "type": "message",
@@ -152,11 +166,62 @@ final class BrainstormClient: ObservableObject {
             webSocketTask?.send(.string(jsonString)) { [weak self] error in
                 if let error = error {
                     Task { @MainActor in
-                        self?.lastError = error
+                        self?.handleSendError(error)
                     }
                 }
             }
         }
+    }
+
+    /// Start timeout timer for response
+    private func startResponseTimeout() {
+        responseTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64((self?.responseTimeout ?? 120) * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                self?.handleResponseTimeout()
+            }
+        }
+    }
+
+    /// Handle response timeout - reset state and show error
+    private func handleResponseTimeout() {
+        guard isTyping else { return }  // Already got a response
+
+        print("[BrainstormClient] Response timeout after \(responseTimeout)s")
+
+        // Clean up state
+        isTyping = false
+        streamingBuffer = ""
+        streamingText = ""
+        displayedText = ""
+
+        // If we had started an assistant message, finalize it with error
+        if currentAssistantMessage != nil {
+            finalizeStreamingMessage(streamingBuffer.isEmpty ? "Response timed out. Please try again." : streamingBuffer)
+        } else {
+            // Add error message
+            let errorMessage = BrainstormMessage(
+                role: .assistant,
+                content: "⚠️ Response timed out. The server may be busy. Please try again.",
+                timestamp: Date()
+            )
+            messages.append(errorMessage)
+        }
+
+        currentAssistantMessage = nil
+        lastError = NSError(
+            domain: "BrainstormClient",
+            code: -2,
+            userInfo: [NSLocalizedDescriptionKey: "Response timed out"]
+        )
+    }
+
+    /// Handle send error
+    private func handleSendError(_ error: Error) {
+        lastError = error
+        isTyping = false
+        responseTimeoutTask?.cancel()
     }
 
     // MARK: - Private Methods
@@ -264,6 +329,10 @@ final class BrainstormClient: ObservableObject {
         case "chunk":
             // Streaming chunk - accumulate and animate word-by-word
             if let content = json["content"] as? String {
+                // Cancel timeout on first chunk - we're getting data
+                responseTimeoutTask?.cancel()
+                responseTimeoutTask = nil
+
                 // Create assistant message on first chunk (replaces ThinkingIndicator)
                 if currentAssistantMessage == nil {
                     currentAssistantMessage = BrainstormMessage(
@@ -282,6 +351,10 @@ final class BrainstormClient: ObservableObject {
             }
 
         case "message_complete":
+            // Cancel timeout
+            responseTimeoutTask?.cancel()
+            responseTimeoutTask = nil
+
             // Full message received - finalize with complete content
             let finalContent = json["content"] as? String ?? streamingBuffer
             if !finalContent.isEmpty {
@@ -339,6 +412,10 @@ final class BrainstormClient: ObservableObject {
         isConnected = false
         lastError = error
         isTyping = false
+        responseTimeoutTask?.cancel()
+        responseTimeoutTask = nil
+        animationTask?.cancel()
+        animationTask = nil
 
         print("Brainstorm WebSocket error: \(error.localizedDescription)")
 
