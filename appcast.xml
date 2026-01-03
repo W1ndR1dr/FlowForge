@@ -7,25 +7,25 @@
         <language>en</language>
 
         <item>
-            <title>Forge 1.10.0</title>
+            <title>Forge 1.11.0</title>
             <description><![CDATA[
-                <h2>What's New in 1.10.0</h2>
+                <h2>What's New in 1.11.0</h2>
                 <ul>
 ---NOTES---
-                    <li>✨ New unified toolbar brings Linear-style workflow to Forge</li>
-                    <li>Project descriptions now expand freely for bigger visions</li>
-                    <li>Cleaner look with refined title display</li>
-                    <li>Fresh app icon with subtle dark background</li>
+                    <li>✨ New AI idea generator helps spark feature inspiration</li>
+                    <li>Refine chat now opens in resizable separate windows</li>
+                    <li>Smoother waveform animations and word-by-word streaming</li>
+                    <li>Fixed performance issues with long brainstorm conversations</li>
                 </ul>
             ]]></description>
-            <pubDate>Tue, 30 Dec 2025 22:24:41 -0800</pubDate>
+            <pubDate>Sat, 03 Jan 2026 11:18:36 -0800</pubDate>
             <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>1.10.0</sparkle:shortVersionString>
+            <sparkle:shortVersionString>1.11.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure
-                url="https://github.com/W1ndR1dr/Forge/releases/download/v1.10.0/Forge-1.10.0.zip"
-                sparkle:edSignature="sparkle:edSignature="BHdq1McB18811qhb9ndF6yeKXwq+UEy+zmTWxWHZ42Hk52OMV8CG6VGcBY8AYH4u9DpAr2pJ/dvs/OD2g8WpAQ==" length="1866973""
-                length="1866973"
+                url="https://github.com/W1ndR1dr/Forge/releases/download/v1.11.0/Forge-1.11.0.zip"
+                sparkle:edSignature="sparkle:edSignature="mp88DdtpBoIkrabqO7pHdtzljWB9UUjvl/p/5rP/qstcDrVUASJx24NgnVaXVS1BvEjYnuao2UTtaHprWYlZDw==" length="2223828""
+                length="2223828"
                 type="application/octet-stream"/>
         </item>
 
