@@ -1888,6 +1888,7 @@ def refactor_resume(
         terminal=terminal_enum,
         command=claude_command,
         title=f"Forge Planning: {refactor.title}",
+        initial_input="Let's continue!",  # Auto-type to resume the session
     )
 
     if success:

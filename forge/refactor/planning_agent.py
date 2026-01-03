@@ -149,6 +149,8 @@ When you start, **immediately begin with this**:
 
 **Do NOT wait for user input to begin. Start exploring immediately.**
 
+**Thinking depth**: Assess the complexity of this refactor. If it's architecturally significant or involves many systems, use extended thinking for your initial exploration.
+
 ---
 
 ## Your Mission
@@ -323,6 +325,7 @@ Every session in EXECUTION.md should have:
             terminal=terminal_enum,
             command=claude_command,
             title=f"Forge Planning: {title}",
+            initial_input="Let's begin!",  # Enthusiastic trigger - Claude decides thinking depth from CLAUDE.md
         )
 
         if success:

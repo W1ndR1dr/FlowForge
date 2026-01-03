@@ -115,6 +115,7 @@ def open_terminal_in_directory(
     terminal: Terminal = Terminal.AUTO,
     command: Optional[str] = None,
     title: Optional[str] = None,
+    initial_input: Optional[str] = None,
 ) -> bool:
     """
     Open a new terminal tab/window in the specified directory.
@@ -124,6 +125,7 @@ def open_terminal_in_directory(
         terminal: Which terminal to use (auto-detects if AUTO)
         command: Optional command to run after opening
         title: Optional title for the tab/window
+        initial_input: Optional input to type after command starts (e.g., "start" for Claude)
 
     Returns:
         True if successful, False otherwise
@@ -141,11 +143,11 @@ def open_terminal_in_directory(
 
     try:
         if terminal == Terminal.WARP:
-            return _open_warp(directory, command, title)
+            return _open_warp(directory, command, title, initial_input)
         elif terminal == Terminal.ITERM:
-            return _open_iterm(directory, command, title)
+            return _open_iterm(directory, command, title, initial_input)
         else:
-            return _open_terminal_app(directory, command, title)
+            return _open_terminal_app(directory, command, title, initial_input)
     except Exception as e:
         print(f"Failed to open terminal: {e}")
         return False
@@ -155,6 +157,7 @@ def _open_warp(
     directory: Path,
     command: Optional[str] = None,
     title: Optional[str] = None,
+    initial_input: Optional[str] = None,
 ) -> bool:
     """Open Warp in a new tab at the specified directory."""
 
@@ -186,6 +189,15 @@ def _open_warp(
         script_parts.append('    tell application "System Events" to keystroke "' + cd_command + '"')
         script_parts.append('    tell application "System Events" to keystroke return')
 
+    # If initial_input is provided, wait for command to start then type it
+    if initial_input:
+        # Wait for Claude to fully start up
+        script_parts.append('    delay 3.0')
+        script_parts.append('    tell application "System Events" to keystroke "' + initial_input + '"')
+        # Use key code 36 (Return) - more reliable than keystroke return
+        script_parts.append('    delay 0.2')
+        script_parts.append('    tell application "System Events" to key code 36')
+
     script_parts.append('end tell')
 
     script = '\n'.join(script_parts)
@@ -206,6 +218,7 @@ def _open_iterm(
     directory: Path,
     command: Optional[str] = None,
     title: Optional[str] = None,
+    initial_input: Optional[str] = None,
 ) -> bool:
     """Open iTerm2 in a new tab at the specified directory."""
 
@@ -213,7 +226,23 @@ def _open_iterm(
     if command:
         cd_command += f' && {command}'
 
-    script = f'''
+    # Build script with optional initial input
+    if initial_input:
+        script = f'''
+    tell application "iTerm"
+        activate
+        tell current window
+            create tab with default profile
+            tell current session
+                write text "{cd_command}"
+                delay 2.0
+                write text "{initial_input}"
+            end tell
+        end tell
+    end tell
+    '''
+    else:
+        script = f'''
     tell application "iTerm"
         activate
         tell current window
@@ -238,12 +267,18 @@ def _open_terminal_app(
     directory: Path,
     command: Optional[str] = None,
     title: Optional[str] = None,
+    initial_input: Optional[str] = None,
 ) -> bool:
     """Open Terminal.app in a new tab at the specified directory."""
 
     cd_command = f'cd "{directory}"'
     if command:
         cd_command += f' && {command}'
+
+    # Terminal.app doesn't support easy delayed input, so we append it if provided
+    if initial_input:
+        # For Terminal.app, we can chain the input after a sleep
+        cd_command += f' && sleep 2 && echo "{initial_input}"'
 
     script = f'''
     tell application "Terminal"
