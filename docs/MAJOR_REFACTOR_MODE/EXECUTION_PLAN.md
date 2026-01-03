@@ -1376,8 +1376,35 @@ The feature is now ready for use!
 ---
 
 ### Session 0.1: Planning Agent Implementation
-**Date**: (not started)
-**Status**: PENDING ← START HERE
+**Date**: 2026-01-03
+**Status**: DONE
+
+**Completed**:
+- [x] `forge refactor plan {project} --goal "..."` launches Warp session
+- [x] Planning Agent CLAUDE.md instructs exploration before proposing
+- [x] CLAUDE.md includes 2-3 questions at a time guidance
+- [x] CLAUDE.md requires showing drafts for approval before writing
+- [x] Template for all 5 docs included (PHILOSOPHY, VISION, DECISIONS, PRE_REFACTOR, EXECUTION)
+- [x] Uses PLANNING_PROCESS_CLAUDE.md as the "soul" of the agent
+
+**Discoveries**:
+- Launching Claude in the refactor directory is elegant - it reads both the planning CLAUDE.md AND inherits the project's root CLAUDE.md
+- No clipboard needed - CLAUDE.md tells Claude to start immediately
+- Added `forge refactor resume` command for continuing sessions
+
+**Files Created**:
+- `forge/refactor/__init__.py` - Module init
+- `forge/refactor/planning_agent.py` - PlanningAgent class with launch(), generate_planning_claude_md()
+- `forge/refactor/prompts.py` - Template strings for planning docs
+
+**Files Modified**:
+- `forge/cli.py` - Added `forge refactor plan|list|status|resume` commands
+- `.forge/config.json` - Removed obsolete fields (test_command, default_persona)
+
+**For Next Session (1.1)**:
+- The Planning Agent creates docs in `.forge/refactors/{id}/`
+- Session 1.1 builds the RefactorState dataclass that tracks phase progress
+- Look at how metadata.json is currently structured in planning_agent.py
 
 ---
 

@@ -224,6 +224,45 @@ The MCP server enables Claude Code on iOS/web to natively call Forge tools via T
 
 **Available MCP tools**: `forge_list_projects`, `forge_list_features`, `forge_status`, `forge_start_feature`, `forge_stop_feature`, `forge_merge_check`, `forge_merge`, `forge_add_feature`
 
+## Major Feature Planning
+
+When the user wants to plan a large feature spanning multiple sessions:
+
+**Reference**: `docs/MAJOR_REFACTOR_MODE/PLANNING_PROCESS_CLAUDE.md` for the full process.
+
+**Quick Process**:
+1. **Explore first**: Launch agents to understand current codebase state
+2. **Ask iteratively**: 2-3 questions at a time with options, not open-ended
+3. **Parallel design**: Use Plan agents for architecture, state, UX separately
+4. **Document layered**: Philosophy → Vision → Decisions → Execution Plan
+5. **Standardize sessions**: Clear start/stop, copy-paste prompts, git instructions
+
+**Documentation structure**:
+```
+docs/{FEATURE_NAME}/
+├── README.md           # Overview + quick start
+├── PHILOSOPHY.md       # IMMUTABLE: Principles, anti-patterns
+├── VISION.md           # IMMUTABLE: Target state
+├── DECISIONS.md        # What + why + rejected alternatives
+└── EXECUTION_PLAN.md   # Sessions with standardized format
+```
+
+**User's planning philosophy**:
+- AGI-pilled: Trust model judgment over hardcoded rules
+- Docs as memory: Write it down, avoid context compaction
+- User bandwidth is bottleneck: They choose parallelization at runtime
+- Vibecoders first: Non-dev friendly, hide complexity
+
+**Session format** (each session in EXECUTION_PLAN.md):
+- Worktree: YES/NO
+- Scope: IN/OUT
+- Start When / Stop When
+- PROMPT (copy-paste ready)
+- ASK USER IF (pause triggers)
+- EXIT CRITERIA (checkboxes)
+- GIT INSTRUCTIONS (exact commands)
+- HANDOFF (for next session)
+
 ## Commit Conventions
 
 ```bash

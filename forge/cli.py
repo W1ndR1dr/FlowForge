@@ -1725,5 +1725,179 @@ def _run_github_health_check(project_root: Path, project_name: str, auto_fix: bo
         console.print("  [dim]Fix issues above before using forge start.[/dim]")
 
 
+# ============================================================================
+# Major Refactor Mode Commands
+# ============================================================================
+
+refactor_app = typer.Typer(
+    name="refactor",
+    help="Major Refactor Mode - multi-session refactors with planning docs",
+    no_args_is_help=True,
+)
+app.add_typer(refactor_app, name="refactor")
+
+
+@refactor_app.command("plan")
+def refactor_plan(
+    title: str = typer.Argument(..., help="Title for the refactor"),
+    goal: str = typer.Option(..., "--goal", "-g", help="What you want to accomplish"),
+    terminal: str = typer.Option("auto", "--terminal", "-t", help="Terminal: warp, iterm, terminal, auto"),
+):
+    """
+    🧠 Start a Planning Agent session for a major refactor.
+
+    The Planning Agent is an interactive Claude Code session that helps you:
+    - Explore the codebase before proposing changes
+    - Ask clarifying questions (2-3 at a time)
+    - Debate alternatives and document decisions
+    - Create complete planning docs (PHILOSOPHY, DECISIONS, EXECUTION)
+
+    Example:
+        forge refactor plan "API Restructure" --goal "Split monolith into microservices"
+
+    The planning docs become the "memory" for all future execution sessions.
+    """
+    project_root, config, registry = get_context()
+
+    from .refactor import PlanningAgent
+
+    console.print(f"\n🧠 [bold]Major Refactor Mode[/bold]: {title}\n")
+    console.print(f"[dim]Goal: {goal}[/dim]\n")
+
+    agent = PlanningAgent(project_root)
+
+    success, message, refactor_id = agent.launch(
+        title=title,
+        goal=goal,
+        terminal=terminal,
+    )
+
+    if success:
+        console.print(f"[green]✓[/green] {message}")
+        console.print(f"\n[dim]Refactor ID: {refactor_id}[/dim]")
+        console.print(f"[dim]Docs will be saved to: .forge/refactors/{refactor_id}/[/dim]")
+    else:
+        console.print(f"[red]✗[/red] {message}")
+        raise typer.Exit(1)
+
+
+@refactor_app.command("list")
+def refactor_list():
+    """List all refactors."""
+    project_root, config, registry = get_context()
+
+    from .refactor import PlanningAgent
+
+    agent = PlanningAgent(project_root)
+    refactors = agent.list_refactors()
+
+    if not refactors:
+        console.print("[yellow]No refactors yet.[/yellow]")
+        console.print("[dim]Start one with: forge refactor plan \"Title\" --goal \"...\"[/dim]")
+        return
+
+    table = Table(title="Refactors")
+    table.add_column("ID", style="cyan")
+    table.add_column("Title")
+    table.add_column("Status", style="magenta")
+    table.add_column("Created")
+
+    for r in refactors:
+        created = r.created_at[:10] if r.created_at else "?"
+        table.add_row(r.id, r.title, r.status, created)
+
+    console.print(table)
+
+
+@refactor_app.command("status")
+def refactor_status(
+    refactor_id: str = typer.Argument(..., help="Refactor ID"),
+):
+    """Show status of a specific refactor."""
+    project_root, config, registry = get_context()
+
+    from .refactor import PlanningAgent
+
+    agent = PlanningAgent(project_root)
+    refactor = agent.get_refactor(refactor_id)
+
+    if not refactor:
+        console.print(f"[red]Refactor not found: {refactor_id}[/red]")
+        raise typer.Exit(1)
+
+    refactor_dir = agent.get_refactor_dir(refactor_id)
+
+    # Check which docs exist
+    docs = ["PHILOSOPHY.md", "VISION.md", "DECISIONS.md", "PRE_REFACTOR.md", "EXECUTION.md"]
+    doc_status = []
+    for doc in docs:
+        exists = (refactor_dir / doc).exists() if refactor_dir else False
+        doc_status.append(f"{'✅' if exists else '⬜'} {doc}")
+
+    console.print(Panel(
+        f"[bold]{refactor.title}[/bold]\n\n"
+        f"[dim]Goal:[/dim] {refactor.goal}\n\n"
+        f"[dim]Status:[/dim] {refactor.status}\n"
+        f"[dim]Created:[/dim] {refactor.created_at[:19] if refactor.created_at else '?'}\n\n"
+        f"[bold]Planning Docs:[/bold]\n" + "\n".join(f"  {s}" for s in doc_status),
+        title=f"Refactor: {refactor_id}",
+    ))
+
+    if refactor_dir:
+        console.print(f"\n[dim]Directory: {refactor_dir}[/dim]")
+
+
+@refactor_app.command("resume")
+def refactor_resume(
+    refactor_id: str = typer.Argument(..., help="Refactor ID to resume"),
+    terminal: str = typer.Option("auto", "--terminal", "-t", help="Terminal: warp, iterm, terminal, auto"),
+):
+    """
+    Resume a planning session for an existing refactor.
+
+    Opens Claude Code in the refactor directory - it reads the CLAUDE.md
+    and continues automatically.
+    """
+    project_root, config, registry = get_context()
+
+    from .refactor import PlanningAgent
+    from .terminal import open_terminal_in_directory, Terminal
+
+    agent = PlanningAgent(project_root)
+    refactor = agent.get_refactor(refactor_id)
+
+    if not refactor:
+        console.print(f"[red]Refactor not found: {refactor_id}[/red]")
+        raise typer.Exit(1)
+
+    refactor_dir = agent.get_refactor_dir(refactor_id)
+    session_claude_md = refactor_dir / "CLAUDE.md"
+
+    if not session_claude_md.exists():
+        console.print(f"[red]Planning CLAUDE.md not found. Was planning started?[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"\n🔄 [bold]Resuming planning session[/bold]: {refactor.title}\n")
+
+    terminal_enum = Terminal(terminal) if terminal != "auto" else Terminal.AUTO
+    claude_command = 'claude --dangerously-skip-permissions'
+
+    # Launch in the refactor directory - Claude reads CLAUDE.md automatically
+    success = open_terminal_in_directory(
+        directory=refactor_dir,
+        terminal=terminal_enum,
+        command=claude_command,
+        title=f"Forge Planning: {refactor.title}",
+    )
+
+    if success:
+        console.print("[green]✓[/green] Terminal opened!")
+        console.print("\nClaude will read the CLAUDE.md and check existing docs automatically.")
+    else:
+        console.print(f"[yellow]Could not open terminal. Start manually:[/yellow]")
+        console.print(f"\n  cd {refactor_dir}")
+        console.print(f"  {claude_command}")
+
+
 if __name__ == "__main__":
     app()
