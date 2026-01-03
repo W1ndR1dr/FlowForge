@@ -1882,12 +1882,18 @@ def refactor_resume(
     terminal_enum = Terminal(terminal) if terminal != "auto" else Terminal.AUTO
     claude_command = 'claude --dangerously-skip-permissions'
 
+    # Brief tab title: "[ShortTitle] Planner"
+    skip_words = {'mode', 'phase', 'implementation', 'the', 'a', 'an', 'for'}
+    words = [w for w in refactor.title.split() if w.lower() not in skip_words][:2]
+    short_title = ''.join(words) if words else 'Refactor'
+    tab_title = f"{short_title} Planner"
+
     # Launch in the refactor directory - Claude reads CLAUDE.md automatically
     success = open_terminal_in_directory(
         directory=refactor_dir,
         terminal=terminal_enum,
         command=claude_command,
-        title="P0 Planner",  # Brief: Phase 0 = Planning (resume)
+        title=tab_title,
         initial_input="Let's continue!",  # Auto-type to resume the session
     )
 

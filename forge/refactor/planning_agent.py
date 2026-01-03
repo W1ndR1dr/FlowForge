@@ -360,11 +360,18 @@ Every session in EXECUTION.md should have:
         # Claude reads CLAUDE.md automatically and starts immediately
         claude_command = 'claude --dangerously-skip-permissions'
 
+        # Brief tab title: "[ShortTitle] Planner"
+        # Take first 1-2 words, skip common words like "Mode", "Phase", "Implementation"
+        skip_words = {'mode', 'phase', 'implementation', 'the', 'a', 'an', 'for'}
+        words = [w for w in title.split() if w.lower() not in skip_words][:2]
+        short_title = ''.join(words) if words else 'Refactor'
+        tab_title = f"{short_title} Planner"
+
         success = open_terminal_in_directory(
             directory=refactor_dir,  # Launch IN the refactor dir so Claude reads its CLAUDE.md
             terminal=terminal_enum,
             command=claude_command,
-            title="P0 Planner",  # Brief: Phase 0 = Planning
+            title=tab_title,
             initial_input="Let's begin!",  # Enthusiastic trigger - Claude decides thinking depth from CLAUDE.md
         )
 
