@@ -7,25 +7,25 @@
         <language>en</language>
 
         <item>
-            <title>Forge 1.12.0</title>
+            <title>Forge 1.13.0</title>
             <description><![CDATA[
-                <h2>What's New in 1.12.0</h2>
+                <h2>What's New in 1.13.0</h2>
                 <ul>
 ---NOTES---
-                    <li>✨ Smarter refinement with web search and improved AI extraction</li>
-                    <li>Smooth waveform indicator shows when AI is thinking</li>
-                    <li>Word-by-word streaming for more responsive chat</li>
-                    <li>Fixed performance issues with long brainstorm conversations</li>
+                    <li>✨ Smarter refinement with web search and Opus AI extraction</li>
+                    <li>Smooth waveform indicator and word-by-word streaming in chat</li>
+                    <li>AI idea generator button to spark your next feature</li>
+                    <li>Resizable refine chat windows for better multitasking</li>
                 </ul>
             ]]></description>
-            <pubDate>Sat, 03 Jan 2026 11:23:00 -0800</pubDate>
+            <pubDate>Sat, 03 Jan 2026 11:25:02 -0800</pubDate>
             <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>1.12.0</sparkle:shortVersionString>
+            <sparkle:shortVersionString>1.13.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure
-                url="https://github.com/W1ndR1dr/Forge/releases/download/v1.12.0/Forge-1.12.0.zip"
-                sparkle:edSignature="sparkle:edSignature="s1OH/kgtjpR3/V1V2QKG8h0Qi8IkD63C5Wx81cyxH+8oPF03QBCbQt9B1WyV5ksIpVfRsEwsMSRW0L4EqOdQBQ==" length="2223831""
-                length="2223831"
+                url="https://github.com/W1ndR1dr/Forge/releases/download/v1.13.0/Forge-1.13.0.zip"
+                sparkle:edSignature="sparkle:edSignature="90Zjt+Tn9zWyP6ospKZnOLo2GpbM7debd4kntRbt0Cmdz8XGnU+jGblKTHRGUWY41nTcfMO05dZWv4XrziBXAg==" length="2227254""
+                length="2227254"
                 type="application/octet-stream"/>
         </item>
 
