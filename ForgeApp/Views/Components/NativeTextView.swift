@@ -38,10 +38,13 @@ struct NativeTextView: NSViewRepresentable {
     }
 
     func updateNSView(_ textField: NSTextField, context: Context) {
-        textField.stringValue = text
-        textField.font = font
-        textField.textColor = textColor
-        textField.isSelectable = isSelectable
+        // Only update if text actually changed (performance optimization)
+        if textField.stringValue != text {
+            textField.stringValue = text
+            textField.font = font
+            textField.textColor = textColor
+            textField.isSelectable = isSelectable
+        }
     }
 }
 

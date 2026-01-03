@@ -442,38 +442,64 @@ final class BrainstormClient: ObservableObject {
 
     // MARK: - Text Animation
 
-    /// Animate text appearing word-by-word for a polished streaming feel
+    // Thresholds for animation behavior
+    private let maxWordsForAnimation = 300  // Skip word animation for long messages
+    private let animationWordDelay: UInt64 = 50_000_000  // 50ms between words
+
+    /// Animate text appearing word-by-word for a polished streaming feel.
+    /// For long messages, falls back to immediate display to avoid performance issues.
     private func animateStreamingText(_ newText: String) {
         // Cancel any existing animation
         animationTask?.cancel()
 
-        // Split into words, preserving whitespace
-        let words = newText.components(separatedBy: " ")
-        let currentWordCount = displayedText.components(separatedBy: " ").count
+        let currentLength = displayedText.count
+        let newLength = newText.count
 
-        // Only animate new words
-        guard words.count > currentWordCount else {
+        // If we're already showing this text or more, just update
+        guard newLength > currentLength else {
             displayedText = newText
             return
         }
 
-        let newWords = Array(words.dropFirst(max(0, currentWordCount - 1)))
+        // For very long messages, skip word animation entirely
+        // (counting words is expensive, use character heuristic: ~5 chars/word)
+        if newLength > maxWordsForAnimation * 5 {
+            displayedText = newText
+            return
+        }
+
+        // Find word boundary to animate to
+        let newContent = String(newText.dropFirst(currentLength))
+        let newWords = newContent.split(separator: " ", omittingEmptySubsequences: false)
+
+        // If only 1-2 new words, animate them
+        guard newWords.count > 0 else {
+            displayedText = newText
+            return
+        }
 
         animationTask = Task { @MainActor in
-            for (index, _) in newWords.enumerated() {
+            var currentText = displayedText
+
+            for word in newWords {
                 guard !Task.isCancelled else { return }
 
-                // Build text up to current word
-                let wordIndex = currentWordCount + index
-                let visibleWords = Array(words.prefix(wordIndex + 1))
-                displayedText = visibleWords.joined(separator: " ")
+                // Append word with space
+                if !currentText.isEmpty && !currentText.hasSuffix(" ") {
+                    currentText += " "
+                }
+                currentText += word
 
-                // Delay between words - 60ms for readable streaming feel
-                try? await Task.sleep(nanoseconds: 60_000_000)
+                displayedText = currentText
+
+                // Brief delay for streaming feel
+                try? await Task.sleep(nanoseconds: animationWordDelay)
             }
 
             // Ensure we show the complete text
-            displayedText = newText
+            if !Task.isCancelled {
+                displayedText = newText
+            }
         }
     }
 

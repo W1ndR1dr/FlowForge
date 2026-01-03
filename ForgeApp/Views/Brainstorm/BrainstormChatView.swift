@@ -74,9 +74,13 @@ struct BrainstormChatView: View {
                         }
                     }
                 }
-                .onChange(of: client.displayedText) { _, _ in
-                    // Scroll as text animates in
-                    proxy.scrollTo("bottom", anchor: .bottom)
+                .onChange(of: client.displayedText) { oldValue, newValue in
+                    // Throttle scroll during animation - only scroll every ~20 characters
+                    // This prevents excessive scroll calls during word-by-word streaming
+                    let lengthDiff = abs(newValue.count - oldValue.count)
+                    if lengthDiff > 20 || newValue.isEmpty || oldValue.isEmpty {
+                        proxy.scrollTo("bottom", anchor: .bottom)
+                    }
                 }
             }
 
