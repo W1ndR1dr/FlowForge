@@ -27,6 +27,7 @@ class PromptContext:
     dependency_context: Optional[str] = None
     worktree_path: Optional[Path] = None
     project_context: Optional[str] = None  # From project-context.md
+    refinement_context: Optional[str] = None  # Extracted from refine conversation
 
 
 class PromptBuilder:
@@ -135,6 +136,93 @@ class PromptBuilder:
             return None
         return context_path.read_text()
 
+    def _extract_refinement_context(self, feature: Feature) -> Optional[str]:
+        """
+        Extract key context from refinement conversation using Opus.
+
+        AGI-pilled approach: Pass the full conversation to Opus, let it decide
+        what's important for the build agent. No brittle regex patterns.
+
+        Uses Claude CLI with Max subscription (same as brainstorm agent).
+        """
+        import subprocess
+
+        history = feature.extensions.get("refinement_history", [])
+        if not history:
+            return None
+
+        # Format conversation for the summarization prompt
+        conversation = []
+        for msg in history:
+            role = "User" if msg.get("role") == "user" else "Assistant"
+            conversation.append(f"{role}: {msg.get('content', '')}")
+
+        conversation_text = "\n\n".join(conversation)
+
+        # Truncate if extremely long (>50K chars) - but include as much as possible
+        # CONTEXT_LIMIT: May revisit as context windows expand
+        if len(conversation_text) > 50000:
+            conversation_text = conversation_text[:50000] + "\n\n[...conversation truncated...]"
+
+        extraction_prompt = f"""You are preparing context for a build agent that will implement a feature.
+
+The user refined this feature idea through a conversation. Extract the KEY context the build agent needs to know - things that might not be obvious from the final spec alone.
+
+Focus on:
+- **Non-requirements**: Things the user said NOT to do, to avoid, or explicitly rejected
+- **References**: Products, patterns, or examples the user compared to ("like Notion's...", "similar to...")
+- **Motivations**: WHY they want this (the underlying need, not just what)
+- **Constraints**: Any limitations or requirements mentioned
+- **Preferences**: UX preferences, behavior expectations, edge cases discussed
+
+Do NOT include:
+- Implementation details (the build agent has full codebase access)
+- The final spec (that's passed separately)
+- Generic conversation filler
+
+If there's nothing notable beyond the spec, respond with just: "No additional context needed."
+
+Keep it concise - bullet points, not paragraphs. The build agent is smart, just give it the signal.
+
+---
+
+REFINEMENT CONVERSATION:
+
+{conversation_text}
+
+---
+
+CONTEXT FOR BUILD AGENT:"""
+
+        try:
+            # Use Claude CLI with Opus (Max subscription)
+            result = subprocess.run(
+                [
+                    "claude",
+                    "-p", extraction_prompt,
+                    "--model", "opus",
+                    "--output-format", "text",
+                    "--allowedTools", "",  # No tools needed for summarization
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,  # 60 second timeout
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                output = result.stdout.strip()
+                # Check if Opus said no additional context needed
+                if "no additional context" in output.lower():
+                    return None
+                return output
+
+        except subprocess.TimeoutExpired:
+            print("[PromptBuilder] Refinement context extraction timed out")
+        except Exception as e:
+            print(f"[PromptBuilder] Refinement context extraction failed: {e}")
+
+        return None
+
     def gather_context(
         self,
         feature_id: str,
@@ -188,6 +276,9 @@ class PromptBuilder:
         # Build dependency context
         dependency_context = self._build_dependency_context(feature)
 
+        # Extract refinement context from conversation history
+        refinement_context = self._extract_refinement_context(feature)
+
         return PromptContext(
             project_name=self.project_root.name,
             claude_md_content=claude_md_content,
@@ -198,6 +289,7 @@ class PromptBuilder:
             dependency_context=dependency_context,
             worktree_path=Path(feature.worktree_path) if feature.worktree_path else None,
             project_context=project_context,
+            refinement_context=refinement_context,
         )
 
     def build(self, context: PromptContext) -> str:
@@ -264,6 +356,14 @@ class PromptBuilder:
             sections.append(context.spec_content)
             sections.append("")
 
+        # Refinement context (extracted from refine conversation by Opus)
+        if context.refinement_context:
+            sections.append("## Context from Refinement")
+            sections.append("*The following was extracted from the user's refinement conversation - things that may not be obvious from the spec:*")
+            sections.append("")
+            sections.append(context.refinement_context)
+            sections.append("")
+
         # Dependencies
         if context.dependency_context:
             sections.append(context.dependency_context)
@@ -296,8 +396,8 @@ class PromptBuilder:
         sections.append("- Test on target device/environment")
         sections.append("")
         sections.append("When human says \"ship it\":")
-        sections.append(f"- Run `forge merge {context.feature.id}` to merge to main and clean up")
-        sections.append("- This handles: merge → build validation → worktree cleanup → done")
+        sections.append(f"- Run `forge ship` to merge to main and clean up")
+        sections.append("- This handles: merge → build validation → worktree cleanup → celebrate!")
         sections.append("")
         sections.append("Ask clarifying questions if the specification is unclear.")
         sections.append("")

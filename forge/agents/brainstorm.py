@@ -186,7 +186,7 @@ class BrainstormAgent:
             "--resume", self.session.claude_session_id,
             "--output-format", "stream-json",
             "--verbose",  # Required for stream-json in print mode
-            "--tools", "",
+            "--allowedTools", "WebSearch,WebFetch",  # Enable web research, no file/bash tools
         ]
 
         process = await asyncio.create_subprocess_exec(
@@ -231,7 +231,7 @@ class BrainstormAgent:
             "-p", prompt,
             "--output-format", "stream-json",
             "--verbose",  # Required for stream-json in print mode
-            "--tools", "",
+            "--allowedTools", "WebSearch,WebFetch",  # Enable web research, no file/bash tools
         ]
 
         print(f"[Brainstorm] Starting Claude CLI...")
