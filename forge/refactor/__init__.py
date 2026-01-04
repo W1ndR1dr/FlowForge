@@ -43,6 +43,10 @@ from .analyzer import (
     AnalysisResult,
     analyze_codebase,
 )
+from .orchestrator import (
+    OrchestratorSession,
+    SignalSummary,
+)
 
 __all__ = [
     # Planning
@@ -74,4 +78,7 @@ __all__ = [
     "CodebaseAnalyzer",
     "AnalysisResult",
     "analyze_codebase",
+    # Orchestrator
+    "OrchestratorSession",
+    "SignalSummary",
 ]

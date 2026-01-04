@@ -2089,5 +2089,49 @@ def refactor_analyze(
         raise typer.Exit(1)
 
 
+@refactor_app.command("orchestrate")
+def refactor_orchestrate(
+    refactor_id: str = typer.Argument(..., help="Refactor ID"),
+    terminal: str = typer.Option("auto", "--terminal", "-t", help="Terminal: warp, iterm, terminal, auto"),
+):
+    """
+    🎯 Launch the orchestrator for a refactor.
+
+    The orchestrator is your interactive team lead - available to chat,
+    modify plans, and make decisions. NOT a background daemon.
+
+    It will:
+    - Check signals from phase/audit agents
+    - Help you decide what to do next
+    - Advance phases when audits pass
+    - Modify plans conversationally
+    - Handle handoffs when context gets tight
+
+    Example:
+        forge refactor orchestrate major-refactor-mode-phase-1
+
+    The orchestrator introduces itself and waits for your input.
+    Ask it to "check status" to see what's happening.
+    """
+    project_root, config, registry = get_context()
+
+    from .refactor.orchestrator import OrchestratorSession
+
+    console.print(f"\n🎯 [bold]Launching Orchestrator[/bold]: {refactor_id}\n")
+
+    orchestrator = OrchestratorSession(
+        refactor_id=refactor_id,
+        project_root=project_root,
+    )
+
+    success, message = orchestrator.launch(terminal=terminal)
+
+    if success:
+        console.print(f"[green]✓[/green] {message}")
+    else:
+        console.print(f"[red]✗[/red] {message}")
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()
