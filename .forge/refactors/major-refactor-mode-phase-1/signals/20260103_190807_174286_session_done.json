@@ -1,0 +1,9 @@
+{
+  "type": "session_done",
+  "session_id": "3.1",
+  "timestamp": "2026-01-03T19:08:07.174286",
+  "payload": {
+    "commit_hash": "c9d7c64",
+    "summary": "Interactive orchestrator agent with state history, signal timeline, and handoff CLI"
+  }
+}

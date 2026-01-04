@@ -1,118 +1,98 @@
-# Orchestrator Handoff - Major Refactor Mode Phase 1
+# Orchestrator Handoff - major-refactor-mode-phase-1
 
-> **Updated**: 2026-01-03
-> **From**: Orchestrator #4
-> **To**: Next orchestrator (or self after context compaction)
+> **Updated**: 2026-01-03 19:13
+> **Refactor**: major-refactor-mode-phase-1
+> **Status**: executing
 
 ---
 
 ## Current State
 
-**Phase 1**: ✅ COMPLETE (Sessions 1.1 + 1.2)
-**Phase 2**: ✅ COMPLETE (Sessions 2.1 + 2.2) - Prometheus audited, PASS
-**Phase 3**: 🔄 Ready to start Session 3.1
+**Current Session**: 3.1
 
-**Git**: All pushed to origin/main
+### Phase Progress
+
+- 🔄 Phase 2: In progress
+- 🔄 Phase 3: Complete, awaiting audit
+
+### Session Details
+
+- 🔄 Session 2.1: in_progress
+- 🔄 Session 2.2: in_progress
+- ✅ Session 3.1: completed
 
 ---
 
-## What's Been Built
+## Signal Summary
 
-### Session 0.1 ✅
-- Planning Agent (`forge refactor plan`)
+## Signal Summary
 
-### Session 1.1 ✅
-- `forge/refactor/state.py` - RefactorState, SessionState dataclasses
-- `forge/refactor/signals.py` - SignalType enum, atomic signal read/write
+**Total signals**: 7
 
-### Session 1.2 ✅
-- `forge/refactor/session.py` - ExecutionSession class, session spec parsing
-- `forge refactor start/done` CLI commands
+**Sessions started**: 2.1, 2.1, 2.1, 2.2, 3.1, 3.1
+**Sessions done**: 3.1
 
-### Session 2.1 ✅
-- Added major refactor detection to BRAINSTORM and REFINE prompts
-- Marker: `MAJOR_REFACTOR_RECOMMENDED`
-- Helper methods: `is_major_refactor_detected()`, `get_major_refactor()`
-- Commit: c7eae0b
+### Timeline (most recent)
+- `2026-01-03T15:01:58` 2.1: Session started
+- `2026-01-03T15:15:27` 2.1: Session started
+- `2026-01-03T15:15:56` 2.1: Session started
+- `2026-01-03T15:39:00` 2.2: Session started
+- `2026-01-03T18:22:34` 3.1: Session started
+- `2026-01-03T18:25:03` 3.1: Session started
+- `2026-01-03T19:08:07` 3.1: Session done (commit: c9d7c64)
 
-### Session 2.2 ✅
-- `forge/refactor/analyzer.py` - CodebaseAnalyzer class
-- Two-stage Claude analysis (identify files → deep dive)
-- Generates PRE_REFACTOR.md
-- CLI: `forge refactor analyze {id} --goal "..."`
-- Commit: 288d207
-
-**Audit**: Phase 1 & Phase 2 passed all checks (Prometheus).
+**Latest**: session_done from 3.1 at 2026-01-03T19:08:07
 
 ---
 
 ## Orchestrator Commands
 
-**Launch session:**
+**Launch a session:**
 ```bash
-forge refactor start major-refactor-mode-phase-1 2.2
+forge refactor start major-refactor-mode-phase-1 <session-id>
 ```
 
-**Check session status:**
+**Mark session complete:**
+```bash
+forge refactor done <session-id>
+```
+
+**Check status:**
 ```bash
 forge refactor status major-refactor-mode-phase-1
 ```
 
-**When session completes, launch next:**
-```bash
-forge refactor start major-refactor-mode-phase-1 <next-session>
-```
-
 ---
 
-## Tab Title Scheme
-
-Tabs are named for quick identification:
-- `MajorRefactor Planner` - Planning sessions
-- `2.2 Builder` - Execution sessions (phase.session + role)
-- `2 Auditor` - Phase audits (phase + role)
-- `Forge Ship` - Shipping operations
-
----
-
-## Orchestrator Handoff Protocol
+## Handoff Protocol
 
 **When to handoff:** User sees context getting tight (~70%+) via `/context`
 
-**How to trigger (plain English):**
-- "context is getting tight, let's handoff"
-- "spin up a new orchestrator"
-- "time for a fresh orchestrator"
+**How to trigger:** Natural language - the orchestrator will infer intent. If unclear, it will ask.
 
 **What happens:**
 1. Orchestrator updates this ORCHESTRATOR_HANDOFF.md with current state
-2. Runs: `forge refactor handoff major-refactor-mode-phase-1` (when built)
-3. New tab opens with fresh Claude
-4. Old tab preserved for posterity
-
-**Until handoff command exists:** Manually open new Claude Code tab and point it here.
+2. User opens new Claude tab in same Warp window
+3. New orchestrator reads ORCHESTRATOR_HANDOFF.md and continues
+4. Old tab preserved for reference
 
 ---
 
-## Bootstrapping Ladder
+## Notes from This Session
 
-```
-Step 0: Human + Claude (manual)     ✅ DONE
-Step 1: Planning Agent              ✅ DONE
-Step 2: Phase 1 Foundation          ✅ DONE
-Step 3: Phase 2 Detection           ✅ DONE (2.1 + 2.2 audited)
-Step 4: Phase 3 Orchestrator        🔄 NEXT - Flywheel kicks in here!
-Step 5: Self-sustaining             ⬜
-```
+No additional notes.
 
 ---
 
 ## Key Files
 
-- `docs/MAJOR_REFACTOR_MODE/EXECUTION_PLAN.md` - All session specs
-- `docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md` - Principles (read first!)
-- `docs/MAJOR_REFACTOR_MODE/DECISIONS.md` - Architecture decisions
-- `forge/refactor/` - All the infrastructure
+- `PHILOSOPHY.md` - Principles (stable anchor, read first!)
+- `DECISIONS.md` - Architecture decisions
+- `EXECUTION_PLAN.md` - All session specs
+- `state.json` - Runtime state
+- `signals/` - Agent signals
+
+All paths are relative to this refactor directory.
 
 ---
 
@@ -122,13 +102,3 @@ Step 5: Self-sustaining             ⬜
 - Docs as memory: write things down, context compaction loses fidelity
 - User is vibecoder: don't ask deep technical questions, make the call
 - Commit after each session, push to main
-- Tab titles help identify parallel sessions visually
-
----
-
-## Notes from This Session
-
-- Added tab title support for Warp (ANSI escape sequences)
-- Standardized titles: `X.Y Builder`, `[Title] Planner`, `X Auditor`
-- Added `session-resume` and `terminology-consistency-audit` to backlog
-- Prometheus feedback: detection should flow to `forge refactor plan`, not directly to execution

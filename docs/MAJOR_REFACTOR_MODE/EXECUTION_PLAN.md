@@ -1697,8 +1697,52 @@ The feature is now ready for use!
 ---
 
 ### Session 3.1: Interactive Supervisor
-**Date**: (not started)
-**Status**: PENDING
+**Date**: 2026-01-03
+**Status**: DONE
+
+**Completed**:
+- [x] `forge refactor orchestrate {id}` opens Warp with Claude session
+- [x] Tab title shows "Orchestrator"
+- [x] Orchestrator introduces itself and shows current status
+- [x] "check status" shows refactor state from files
+- [x] Can have a conversation about modifying the plan
+- [x] check_signals() can read signal files
+- [x] Handoff protocol in ORCHESTRATOR_PROMPT
+- [x] Plan ownership rules in ORCHESTRATOR_PROMPT
+- [x] update_handoff() writes to ORCHESTRATOR_HANDOFF.md
+
+**Discoveries**:
+- Orchestrator runs in its own subdirectory (`orchestrator/`) for clean separation
+- CLAUDE.md is regenerated on each launch with latest ORCHESTRATOR_PROMPT
+- State history tracking allows seeing the full journey of the refactor
+
+**Commit**: c9d7c64
+
+---
+
+### Session 3.1b: Handoff Fidelity Enhancements
+**Date**: 2026-01-03
+**Status**: DONE
+
+**Completed**:
+- [x] update_handoff() auto-detects generation number via get_current_generation()
+- [x] update_handoff() includes "Open Questions / Pending Decisions" section
+- [x] update_handoff() includes "Conversation Context" summary
+- [x] update_handoff() includes "Why Handoff" reason
+- [x] Warning printed when why_handoff is empty
+- [x] ORCHESTRATOR_PROMPT updated with relative paths (../)
+- [x] Orchestrator announces generation on start
+
+**Discoveries**:
+- Generation auto-detection parses "Orchestrator #N → #N+1" pattern from handoff file
+- Validation warnings provide safety net without blocking
+- Path clarification prevents confusion about doc locations
+
+**For Next Session**:
+- Handoff foundation is now bulletproof
+- Future orchestrators will preserve not just WHERE we are, but WHAT we were discussing
+
+**Commits**: b27acae, 47600b2
 
 ---
 

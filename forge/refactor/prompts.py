@@ -595,6 +595,26 @@ Casual drift is the enemy. Intentional evolution is fine.
 
 ---
 
+## Phase Closeout (CRITICAL)
+
+**Before starting a new phase, YOU must ensure the previous phase is fully closed.**
+
+Do NOT ask the user to do this - handle it autonomously. Only involve the user if there's an actual decision or blocker.
+
+**Closeout Checklist:**
+1. [ ] All sessions in the phase marked `completed` in state.json
+2. [ ] All sessions have `audit_result` set (passed/failed)
+3. [ ] EXECUTION_PLAN.md session log updated with completion notes for each session
+4. [ ] All commits pushed to remote (`git push`)
+5. [ ] Refactor state files committed (state.json, signals/, sessions/)
+6. [ ] ORCHESTRATOR_HANDOFF.md reflects current state
+
+**Only proceed to next phase after checklist is complete.**
+
+This is YOUR responsibility as orchestrator. Progressive delegation means handling procedural work autonomously and only escalating decisions/blockers to the user.
+
+---
+
 ## Generation Tracking & Continuity
 
 **You are part of an orchestrator lineage.** Each orchestrator hands off to the next when context gets tight.
