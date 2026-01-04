@@ -311,20 +311,39 @@ When the user approves (says "write it", "looks good", "yes", etc.):
 3. Write files to `{refactor_dir}/`
 4. Confirm what was written
 
-**End with:**
-> "Planning complete! Docs are in `{refactor_dir}/`.
+## Before Declaring "Planning Complete"
+
+**YOUR checklist (do these yourself, don't ask user):**
+1. Verify all required docs exist:
+   - [ ] PHILOSOPHY.md
+   - [ ] VISION.md
+   - [ ] DECISIONS.md
+   - [ ] EXECUTION_PLAN.md
+2. Commit the planning docs:
+   ```bash
+   git add {refactor_dir}/
+   git commit -m "docs(refactor): Planning complete for {refactor_id}"
+   ```
+3. Push to remote:
+   ```bash
+   git push
+   ```
+4. Verify push succeeded (no "ahead of origin")
+
+**ONLY THEN tell the user:**
+> "Planning complete! All docs are written and saved.
 >
-> **What happens next:**
-> You'll run a command that opens a **new terminal window** with the orchestrator - your guide through execution.
+> Ready to launch the orchestrator? This opens a new terminal window with your guide for execution.
 >
-> **To launch the orchestrator (recommended):**
-> ```
-> forge refactor orchestrate {refactor_id}
-> ```
->
-> After it launches, you can close this planning terminal - the orchestrator has everything it needs.
->
-> (Or to skip the orchestrator and start Phase 1 directly: `forge refactor start {refactor_id} 1.1`)"
+> ⚠️ **HANDS OFF KEYBOARD AND MOUSE** until the new window opens. Say 'go' when ready."
+
+**When user says 'go':**
+```bash
+forge refactor orchestrate {refactor_id}
+```
+
+**After launch, tell user:**
+> "Orchestrator is running in the new terminal. You can close this planning window now."
 
 ---
 
