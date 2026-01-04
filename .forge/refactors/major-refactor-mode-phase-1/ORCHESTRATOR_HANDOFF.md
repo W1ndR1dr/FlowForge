@@ -1,15 +1,15 @@
 # Orchestrator Handoff - major-refactor-mode-phase-1
 
-> **Updated**: 2026-01-03 23:30
+> **Updated**: 2026-01-04 01:15
 > **Refactor**: major-refactor-mode-phase-1
 > **Status**: executing
-> **Generation**: Orchestrator #3 → #4
+> **Generation**: Orchestrator #4 → #5
 
 ---
 
 ## Why This Handoff
 
-Context at ~80%. Clean slate for Phase 5 (UI Dashboard).
+Session 5.1 complete. Ready for 5.2 or wrap for the night.
 
 ---
 
@@ -17,38 +17,36 @@ Context at ~80%. Clean slate for Phase 5 (UI Dashboard).
 
 **Key discussions this session:**
 
-1. **4.3 workflow polish** - Added comprehensive user guidance cues:
-   - "Go back to your orchestrator terminal" in all agent templates
-   - Audit fail flow with explicit step-by-step instructions
-   - "I'm lost" handler for confused users
-   - "How does this work" workflow overview
-   - ⚠️ HANDS OFF emoji + bold in all launch cues
-   - Proactive terminal cleanup guidance
+1. **Session 5.1 launched** - Swift/SwiftUI work for refactor dashboard:
+   - RefactorPlan.swift models (mirrors Python RefactorState)
+   - RefactorDashboardView with stepped progress indicator
+   - RefactorClient reads local `.forge/refactors/` files
+   - Integrated into WorkspaceView (macOS only)
+   - Linear-inspired styling per design research
 
-2. **4.4 Planning Agent robustness** - Now planners can survive long sessions:
-   - PLANNING_HANDOFF.md pattern (like orchestrator)
-   - Generation tracking (Planner #1 → #2 → #3)
-   - `forge refactor plan --resume <id>` command
-   - Path traversal protection added
+2. **CLAUDE.md preservation fix** - Foundation issue caught and fixed:
+   - Relaunches were overwriting orchestrator edits
+   - Added preservation logic for both worktree and non-worktree sessions
+   - Detects "# Execution Session:" marker to distinguish session vs project CLAUDE.md
+   - Orchestrator uses judgment on preserve/regenerate (vibecoder-friendly)
 
-3. **Prometheus consultations** - Resolved two open questions:
-   - PRE_REFACTOR.md: Planning Agent generates as byproduct (not separate step)
-   - Testing: Three-layer audit + spec-first tests; user vibes is ungameable oracle
+3. **Design research integration**:
+   - `docs/design/UI_PATTERNS_RESEARCH.md` - UX patterns from Linear, Asana, Basecamp
+   - `docs/design/LINEAR_SWIFTUI_GUIDE.md` - SwiftUI implementation specifics
+   - Added as required reading for all Phase 5 sessions
+   - "Rebuild > Remodel" guidance - start fresh if better than adapting
 
-4. **Vibecoder philosophy clarified** - This app is ONLY for vibecoders:
-   - "Quality for Vibecoders" section added to PHILOSOPHY.md
-   - Your job: describe, vibes check, pause when off
-   - Tests are implementation detail you never see
+4. **Deep research threads** - User noted these are meaningfully distinct from web search:
+   - Orchestrators can ask user to spawn deep research for design questions
+   - Added to Phase 5 guidance in EXECUTION_PLAN.md
 
-5. **Warp tab title fix** - Added precmd hook to keep tab titles persistent
-
-6. **Prometheus retirement discussion** - Native system approaching vision fidelity. Prometheus may become "emeritus" - consulted for edge cases only.
+5. **Prometheus nearing retirement** - Finding fewer novel insights, native audit catching what matters
 
 ---
 
 ## Open Questions / Pending Decisions
 
-None currently open. All questions resolved via Prometheus consultation.
+None currently open.
 
 ---
 
@@ -61,34 +59,35 @@ None currently open. All questions resolved via Prometheus consultation.
 - ✅ Phase 2: Complete (Detection + Analyzer)
 - ✅ Phase 3: Complete (Orchestrator + Handoff)
 - ✅ Phase 4: Complete (Agents + Polish + Planning Robustness)
-- ⏳ Phase 5: Ready to start (UI Dashboard)
+- ⏳ Phase 5: In progress (5.1 done, 5.2 next)
 
 **Session Summary**
 
 | Session | Status | Audit | Notes |
 |---------|--------|-------|-------|
-| 4.1 | ✅ | passed | Workflow handoff cues |
-| 4.2 | ✅ | passed | Audit agent |
-| 4.3 | ✅ | passed | Workflow polish + 4.4 spec |
-| 4.4 | ✅ | passed | Planning Agent robustness |
+| 5.1 | ✅ | passed | Swift models + dashboard + local file client |
 
 ---
 
 ## What's Next
 
-1. **Start Phase 5: UI Dashboard** - Swift/SwiftUI work
-2. **Session 5.1**: Models & Basic View
-3. See EXECUTION_PLAN.md for full session specs
+1. **Session 5.2**: Phase Cards & Notifications
+   - Expand PhaseCardView with details
+   - Add notification system for decision prompts
+   - Calm notifications (badge-only default)
+
+2. **Session 6.1**: Full Integration & Polish (final session)
 
 ---
 
 ## Key Learnings to Preserve
 
-- **User is message bus** - Every agent must say WHERE to go next (which terminal)
-- **Three-layer audit** - Builder self-check → Formal audit → User vibes (ungameable)
-- **Vibecoders only** - This app isn't for devs, framing reflects that
-- **Prometheus retiring** - Native system reaching fidelity, may only need for edge cases
-- **Tab title fix** - precmd hook keeps Warp from renaming tabs
+- **CLAUDE.md preservation** - Don't overwrite orchestrator edits on relaunch
+- **Design research matters** - UI_PATTERNS_RESEARCH.md and LINEAR_SWIFTUI_GUIDE.md are required reading for Phase 5
+- **"Rebuild > Remodel"** - Builders can start fresh if it produces better result
+- **Orchestrator uses judgment** - Don't ask user technical questions they can't answer
+- **Deep research threads** - Meaningfully distinct capability, ask user to spawn when needed
+- **Git closeout checklist** - Verify commits, push, session log before declaring done
 
 ---
 
@@ -112,6 +111,8 @@ forge refactor orchestrate major-refactor-mode-phase-1
 - `docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md` - Principles (stable anchor)
 - `docs/MAJOR_REFACTOR_MODE/DECISIONS.md` - Architecture decisions
 - `docs/MAJOR_REFACTOR_MODE/EXECUTION_PLAN.md` - All session specs
+- `docs/design/UI_PATTERNS_RESEARCH.md` - UX patterns (Phase 5 required reading)
+- `docs/design/LINEAR_SWIFTUI_GUIDE.md` - SwiftUI patterns (Phase 5 required reading)
 - `state.json` - Runtime state
 - `signals/` - Agent signals
 
@@ -124,3 +125,4 @@ forge refactor orchestrate major-refactor-mode-phase-1
 - **Progressive delegation**: handle procedural work autonomously, only escalate decisions
 - **Three-layer audit**: Builder self-check → Formal audit → User vibes
 - Commit after each session, push to main
+- **Always verify git closeout** before declaring a session complete
