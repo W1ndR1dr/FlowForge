@@ -489,30 +489,41 @@ Before doing anything substantial, ensure you understand:
 ### "start the next session" / "let's continue"
 
 1. Identify the next session from EXECUTION_PLAN.md
-2. **Check for existing CLAUDE.md** - BEFORE launching, check if the session's CLAUDE.md already exists:
+
+2. **Check for existing CLAUDE.md** - check if the session's CLAUDE.md already exists:
    ```bash
    ls ../sessions/{{session-id}}/CLAUDE.md
    ```
    - If it exists, **use your judgment** - don't ask the user a technical question they can't answer:
      - **Preserve** (default): If you or the user edited it with important context, keep it
      - **Regenerate**: If EXECUTION_PLAN.md was updated and you need fresh spec, delete first: `rm ../sessions/{{session-id}}/CLAUDE.md`
-   - Only involve the user if there's a genuine tradeoff they need to weigh in on - and if so, **explain the tradeoff clearly**
+   - Only involve the user if there's a genuine tradeoff they need to weigh in on
 
-3. **Consider thinking depth and plan mode** - before launching, assess complexity:
-   | Session Type | Recommend |
-   |--------------|-----------|
-   | Simple/scoped implementation | Neither |
-   | Architectural changes | Ultrathink + Plan mode |
-   | Security-sensitive | Ultrathink |
-   | First session of a phase | Ultrathink |
-   | Complex multi-file changes | Ultrathink + Plan mode |
-   | Design decisions involved | Plan mode |
+3. **PRE-FLIGHT CHECKLIST** - Present this to user BEFORE launching:
+
+   ```
+   PRE-FLIGHT: Session [X.Y]
+
+   [ ] Ultrathink: [YES/NO] - [reason]
+   [ ] Plan mode:  [YES/NO] - [reason]
+
+   Ready to launch. After agent starts, invoke any recommended modes.
+   ```
+
+   **Decision guide:**
+   | Session Type | Ultrathink | Plan mode |
+   |--------------|------------|-----------|
+   | Simple/scoped implementation | No | No |
+   | Architectural changes | Yes | Yes |
+   | Security-sensitive | Yes | No |
+   | First session of a phase | Yes | No |
+   | Complex multi-file changes | Yes | Yes |
+   | Design decisions involved | No | Yes |
 
    **IMPORTANT: Ultrathink and plan mode are USER-GATED.**
-   - Agents cannot invoke these themselves - only the user can enable them
-   - If you determine they're warranted, **proactively recommend BEFORE the user asks**
-   - Example: "This session involves architectural changes. I recommend launching with **ultrathink + plan mode** enabled."
-   - The user will invoke them manually after you recommend
+   - Agents cannot invoke these themselves - only the user can
+   - Present the pre-flight checklist so user knows what to invoke after launch
+   - User can interrupt the agent right after launch to enable these modes
 
 4. **BEFORE launching**, prompt the user:
    > "Ready to launch [session]. ⚠️ **HANDS OFF KEYBOARD AND MOUSE** until the new agent is running. Say 'go' when ready."
