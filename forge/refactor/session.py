@@ -347,13 +347,9 @@ When you've completed ALL exit criteria and committed:
         if spec.worktree:
             try:
                 worktree_path = self.create_worktree()
-            except ValueError as e:
-                # Worktree already exists - use it
-                worktree_path = self.get_worktree_path()
-                if not worktree_path:
-                    return False, f"Failed to create worktree: {e}"
-            except subprocess.CalledProcessError as e:
-                return False, f"Git error creating worktree: {e.stderr}"
+            except (ValueError, subprocess.CalledProcessError) as e:
+                error_msg = e.stderr if hasattr(e, 'stderr') else str(e)
+                return False, f"Failed to create worktree: {error_msg}"
 
         # Start the session in state
         state.start_session(self.session_id)
@@ -380,7 +376,22 @@ When you've completed ALL exit criteria and committed:
             # - Worktree root (Claude reads this)
             # - Session dir (for reference/archival)
             work_dir = worktree_path
-            (worktree_path / "CLAUDE.md").write_text(claude_md_content)
+            worktree_claude_md = worktree_path / "CLAUDE.md"
+
+            # Preserve existing CLAUDE.md if present (don't lose project instructions)
+            if worktree_claude_md.exists():
+                existing_content = worktree_claude_md.read_text()
+                # Prepend session instructions, keep project instructions
+                combined = (
+                    claude_md_content +
+                    "\n\n---\n\n# Original Project CLAUDE.md\n\n" +
+                    existing_content
+                )
+                worktree_claude_md.write_text(combined)
+            else:
+                worktree_claude_md.write_text(claude_md_content)
+
+            # Also save to session dir for reference
             (session_dir / "CLAUDE.md").write_text(claude_md_content)
         else:
             # For non-worktree sessions, use session directory
@@ -404,7 +415,6 @@ When you've completed ALL exit criteria and committed:
         )
 
         if success:
-            location = f"worktree at {worktree_path}" if worktree_path else f"session dir"
             return True, (
                 f"Session {self.session_id} launched!\n\n"
                 f"Working directory: {work_dir}\n"
