@@ -11,6 +11,7 @@ Key insight: Audits catch structural issues. Combined with user's "vibes check",
 this creates a two-layer validation system.
 """
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +24,24 @@ from .signals import (
     signal_revision_needed,
     get_signals_dir,
 )
+
+
+def sanitize_session_id(session_id: str) -> str:
+    """
+    Sanitize a session ID to prevent path traversal and injection.
+
+    Only allows: alphanumeric, dots, dashes, underscores.
+    """
+    # Remove any path traversal attempts
+    sanitized = re.sub(r'[^a-zA-Z0-9._-]', '_', session_id)
+    # Prevent .. sequences
+    sanitized = re.sub(r'\.\.+', '.', sanitized)
+    return sanitized
+
+
+def validate_refactor_exists(refactor_dir: Path) -> bool:
+    """Check if a refactor directory exists and has a state file."""
+    return refactor_dir.exists() and (refactor_dir / "state.json").exists()
 
 
 @dataclass
@@ -66,10 +85,15 @@ class AuditAgent:
         project_root: Path
     ):
         self.refactor_id = refactor_id
-        self.session_ids = session_ids
+        # Sanitize session IDs to prevent path traversal
+        self.session_ids = [sanitize_session_id(sid) for sid in session_ids if sid.strip()]
         self.project_root = project_root
         self.refactor_dir = project_root / ".forge" / "refactors" / refactor_id
         self.signals_dir = get_signals_dir(self.refactor_dir)
+
+    def exists(self) -> bool:
+        """Check if the refactor exists."""
+        return validate_refactor_exists(self.refactor_dir)
 
     def load_philosophy(self) -> Optional[str]:
         """
@@ -423,12 +447,21 @@ For each session, verify:
         """
         Launch the audit session in a terminal.
 
-        1. Generate CLAUDE.md for audit
-        2. Create audit directory
-        3. Open terminal with Claude
+        1. Validate refactor exists
+        2. Generate CLAUDE.md for audit
+        3. Create audit directory
+        4. Open terminal with Claude
 
         Returns (success, message).
         """
+        # Validate refactor exists
+        if not self.exists():
+            return False, f"Refactor not found: {self.refactor_id}"
+
+        # Validate we have sessions to audit
+        if not self.session_ids:
+            return False, "No valid session IDs provided"
+
         # Create audit session directory
         sessions_str = "-".join(self.session_ids)
         audit_dir = self.refactor_dir / "audit-sessions" / sessions_str
@@ -482,13 +515,21 @@ def record_audit_pass(
     """
     audit_agent = AuditAgent(refactor_id, session_ids, project_root)
 
+    # Validate refactor exists
+    if not audit_agent.exists():
+        return False, f"Refactor not found: {refactor_id}"
+
+    # Validate we have sessions to audit
+    if not audit_agent.session_ids:
+        return False, "No valid session IDs provided"
+
     # Update state
     audit_agent.update_state_audit_result(passed=True)
 
     # Write signal
     audit_agent.signal_passed(notes)
 
-    sessions_str = ", ".join(session_ids)
+    sessions_str = ", ".join(audit_agent.session_ids)
     return True, f"Audit PASSED for sessions: {sessions_str}"
 
 
@@ -507,6 +548,14 @@ def record_audit_fail(
     """
     audit_agent = AuditAgent(refactor_id, session_ids, project_root)
 
+    # Validate refactor exists
+    if not audit_agent.exists():
+        return False, f"Refactor not found: {refactor_id}"
+
+    # Validate we have sessions to audit
+    if not audit_agent.session_ids:
+        return False, "No valid session IDs provided"
+
     # Update state
     audit_agent.update_state_audit_result(passed=False)
 
@@ -518,9 +567,9 @@ def record_audit_fail(
     if state_path.exists():
         from .state import RefactorState, SessionStatus
         state = RefactorState.load(state_path)
-        for session_id in session_ids:
+        for session_id in audit_agent.session_ids:
             state.mark_needs_revision(session_id, notes="; ".join(issues))
         state.save(state_path)
 
-    sessions_str = ", ".join(session_ids)
+    sessions_str = ", ".join(audit_agent.session_ids)
     return True, f"Audit FAILED for sessions: {sessions_str}. Revision needed."
