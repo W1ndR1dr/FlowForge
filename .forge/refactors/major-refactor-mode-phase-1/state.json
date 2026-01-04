@@ -34,14 +34,14 @@
       "session_id": "3.1b",
       "status": "completed",
       "started_at": "2026-01-03T19:20:39.984176",
-      "completed_at": "2026-01-03T19:45:00.000000",
-      "commit_hash": "47600b2",
+      "completed_at": "2026-01-03T19:51:10.025619",
+      "commit_hash": "029cb86",
       "audit_result": "passed",
       "notes": "Handoff fidelity: auto-generation detection, validation warnings, path clarification"
     }
   },
   "started_at": "2026-01-03T15:01:58.258740",
-  "updated_at": "2026-01-03T19:45:00.000000",
+  "updated_at": "2026-01-03T19:51:10.025751",
   "completed_at": null,
   "history": [
     {
@@ -85,6 +85,15 @@
         "session_id": "3.1b",
         "old_status": "in_progress",
         "commit_hash": "47600b2"
+      }
+    },
+    {
+      "timestamp": "2026-01-03T19:51:10.025679",
+      "action": "session_completed",
+      "details": {
+        "session_id": "3.1b",
+        "old_status": "completed",
+        "commit_hash": "029cb86"
       }
     }
   ]
