@@ -251,11 +251,17 @@ When all exit criteria are met:
 
 ## Signaling Completion
 
-When you've completed ALL exit criteria and committed, tell the user:
+When you've completed ALL exit criteria and committed:
 
-> "Session {self.session_id} complete! All exit criteria verified and committed."
+1. **Run this command** to signal completion to the orchestrator:
+   ```bash
+   forge refactor done {self.session_id}
+   ```
 
-The orchestrator will handle the rest.
+2. Tell the user:
+   > "Session {self.session_id} complete! All exit criteria verified and committed."
+
+The orchestrator monitors signals and will know you're done.
 
 ---
 
