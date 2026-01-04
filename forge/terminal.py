@@ -177,13 +177,21 @@ def _open_warp(
     # In Python, we need \\\" to get a literal \" in the output
     dir_str = str(directory)
 
-    # Build tab title escape sequence if title provided
+    # Build tab title with persistent precmd hook
     # Uses ANSI escape: \033]0;title\007
+    # Also adds a precmd hook that reasserts the title before each prompt
+    # This prevents Warp from overwriting the title with command names
     title_cmd = ''
     if title:
         # Sanitize title for shell (keep alphanumeric, spaces, dots, hyphens)
         safe_title = ''.join(c for c in title if c.isalnum() or c in ' .-:#')
-        title_cmd = f'echo -ne \\"\\\\033]0;{safe_title}\\\\007\\" && '
+        # Define a precmd function that sets the title, add it to precmd_functions (zsh),
+        # and call it once immediately
+        title_cmd = (
+            f'function _forge_tab_title() {{ echo -ne \\"\\\\033]0;{safe_title}\\\\007\\"; }}; '
+            f'precmd_functions+=(_forge_tab_title); '
+            f'_forge_tab_title && '
+        )
 
     # Create a new window (Cmd+N) and cd to directory
     if command:
