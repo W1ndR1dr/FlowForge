@@ -4,6 +4,7 @@ Execution Session management for Major Refactor Mode.
 An ExecutionSession represents a single implementation session within a refactor.
 It handles:
 - Loading session specs from EXECUTION_PLAN.md
+- Creating worktrees for isolated work (when spec.worktree == True)
 - Generating session-specific CLAUDE.md
 - Launching Claude in terminal
 - Updating RefactorState and writing signals
@@ -18,6 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 from ..terminal import open_terminal_in_directory, Terminal
+from ..worktree import WorktreeManager
 from .state import RefactorState, RefactorStatus, SessionStatus
 from .signals import signal_session_started, signal_session_done, get_signals_dir
 
@@ -138,7 +140,8 @@ class ExecutionSession:
     Manages execution sessions for a refactor.
 
     An execution session is a single Claude Code session that implements
-    part of the refactor plan.
+    part of the refactor plan. When spec.worktree is True, the session
+    runs in an isolated git worktree for safe parallel development.
     """
 
     def __init__(self, refactor_id: str, session_id: str, project_root: Path):
@@ -147,6 +150,39 @@ class ExecutionSession:
         self.project_root = project_root
         self.refactor_dir = project_root / ".forge" / "refactors" / refactor_id
         self.sessions_dir = self.refactor_dir / "sessions"
+        self.worktree_manager = WorktreeManager(project_root)
+
+    def get_worktree_id(self) -> str:
+        """
+        Get the worktree ID for this session.
+
+        Format: refactor-{refactor_id}-{session_id}
+        Example: refactor-major-refactor-mode-phase-1-1.1
+        """
+        return f"refactor-{self.refactor_id}-{self.session_id}"
+
+    def get_worktree_path(self) -> Optional[Path]:
+        """Get the worktree path if it exists."""
+        return self.worktree_manager.get_worktree_path(self.get_worktree_id())
+
+    def create_worktree(self, base_branch: str = "main") -> Path:
+        """
+        Create a worktree for this session.
+
+        Returns the path to the worktree.
+        """
+        worktree_id = self.get_worktree_id()
+
+        # Check if worktree already exists
+        existing_path = self.worktree_manager.get_worktree_path(worktree_id)
+        if existing_path:
+            return existing_path
+
+        # Create the worktree
+        return self.worktree_manager.create_for_feature(
+            feature_id=worktree_id,
+            base_branch=base_branch,
+        )
 
     def load_session_spec(self) -> Optional[SessionSpec]:
         """
@@ -287,9 +323,10 @@ When you've completed ALL exit criteria and committed:
         1. Load RefactorState
         2. Validate session can start
         3. Update state: current_session, status = executing
-        4. Write SESSION_STARTED signal
-        5. Generate CLAUDE.md
-        6. Open terminal with Claude
+        4. Create worktree if spec.worktree is True
+        5. Write SESSION_STARTED signal
+        6. Generate CLAUDE.md (in worktree or session dir)
+        7. Open terminal with Claude
 
         Returns (success, message).
         """
@@ -305,21 +342,50 @@ When you've completed ALL exit criteria and committed:
         else:
             state = RefactorState(refactor_id=self.refactor_id)
 
+        # Determine working directory - worktree or session dir
+        worktree_path: Optional[Path] = None
+        if spec.worktree:
+            try:
+                worktree_path = self.create_worktree()
+            except ValueError as e:
+                # Worktree already exists - use it
+                worktree_path = self.get_worktree_path()
+                if not worktree_path:
+                    return False, f"Failed to create worktree: {e}"
+            except subprocess.CalledProcessError as e:
+                return False, f"Git error creating worktree: {e.stderr}"
+
         # Start the session in state
         state.start_session(self.session_id)
         state.save(state_path)
 
         # Write SESSION_STARTED signal
         signals_dir = get_signals_dir(self.refactor_dir)
-        signal_session_started(signals_dir, self.session_id)
+        signal_session_started(
+            signals_dir,
+            self.session_id,
+            worktree_path=str(worktree_path) if worktree_path else None,
+        )
 
-        # Create session directory and CLAUDE.md
+        # Create session directory for metadata/CLAUDE.md
         session_dir = self.sessions_dir / self.session_id
         session_dir.mkdir(parents=True, exist_ok=True)
 
+        # Generate CLAUDE.md
         claude_md_content = self.generate_execution_claude_md(spec)
-        claude_md_path = session_dir / "CLAUDE.md"
-        claude_md_path.write_text(claude_md_content)
+
+        # Determine where to write CLAUDE.md and launch terminal
+        if worktree_path:
+            # For worktree sessions, write CLAUDE.md to both locations:
+            # - Worktree root (Claude reads this)
+            # - Session dir (for reference/archival)
+            work_dir = worktree_path
+            (worktree_path / "CLAUDE.md").write_text(claude_md_content)
+            (session_dir / "CLAUDE.md").write_text(claude_md_content)
+        else:
+            # For non-worktree sessions, use session directory
+            work_dir = session_dir
+            (session_dir / "CLAUDE.md").write_text(claude_md_content)
 
         # Launch terminal
         terminal_enum = Terminal(terminal) if terminal != "auto" else Terminal.AUTO
@@ -330,7 +396,7 @@ When you've completed ALL exit criteria and committed:
         tab_title = f"{self.session_id} Builder"
 
         success = open_terminal_in_directory(
-            directory=session_dir,
+            directory=work_dir,
             terminal=terminal_enum,
             command=claude_command,
             title=tab_title,
@@ -338,17 +404,70 @@ When you've completed ALL exit criteria and committed:
         )
 
         if success:
+            location = f"worktree at {worktree_path}" if worktree_path else f"session dir"
             return True, (
                 f"Session {self.session_id} launched!\n\n"
+                f"Working directory: {work_dir}\n"
                 f"Claude will read the CLAUDE.md and begin working.\n"
-                f"When done, the session will signal completion."
+                f"When done, run: forge refactor done {self.session_id}"
             )
         else:
             return False, (
                 f"Could not open terminal. Start manually:\n\n"
-                f"  cd {session_dir}\n"
+                f"  cd {work_dir}\n"
                 f"  {claude_command}\n"
             )
+
+
+def write_session_output(
+    refactor_id: str,
+    session_id: str,
+    project_root: Path,
+    summary: str = "",
+    accomplishments: list[str] = None,
+    issues: list[str] = None,
+    handoff_notes: str = "",
+) -> Path:
+    """
+    Write output.md for a completed session.
+
+    This documents what the session accomplished for audit review.
+    Written to: .forge/refactors/{id}/sessions/{session}/output.md
+
+    Returns the path to the output file.
+    """
+    refactor_dir = project_root / ".forge" / "refactors" / refactor_id
+    session_dir = refactor_dir / "sessions" / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+
+    output_path = session_dir / "output.md"
+
+    accomplishments_str = "\n".join(f"- {a}" for a in (accomplishments or []))
+    issues_str = "\n".join(f"- {i}" for i in (issues or []))
+
+    content = f"""# Session {session_id} Output
+
+> **Completed**: {datetime.now().strftime("%Y-%m-%d %H:%M")}
+
+## Summary
+
+{summary or "Session completed."}
+
+## Accomplishments
+
+{accomplishments_str or "- See commit for details"}
+
+## Issues Encountered
+
+{issues_str or "- None"}
+
+## Handoff Notes
+
+{handoff_notes or "Ready for next session."}
+"""
+
+    output_path.write_text(content)
+    return output_path
 
 
 def complete_session(
@@ -357,13 +476,15 @@ def complete_session(
     project_root: Path,
     commit_hash: Optional[str] = None,
     notes: str = "",
+    write_output: bool = True,
 ) -> tuple[bool, str]:
     """
     Mark a session as complete.
 
     1. Update RefactorState
-    2. Write SESSION_DONE signal
-    3. Return status
+    2. Write output.md (if write_output=True)
+    3. Write SESSION_DONE signal
+    4. Return status
 
     This is typically called by the execution agent when it finishes,
     or manually by the orchestrator.
@@ -376,6 +497,11 @@ def complete_session(
 
     state = RefactorState.load(state_path)
 
+    # Check for worktree and get commit hash from there if applicable
+    session = ExecutionSession(refactor_id, session_id, project_root)
+    worktree_path = session.get_worktree_path()
+    git_cwd = worktree_path if worktree_path else project_root
+
     # Get commit hash from git if not provided
     if not commit_hash:
         try:
@@ -383,7 +509,7 @@ def complete_session(
                 ["git", "rev-parse", "HEAD"],
                 capture_output=True,
                 text=True,
-                cwd=project_root,
+                cwd=git_cwd,
             )
             if result.returncode == 0:
                 commit_hash = result.stdout.strip()[:7]
@@ -397,6 +523,16 @@ def complete_session(
     except ValueError as e:
         return False, str(e)
 
+    # Write output.md
+    if write_output:
+        write_session_output(
+            refactor_id=refactor_id,
+            session_id=session_id,
+            project_root=project_root,
+            summary=notes or f"Session {session_id} completed",
+            handoff_notes=notes,
+        )
+
     # Write SESSION_DONE signal
     signals_dir = get_signals_dir(refactor_dir)
     signal_session_done(
@@ -406,4 +542,5 @@ def complete_session(
         summary=notes or f"Session {session_id} completed",
     )
 
-    return True, f"Session {session_id} marked complete (commit: {commit_hash or 'unknown'})"
+    worktree_msg = f" (worktree: {worktree_path.name})" if worktree_path else ""
+    return True, f"Session {session_id} marked complete (commit: {commit_hash or 'unknown'}){worktree_msg}"

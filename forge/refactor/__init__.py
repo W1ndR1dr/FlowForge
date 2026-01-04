@@ -39,6 +39,7 @@ from .session import (
     ExecutionSession,
     SessionSpec,
     complete_session,
+    write_session_output,
 )
 from .analyzer import (
     CodebaseAnalyzer,
@@ -87,6 +88,7 @@ __all__ = [
     "ExecutionSession",
     "SessionSpec",
     "complete_session",
+    "write_session_output",
     # Analyzer
     "CodebaseAnalyzer",
     "AnalysisResult",

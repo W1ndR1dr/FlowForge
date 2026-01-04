@@ -1911,22 +1911,16 @@ def refactor_resume(
         console.print(f"  {claude_command}")
 
 
-@refactor_app.command("start")
-def refactor_start(
-    refactor_id: str = typer.Argument(..., help="Refactor ID"),
-    session_id: str = typer.Argument(..., help="Session ID (e.g., '1.1', '2.1')"),
-    terminal: str = typer.Option("auto", "--terminal", "-t", help="Terminal: warp, iterm, terminal, auto"),
+def _start_session_impl(
+    refactor_id: str,
+    session_id: str,
+    terminal: str,
 ):
     """
-    🚀 Start an execution session for a refactor.
+    Shared implementation for start/start-phase commands.
 
-    Launches Claude Code with the session-specific CLAUDE.md that includes:
-    - The session prompt from EXECUTION_PLAN.md
-    - Exit criteria to verify
-    - Git instructions
-
-    Example:
-        forge refactor start major-refactor-mode-phase-1 1.1
+    When the session spec has worktree: YES, creates a git worktree for
+    isolated parallel development.
     """
     project_root, config, registry = get_context()
 
@@ -1948,6 +1942,47 @@ def refactor_start(
     else:
         console.print(f"[red]✗[/red] {message}")
         raise typer.Exit(1)
+
+
+@refactor_app.command("start")
+def refactor_start(
+    refactor_id: str = typer.Argument(..., help="Refactor ID"),
+    session_id: str = typer.Argument(..., help="Session ID (e.g., '1.1', '2.1')"),
+    terminal: str = typer.Option("auto", "--terminal", "-t", help="Terminal: warp, iterm, terminal, auto"),
+):
+    """
+    🚀 Start an execution session for a refactor.
+
+    Launches Claude Code with the session-specific CLAUDE.md that includes:
+    - The session prompt from EXECUTION_PLAN.md
+    - Exit criteria to verify
+    - Git instructions
+
+    If the session spec has worktree: YES, creates a git worktree for
+    isolated development (at .forge-worktrees/refactor-{id}-{session}/).
+
+    Example:
+        forge refactor start major-refactor-mode-phase-1 1.1
+    """
+    _start_session_impl(refactor_id, session_id, terminal)
+
+
+@refactor_app.command("start-phase")
+def refactor_start_phase(
+    refactor_id: str = typer.Argument(..., help="Refactor ID"),
+    phase_id: str = typer.Argument(..., help="Phase/Session ID (e.g., '1.1', '2.1')"),
+    terminal: str = typer.Option("auto", "--terminal", "-t", help="Terminal: warp, iterm, terminal, auto"),
+):
+    """
+    🚀 Start a phase execution session (alias for 'start').
+
+    Creates a worktree (if spec.worktree is YES), launches Claude Code
+    with the phase-specific CLAUDE.md, and sets up signals.
+
+    Example:
+        forge refactor start-phase major-refactor-mode-phase-1 4.1
+    """
+    _start_session_impl(refactor_id, phase_id, terminal)
 
 
 @refactor_app.command("done")
