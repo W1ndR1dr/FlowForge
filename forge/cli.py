@@ -1755,6 +1755,10 @@ def refactor_plan(
     Example:
         forge refactor plan "API Restructure" --goal "Split monolith into microservices"
 
+    Naming tip: Avoid "Phase N" in titles - the refactor will have internal phases
+    (sessions 1.x, 2.x, etc.) which creates confusing redundancy. Use descriptive
+    names like "Auth Overhaul" or "API Restructure" instead.
+
     The planning docs become the "memory" for all future execution sessions.
     """
     project_root, config, registry = get_context()
@@ -1763,6 +1767,7 @@ def refactor_plan(
 
     console.print(f"\n🧠 [bold]Major Refactor Mode[/bold]: {title}\n")
     console.print(f"[dim]Goal: {goal}[/dim]\n")
+    console.print("[yellow]⚠️  HANDS OFF KEYBOARD AND MOUSE until the new agent is running.[/yellow]\n")
 
     agent = PlanningAgent(project_root)
 
@@ -1928,6 +1933,7 @@ def refactor_start(
     from .refactor.session import ExecutionSession
 
     console.print(f"\n🚀 [bold]Starting Session {session_id}[/bold]\n")
+    console.print("[yellow]⚠️  HANDS OFF KEYBOARD AND MOUSE until the new agent is running.[/yellow]\n")
 
     session = ExecutionSession(
         refactor_id=refactor_id,
@@ -2118,6 +2124,7 @@ def refactor_orchestrate(
     from .refactor.orchestrator import OrchestratorSession
 
     console.print(f"\n🎯 [bold]Launching Orchestrator[/bold]: {refactor_id}\n")
+    console.print("[yellow]⚠️  HANDS OFF KEYBOARD AND MOUSE until the new agent is running.[/yellow]\n")
 
     orchestrator = OrchestratorSession(
         refactor_id=refactor_id,
@@ -2206,6 +2213,7 @@ def refactor_audit(
 
     console.print(f"\n🔍 [bold]Launching Audit[/bold]: {refactor_id}\n")
     console.print(f"[dim]Sessions: {', '.join(sessions)}[/dim]\n")
+    console.print("[yellow]⚠️  HANDS OFF KEYBOARD AND MOUSE until the new agent is running.[/yellow]\n")
 
     audit_agent = AuditAgent(
         refactor_id=refactor_id,
@@ -2302,6 +2310,48 @@ def refactor_audit_fail(
         # Show what's next
         console.print("\n[dim]Sessions marked as needing revision.[/dim]")
         console.print("[dim]The builder should fix the issues and run 'forge refactor done' again.[/dim]")
+    else:
+        console.print(f"[red]✗[/red] {message}")
+        raise typer.Exit(1)
+
+
+@refactor_app.command("escalate")
+def refactor_escalate(
+    refactor_id: str = typer.Argument(..., help="Refactor ID"),
+    session_ids: str = typer.Argument(..., help="Session ID(s) needing escalation (comma-separated)"),
+    reason: str = typer.Option(..., "--reason", "-r", help="Why escalation is needed"),
+):
+    """
+    🚨 Signal that human intervention is needed.
+
+    Called by the auditor when revision cycles aren't fixing the issue:
+    - Same issues recurring across iterations
+    - Fundamental architectural mismatch with philosophy
+    - Scope confusion that revision won't fix
+
+    Example:
+        forge refactor escalate major-refactor-mode-phase-1 1.1 --reason "Recurring anti-pattern despite 3 iterations"
+    """
+    project_root, config, registry = get_context()
+
+    from .refactor.audit_agent import record_escalation
+
+    # Parse session IDs
+    sessions = [s.strip() for s in session_ids.split(",")]
+
+    success, message = record_escalation(
+        refactor_id=refactor_id,
+        session_ids=sessions,
+        project_root=project_root,
+        reason=reason,
+    )
+
+    if success:
+        console.print(f"\n[red]🚨[/red] {message}")
+
+        # Show what happens next
+        console.print("\n[dim]The orchestrator will notify the user.[/dim]")
+        console.print("[dim]Human intervention required to proceed.[/dim]")
     else:
         console.print(f"[red]✗[/red] {message}")
         raise typer.Exit(1)

@@ -33,6 +33,7 @@ from .signals import (
     signal_audit_passed,
     signal_revision_needed,
     signal_question,
+    signal_escalation_needed,
 )
 from .session import (
     ExecutionSession,
@@ -55,6 +56,7 @@ from .audit_agent import (
     AuditIssue,
     record_audit_pass,
     record_audit_fail,
+    record_escalation,
 )
 
 __all__ = [
@@ -80,6 +82,7 @@ __all__ = [
     "signal_audit_passed",
     "signal_revision_needed",
     "signal_question",
+    "signal_escalation_needed",
     # Execution Sessions
     "ExecutionSession",
     "SessionSpec",
@@ -98,4 +101,5 @@ __all__ = [
     "AuditIssue",
     "record_audit_pass",
     "record_audit_fail",
+    "record_escalation",
 ]

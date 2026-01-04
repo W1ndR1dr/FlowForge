@@ -22,6 +22,7 @@ from .state import RefactorState, AuditResult
 from .signals import (
     signal_audit_passed,
     signal_revision_needed,
+    signal_escalation_needed,
     get_signals_dir,
 )
 
@@ -95,13 +96,16 @@ class AuditAgent:
         """Check if the refactor exists."""
         return validate_refactor_exists(self.refactor_dir)
 
-    def load_philosophy(self) -> Optional[str]:
+    def load_philosophy(self) -> tuple[Optional[str], Optional[Path]]:
         """
-        Load PHILOSOPHY.md content.
+        Load PHILOSOPHY.md content and report which file was used.
 
         Checks multiple locations in priority order:
         1. Refactor-specific: .forge/refactors/{id}/PHILOSOPHY.md
         2. Project docs: docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md
+
+        Returns:
+            (content, source_path) tuple. Both None if not found.
         """
         paths = [
             self.refactor_dir / "PHILOSOPHY.md",
@@ -110,9 +114,31 @@ class AuditAgent:
 
         for path in paths:
             if path.exists():
-                return path.read_text()
+                return path.read_text(), path
 
-        return None
+        return None, None
+
+    def load_decisions(self) -> tuple[Optional[str], Optional[Path]]:
+        """
+        Load DECISIONS.md content and report which file was used.
+
+        Checks multiple locations in priority order:
+        1. Refactor-specific: .forge/refactors/{id}/DECISIONS.md
+        2. Project docs: docs/MAJOR_REFACTOR_MODE/DECISIONS.md
+
+        Returns:
+            (content, source_path) tuple. Both None if not found.
+        """
+        paths = [
+            self.refactor_dir / "DECISIONS.md",
+            self.project_root / "docs" / "MAJOR_REFACTOR_MODE" / "DECISIONS.md",
+        ]
+
+        for path in paths:
+            if path.exists():
+                return path.read_text(), path
+
+        return None, None
 
     def load_session_outputs(self) -> dict[str, str]:
         """
@@ -165,36 +191,73 @@ class AuditAgent:
 
         Uses git to find what was changed, so the audit can validate
         the actual implementation, not just documented outputs.
+
+        Includes both stats AND actual patches so auditor can see the code.
         """
         import subprocess
 
         # Get commits from these sessions
         changes = []
+        max_lines_per_commit = 500  # Intelligent truncation per commit
+        total_lines = 0
+        max_total_lines = 1500  # Cap total output
 
         state_path = self.refactor_dir / "state.json"
         if state_path.exists():
             state = RefactorState.load(state_path)
 
             for session_id in self.session_ids:
+                if total_lines >= max_total_lines:
+                    changes.append("\n... (truncated, too many changes to show)")
+                    break
+
                 session_state = state.get_session(session_id)
                 if session_state and session_state.commit_hash:
                     commit_hash = session_state.commit_hash
 
-                    # Get diff for this commit
+                    # Get diff with actual patch content
                     try:
                         result = subprocess.run(
-                            ["git", "show", "--stat", commit_hash],
+                            ["git", "show", "--stat", "--patch", commit_hash],
                             capture_output=True,
                             text=True,
                             cwd=self.project_root,
                         )
                         if result.returncode == 0:
                             changes.append(f"### Commit {commit_hash} (Session {session_id})\n")
-                            changes.append(result.stdout[:3000])  # Truncate long diffs
+                            # Truncate per-commit but show actual code
+                            lines = result.stdout.split('\n')
+                            truncated = lines[:max_lines_per_commit]
+                            changes.append('\n'.join(truncated))
+                            if len(lines) > max_lines_per_commit:
+                                changes.append(f"\n... ({len(lines) - max_lines_per_commit} more lines)")
+                            total_lines += min(len(lines), max_lines_per_commit)
                     except Exception:
                         pass
 
         return "\n".join(changes) if changes else "No commit information available."
+
+    def _get_iteration_context(self) -> tuple[int, str]:
+        """
+        Get iteration count and context string for audit.
+
+        Returns:
+            (max_iteration_count, context_string)
+        """
+        state_path = self.refactor_dir / "state.json"
+        max_iter = 0
+        iter_details = []
+
+        if state_path.exists():
+            state = RefactorState.load(state_path)
+            for session_id in self.session_ids:
+                session = state.get_session(session_id)
+                if session:
+                    iter_details.append(f"- Session {session_id}: iteration #{session.iteration_count}")
+                    max_iter = max(max_iter, session.iteration_count)
+
+        context = "\n".join(iter_details) if iter_details else "- No iteration data available"
+        return max_iter, context
 
     def generate_audit_claude_md(self) -> str:
         """
@@ -206,15 +269,49 @@ class AuditAgent:
         - Validate alignment with principles
         - Report specific issues or pass
         """
-        philosophy = self.load_philosophy() or "(PHILOSOPHY.md not found)"
+        philosophy, philosophy_path = self.load_philosophy()
+        philosophy_content = philosophy or "(PHILOSOPHY.md not found)"
+        philosophy_source = str(philosophy_path) if philosophy_path else "not found"
+
+        decisions, decisions_path = self.load_decisions()
+        decisions_content = decisions or "(DECISIONS.md not found)"
+        decisions_source = str(decisions_path) if decisions_path else "not found"
+
         outputs = self.load_session_outputs()
         code_changes = self.load_code_changes()
+
+        max_iteration, iteration_details = self._get_iteration_context()
 
         sessions_str = ", ".join(self.session_ids)
         outputs_str = "\n\n---\n\n".join(
             f"## Session {sid}\n\n{content}"
             for sid, content in outputs.items()
         )
+
+        # Build escalation guidance based on iteration count
+        escalation_section = ""
+        if max_iteration > 0:
+            escalation_section = f"""
+---
+
+## Iteration Context
+
+**This is audit iteration #{max_iteration + 1}** for these sessions.
+
+{iteration_details}
+
+If you observe:
+- Same issues recurring across iterations
+- Fundamental architectural mismatch with philosophy
+- Scope confusion that revision won't fix
+
+...you may signal escalation instead of another revision:
+```bash
+forge refactor escalate {self.refactor_id} {sessions_str} --reason "Brief explanation"
+```
+
+Use your judgment. Escalation is not failure - it means human intervention is needed.
+"""
 
         return f'''# Audit Session
 
@@ -231,14 +328,26 @@ aligns with the original vision and principles.
 
 **Key insight**: You're catching structural issues. The user will also do a "vibes check"
 to catch feel/intent issues. Together, you form a two-layer validation system.
-
+{escalation_section}
 ---
 
 ## FIRST: Read Philosophy Carefully
 
+> **Source**: `{philosophy_source}`
+
 This is the STABLE ANCHOR - the principles that must not be violated:
 
-{philosophy}
+{philosophy_content}
+
+---
+
+## Architecture Decisions
+
+> **Source**: `{decisions_source}`
+
+Check that approved decisions from DECISIONS.md are followed:
+
+{decisions_content}
 
 ---
 
@@ -258,26 +367,26 @@ These are the actual commits from the sessions:
 
 ---
 
-## Your Validation Checklist
+## What to Check
 
-For each session, verify:
+Review against these areas, using your judgment on what matters for THIS session:
 
-1. **Principle Alignment**
-   - Does the work follow the stated principles?
-   - Are any anti-patterns present?
-   - Does it match the vision?
+**From PHILOSOPHY.md:**
+- Docs as memory (updates files, not just conversation?)
+- File-based signals (no IPC/WebSocket complexity?)
+- Iteration-friendly (handles revision gracefully?)
+- Anti-patterns avoided?
 
-2. **Scope Compliance**
-   - Did the session stay within its defined scope?
-   - Was anything built that was explicitly "NOT building"?
+**From DECISIONS.md:**
+- Follows approved architecture decisions?
+- Avoids explicitly rejected approaches?
 
-3. **Quality Check**
-   - Is the implementation complete per exit criteria?
-   - Are there obvious gaps or shortcuts?
+**Quality:**
+- Complete per exit criteria?
+- Obvious gaps or shortcuts?
+- Does the code match the documented intent?
 
-4. **Drift Detection**
-   - Has the implementation drifted from the original intent?
-   - Are there concerning deviations?
+This is a guide, not a gate. Use your judgment on severity and relevance.
 
 ---
 
@@ -319,27 +428,18 @@ For each session, verify:
 ## Important Notes
 
 - Be specific about what doesn't align and WHY
-- Reference specific principles from PHILOSOPHY.md
+- Reference specific principles from PHILOSOPHY.md or DECISIONS.md
 - Suggest how to fix issues, don't just point them out
-- "Good enough" is not passing - work should align with principles
-- However, don't be pedantic about minor style issues
-
----
-
-## Key Principles (from PHILOSOPHY.md)
-
-- **Docs ARE the memory** - The philosophy is authoritative
-- **Anti-patterns matter** - Detecting what NOT to do is as important as what to do
-- **Iteration is expected** - Revision is normal, not failure
-- **Three-layer audit** - You + User vibes + Builder self-check
+- Don't be pedantic about minor style issues
+- Iteration is expected - revision is normal, not failure
 
 ---
 
 ## Begin
 
-1. Read the philosophy section above VERY carefully
-2. Review each session's work
-3. Check against principles
+1. Read the philosophy and decisions sections above CAREFULLY
+2. Review each session's work and code changes
+3. Check against principles using your judgment
 4. Report your findings
 '''
 
@@ -543,7 +643,7 @@ def record_audit_fail(
     """
     Record that an audit found issues.
 
-    Updates state and writes signal.
+    Updates state, increments iteration count, and writes signal.
     Called by CLI command after auditor finds problems.
     """
     audit_agent = AuditAgent(refactor_id, session_ids, project_root)
@@ -562,14 +662,67 @@ def record_audit_fail(
     # Write signal
     audit_agent.signal_failed(issues, suggestions)
 
-    # Mark sessions as needing revision
+    # Mark sessions as needing revision and increment iteration count
     state_path = project_root / ".forge" / "refactors" / refactor_id / "state.json"
+    iteration_counts = []
     if state_path.exists():
         from .state import RefactorState, SessionStatus
         state = RefactorState.load(state_path)
         for session_id in audit_agent.session_ids:
+            # Increment iteration count (auditor uses this to decide escalation)
+            count = state.increment_iteration(session_id)
+            iteration_counts.append(f"{session_id}→#{count}")
             state.mark_needs_revision(session_id, notes="; ".join(issues))
         state.save(state_path)
 
     sessions_str = ", ".join(audit_agent.session_ids)
-    return True, f"Audit FAILED for sessions: {sessions_str}. Revision needed."
+    iter_str = ", ".join(iteration_counts) if iteration_counts else ""
+    return True, f"Audit FAILED for sessions: {sessions_str}. Iteration: {iter_str}. Revision needed."
+
+
+def record_escalation(
+    refactor_id: str,
+    session_ids: list[str],
+    project_root: Path,
+    reason: str,
+) -> tuple[bool, str]:
+    """
+    Record that human escalation is needed.
+
+    Called by auditor when:
+    - Same issues keep recurring across iterations
+    - Fundamental architectural mismatch with philosophy
+    - Scope confusion that revision won't fix
+
+    This signals that the issue can't be fixed by another revision cycle.
+    """
+    audit_agent = AuditAgent(refactor_id, session_ids, project_root)
+
+    # Validate refactor exists
+    if not audit_agent.exists():
+        return False, f"Refactor not found: {refactor_id}"
+
+    # Validate we have sessions
+    if not audit_agent.session_ids:
+        return False, "No valid session IDs provided"
+
+    # Get current iteration count for context
+    state_path = project_root / ".forge" / "refactors" / refactor_id / "state.json"
+    max_iteration = 0
+    if state_path.exists():
+        state = RefactorState.load(state_path)
+        for session_id in audit_agent.session_ids:
+            session = state.get_session(session_id)
+            if session:
+                max_iteration = max(max_iteration, session.iteration_count)
+
+    # Write escalation signal
+    sessions_str = ", ".join(audit_agent.session_ids)
+    signal_escalation_needed(
+        audit_agent.signals_dir,
+        sessions_str,
+        iteration_count=max_iteration,
+        reason=reason,
+    )
+
+    return True, f"ESCALATION signaled for sessions: {sessions_str}. Reason: {reason}"

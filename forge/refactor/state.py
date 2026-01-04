@@ -55,6 +55,7 @@ class SessionState:
     commit_hash: Optional[str] = None
     audit_result: AuditResult = AuditResult.PENDING
     notes: str = ""  # Handoff notes for next session
+    iteration_count: int = 0  # Tracks audit iterations for visibility
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -66,6 +67,7 @@ class SessionState:
             "commit_hash": self.commit_hash,
             "audit_result": self.audit_result.value,
             "notes": self.notes,
+            "iteration_count": self.iteration_count,
         }
 
     @classmethod
@@ -79,6 +81,7 @@ class SessionState:
             commit_hash=data.get("commit_hash"),
             audit_result=AuditResult(data.get("audit_result", "pending")),
             notes=data.get("notes", ""),
+            iteration_count=data.get("iteration_count", 0),
         )
 
 
@@ -292,3 +295,21 @@ class RefactorState:
             s.status == SessionStatus.COMPLETED
             for s in self.sessions.values()
         )
+
+    def increment_iteration(self, session_id: str) -> int:
+        """
+        Increment and return iteration count for a session.
+
+        Called when audit fails and session needs revision.
+        The auditor uses this count to decide when to escalate.
+        """
+        session = self.sessions.get(session_id)
+        if session:
+            session.iteration_count += 1
+            self._log_change(
+                "iteration_incremented",
+                session_id=session_id,
+                count=session.iteration_count,
+            )
+            return session.iteration_count
+        return 0

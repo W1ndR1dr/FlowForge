@@ -35,6 +35,7 @@ class SignalType(str, Enum):
     # Audit results
     AUDIT_PASSED = "audit_passed"  # Audit agent approved the session
     REVISION_NEEDED = "revision_needed"  # Audit found issues (includes issues list)
+    ESCALATION_NEEDED = "escalation_needed"  # Human intervention needed
 
     # User interaction
     QUESTION = "question"  # Agent needs user input (includes question, options)
@@ -289,5 +290,30 @@ def signal_question(
         {
             "question": question,
             "options": options or [],
+        },
+    )
+
+
+def signal_escalation_needed(
+    signals_dir: Path,
+    session_id: str,
+    iteration_count: int,
+    reason: str,
+) -> Path:
+    """
+    Signal that human intervention is needed.
+
+    The auditor calls this when:
+    - Same issues keep recurring across iterations
+    - Fundamental architectural mismatch with philosophy
+    - Scope confusion that revision won't fix
+    """
+    return write_signal(
+        signals_dir,
+        SignalType.ESCALATION_NEEDED,
+        session_id,
+        {
+            "iteration_count": iteration_count,
+            "reason": reason,
         },
     )
