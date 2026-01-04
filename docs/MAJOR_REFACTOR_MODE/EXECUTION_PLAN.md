@@ -2070,14 +2070,50 @@ The feature is now ready for use!
 ---
 
 ### Session 4.4: Planning Agent Robustness
-**Date**: (not started)
-**Status**: PENDING
+**Date**: 2026-01-03
+**Status**: DONE
+
+**Completed**:
+- [x] Handoff protocol for Planning Agent
+- [x] Generation tracking in handoff docs
+- [x] Resume capability for planning sessions
+
+**Commits**: 992542f
 
 ---
 
 ### Session 5.1: Models & Basic View
-**Date**: (not started)
-**Status**: PENDING
+**Date**: 2026-01-04
+**Status**: DONE
+
+**Completed**:
+- [x] RefactorPlan.swift model (mirrors Python RefactorState)
+- [x] RefactorDashboardView.swift with stepped progress indicator
+- [x] RefactorClient.swift for local file reading
+- [x] Integrated into WorkspaceView (macOS only)
+- [x] Linear-inspired styling per design research
+- [x] Path traversal protection in RefactorClient
+
+**Discoveries**:
+- Orchestrator edits to CLAUDE.md were being overwritten on relaunch - fixed with preservation logic
+- Design research docs (UI_PATTERNS_RESEARCH.md, LINEAR_SWIFTUI_GUIDE.md) proved invaluable
+- "Rebuild > Remodel" guidance helps builders know they can start fresh
+
+**Files Created**:
+- `ForgeApp/Models/RefactorPlan.swift` (306 lines)
+- `ForgeApp/Views/Refactor/RefactorDashboardView.swift` (506 lines)
+- `ForgeApp/Services/RefactorClient.swift` (175 lines)
+
+**Files Modified**:
+- `ForgeApp/Views/WorkspaceView.swift` - Added refactor dashboard section
+- `forge/refactor/session.py` - CLAUDE.md preservation logic
+
+**Commits**: e84c3e9, d16375b
+
+**For Next Session (5.2)**:
+- Models and basic view exist
+- Navigation from WorkspaceView works
+- Focus on phase cards, expanded details, and notification system
 
 ---
 
