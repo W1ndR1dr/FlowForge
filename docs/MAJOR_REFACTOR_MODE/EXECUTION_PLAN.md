@@ -1598,7 +1598,14 @@ Note for Session 5.2:
 **PROMPT** (copy this into Claude Code):
 
 ```
-FIRST: Read the design research docs (see Phase 5 header above).
+FIRST: Read these design research docs:
+- docs/design/UI_PATTERNS_RESEARCH.md - UX patterns from Linear, Asana, Basecamp
+- docs/design/LINEAR_SWIFTUI_GUIDE.md - SwiftUI implementation patterns
+
+User preferences:
+- Rebuild > Remodel: Start fresh if it produces better result than adapting existing code
+- No sentimentality about existing UI
+- Pre-MVP mindset, zero technical debt
 
 Key patterns from research:
 - Calm notifications (badge-only by default, not naggy)
