@@ -116,10 +116,13 @@ PHASE 3: ORCHESTRATOR (Sequential)
 Session 3.1
  [PENDING]
 
-PHASE 4: AGENTS (Can parallelize)
+PHASE 4: AGENTS & POLISH (Sequential after 4.1/4.2)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Session 4.1  ∥  Session 4.2
- [PENDING]      [PENDING]
+ [DONE]         [DONE]
+      ↓
+Session 4.3 → Session 4.4
+ [DONE]      [PENDING]
 
 PHASE 5: UI DASHBOARD (Sequential)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1320,9 +1323,141 @@ git commit -m "feat(refactor): Session 4.3 - Workflow polish & multi-commit audi
 
 **HANDOFF**
 
-Note for Phase 5:
+Note for Session 4.4:
 - All agents now guide users through transitions
-- Workflow is self-documenting
+- But Planning Agent lacks robustness for long sessions
+
+---
+
+### Session 4.4: Planning Agent Robustness
+
+| | |
+|---|---|
+| **Worktree** | NO - Direct to main branch |
+| **Scope** | IN: Planning Agent handoff, iteration, resume. OUT: Codebase analyzer changes, UI |
+| **Start When** | Session 4.3 complete, audit passed |
+| **Stop When** | Planning Agent can survive 200k+ token sessions |
+
+---
+
+#### WHY THIS SESSION EXISTS
+
+The Planning Agent is currently designed as a "one-shot" session that ends with "Planning complete!" But this is naive:
+
+**The Problem:**
+1. **Complex refactors require MANY iterations** - Back-and-forth on philosophy, vision, decisions
+2. **Liberal use of AskUserQuestion** - Each round burns context (question + answer + reasoning)
+3. **Explore agents eat context fast** - Reading codebase, finding patterns, analyzing architecture
+4. **Iterative doc drafting** - Draft → feedback → revise → repeat
+5. **Natural breaks** - User needs to step away, think, come back
+
+**Real scenario:** Planning "Major Refactor Mode" itself took ~150k tokens across multiple sessions. Future refactors could easily exceed 200k tokens.
+
+**Without this session:**
+- Planning Agent hits context limit → user loses all conversation nuance
+- No way to resume → start from scratch, re-explain everything
+- User feels like they "lost" their planning work
+
+**With this session:**
+- Planning Agent can hand off cleanly → next planner picks up with full context
+- Generation tracking (Planner #1 → #2 → #3) → continuity
+- User can pause, think, come back → no lost work
+
+**Philosophy alignment:**
+- "Docs ARE the memory" → PLANNING_HANDOFF.md preserves conversation context
+- "Pause anywhere" → User controls when to stop, planning survives
+- "Vibecoders first" → User doesn't need to manage context limits, system handles it
+
+---
+
+**PROMPT** (copy this into Claude Code):
+
+```
+Read docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md and DECISIONS.md first.
+Understand WHY this session exists (see EXECUTION_PLAN.md 4.4).
+
+Add robustness to the Planning Agent so it can survive long sessions:
+
+1. **PLANNING_HANDOFF.md pattern**:
+   - Create template in planning_agent.py similar to orchestrator's handoff
+   - Include: Generation number, conversation context, open questions, current doc state
+   - Planning Agent should write this before handing off
+
+2. **Generation tracking**:
+   - Planner #1 → #2 → #3 (like orchestrator)
+   - New planner reads handoff and announces continuity
+   - "I'm Planner #3 for [refactor], continuing from #2"
+
+3. **Handoff protocol in template**:
+   - Add section: "## Handoff Protocol"
+   - When to hand off: "When context is getting tight..."
+   - What to preserve: conversation context, decisions in progress, user preferences discovered
+   - Explicit "HANDS OFF" warning before launching new planner
+
+4. **Resume capability**:
+   - `forge refactor plan --resume <refactor-id>` command
+   - Reads PLANNING_HANDOFF.md and launches planner with context
+   - Generates new session in same refactor directory
+
+5. **"Where were we" handler**:
+   - When user returns: "Let me check PLANNING_HANDOFF.md..."
+   - Summarize: "Last time we were discussing [X], deciding between [Y] and [Z]"
+
+6. **Context-aware cues**:
+   - Add guidance: "If you've been going for a while and context feels tight..."
+   - Proactive: "We've covered a lot. Want me to do a handoff checkpoint?"
+
+OUT OF SCOPE:
+- Changing when/how PRE_REFACTOR.md is generated (separate concern)
+- UI changes
+- Codebase analyzer modifications
+
+After implementing, test mentally: Can a complex refactor survive 3+ planner generations
+without losing context or user having to repeat themselves?
+```
+
+---
+
+**ASK USER IF...**
+- The handoff template structure seems right before implementing
+- Any specific conversation elements they want preserved (beyond what you infer)
+
+---
+
+**EXIT CRITERIA**
+
+- [ ] PLANNING_HANDOFF.md template exists in planning_agent.py
+- [ ] Generation tracking works (Planner #1 → #2 → #3)
+- [ ] `forge refactor plan --resume <id>` command works
+- [ ] Handoff section in Planning Agent template with clear instructions
+- [ ] "Where were we" handler in template
+- [ ] Proactive "want to checkpoint?" guidance in template
+- [ ] All user-facing cues say which terminal to return to
+
+---
+
+**GIT INSTRUCTIONS**
+
+```bash
+git add forge/refactor/planning_agent.py forge/cli.py
+git commit -m "feat(refactor): Session 4.4 - Planning Agent robustness
+
+- Add PLANNING_HANDOFF.md pattern for context preservation
+- Add generation tracking (Planner #1 → #2 → #3)
+- Add 'forge refactor plan --resume' command
+- Add handoff protocol to template
+- Planning can now survive 200k+ token sessions"
+```
+
+---
+
+**HANDOFF**
+
+Note for Phase 5:
+- All agents now robust for long sessions
+- Orchestrator has handoff ✓
+- Planning Agent has handoff ✓
+- Ready for UI work
 
 ---
 
@@ -1845,13 +1980,66 @@ The feature is now ready for use!
 
 ---
 
-### Session 4.1: Phase Agent
-**Date**: (not started)
-**Status**: PENDING
+### Session 4.1: Phase Agent (now: Workflow Handoff Cues)
+**Date**: 2026-01-03
+**Status**: DONE
+
+**Note**: Original scope (phase agent for worktrees) was superseded. Pivoted to workflow handoff cues.
+
+**Completed**:
+- [x] Added workflow handoff cues to session template (Builder)
+- [x] Added self-audit checklist to session template
+
+**Commits**: b52567c, 5df02b6, 117863a, 0e2ce63
 
 ---
 
 ### Session 4.2: Audit Agent
+**Date**: 2026-01-03
+**Status**: DONE
+
+**Completed**:
+- [x] Created `forge/refactor/audit_agent.py` with AuditAgent class
+- [x] `forge refactor audit {id} {session}` launches audit terminal
+- [x] Audit reads PHILOSOPHY.md, DECISIONS.md
+- [x] Loads git diff for code review
+- [x] Signals pass/fail/escalate
+- [x] Iteration tracking for revision loops
+- [x] Clear user-facing cues for all outcomes
+
+**Discoveries**:
+- Multi-commit audit needs start_commit tracking (fixed in 4.3)
+- Three-layer audit model: Builder self-check → Formal auditor → User vibes
+
+**Commits**: ce05999, dabd9fa (after 8 audit fixes)
+
+---
+
+### Session 4.3: Workflow Polish
+**Date**: 2026-01-03
+**Status**: DONE
+
+**Completed**:
+- [x] Added start_commit field to SessionState for multi-commit audit
+- [x] load_code_changes() now shows ALL commits in range
+- [x] Added clear workflow cues to all agent templates
+- [x] Planning agent: clear next-step options
+- [x] Builder: "Go back to your orchestrator terminal" cues
+- [x] Audit: pass/fail/escalate cues with terminal guidance
+- [x] Orchestrator: "help/I'm lost" handler, workflow overview, audit fail flow
+- [x] ⚠️ HANDS OFF warning with emoji in all cues
+- [x] Proactive terminal cleanup guidance
+
+**Discoveries**:
+- User is message bus between agents - every agent must say WHERE to go next
+- "Close out" language was premature - builders should say "ready for audit"
+- AGI-pilled recalibration: build infrastructure, let model judge (no hardcoded MAX_ITERATIONS)
+
+**Commits**: (pending - in progress during this orchestrator session)
+
+---
+
+### Session 4.4: Planning Agent Robustness
 **Date**: (not started)
 **Status**: PENDING
 

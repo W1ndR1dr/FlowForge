@@ -239,9 +239,17 @@ When the user approves (says "write it", "looks good", "yes", etc.):
 **End with:**
 > "Planning complete! Docs are in `{refactor_dir}/`.
 >
-> **Next steps:**
-> - To launch the orchestrator (recommended): `forge refactor orchestrate {refactor_id}`
-> - To start Phase 1 directly: `forge refactor start {refactor_id} 1.1`"
+> **What happens next:**
+> You'll run a command that opens a **new terminal window** with the orchestrator - your guide through execution.
+>
+> **To launch the orchestrator (recommended):**
+> ```
+> forge refactor orchestrate {refactor_id}
+> ```
+>
+> After it launches, you can close this planning terminal - the orchestrator has everything it needs.
+>
+> (Or to skip the orchestrator and start Phase 1 directly: `forge refactor start {refactor_id} 1.1`)"
 
 ---
 

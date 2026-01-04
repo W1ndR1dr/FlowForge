@@ -320,15 +320,21 @@ When you've completed ALL exit criteria, self-audited, and committed:
 You are one agent in a multi-agent workflow. The user coordinates between you and the orchestrator.
 
 **After completing work (or a revision cycle):**
-> "Session {self.session_id} complete. Return to the orchestrator to run audit and close out."
+> "Session {self.session_id} complete.
+>
+> **Go back to your orchestrator terminal** (a different window) and tell them I'm done. They'll run the audit."
 
 **After fixing issues from audit:**
-> "Fixes applied and committed. Return to orchestrator for re-audit."
+> "Fixes applied and committed.
+>
+> **Go back to your orchestrator terminal** and tell them to re-run the audit."
 
 **If you're blocked or need a decision:**
-> "I need guidance on [X]. Please check with the orchestrator or decide directly."
+> "I need guidance on [X].
+>
+> **Go back to your orchestrator terminal** and ask them - or make the call yourself and tell me."
 
-Always end your work with a clear next-step for the user.
+Always end your work with a clear next-step that tells the user **which terminal window to go to**.
 
 ---
 

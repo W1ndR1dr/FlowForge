@@ -182,3 +182,52 @@ Major Refactor Mode uses file-based agent coordination with "docs as memory" to 
 | 2026-01-03 | Hybrid audit lifecycle | Balance coherence with compaction avoidance |
 | 2026-01-03 | Runtime parallelization choice | User bandwidth is the bottleneck |
 | 2026-01-03 | Claude decides detection | AGI-pilled, model judgment improves |
+| 2026-01-03 | Three-layer audit | Builder self-check → Formal auditor → User vibes |
+| 2026-01-03 | No hardcoded iteration limits | Model judges escalation, not MAX_ITERATIONS constant |
+
+---
+
+## Open Questions (Revisit Later)
+
+Questions we've identified but intentionally deferred:
+
+### CodebaseAnalyzer Role
+
+**Question**: Should `forge refactor analyze` remain a separate step, or should the Planning Agent handle codebase exploration dynamically?
+
+**Current state**: Both paths exist - manual `analyze` command AND Planning Agent can create PRE_REFACTOR.md
+
+**Tension**:
+- Manual analyze: Saves Planning Agent context, consistent structure
+- Dynamic exploration: More AGI-pilled, user-validated, focused
+
+**Recommendation**: Revisit after 4.4 (Planning Agent robustness). Once planning can go the distance, we'll know if analyzer adds value or is cruft.
+
+**Added**: 2026-01-03
+
+---
+
+### Testing Philosophy for Vibecoding
+
+**Question**: What role should automated tests play in AI-assisted development?
+
+**The concern**: Reward hacking - LLMs might game tests (optimize for green checkmarks) rather than truly solving the problem. Tests become a metric to exploit rather than a quality signal.
+
+**Current approach in Major Refactor Mode**:
+- Three-layer audit replaces traditional testing
+- Builder self-check (introspection)
+- Formal audit (philosophy alignment)
+- User vibes (can't be gamed)
+- No automated tests as exit criteria
+
+**Is this right?** Unclear. Considerations:
+- For infrastructure/prompts/workflow, "does it work when you run it" is the real test
+- User vibes catch drift that automated tests can't
+- But for production code (APIs, data processing), tests catch regressions humans miss
+- Tests are a form of specification - if LLM can game them, the spec was incomplete
+
+**AGI-pilled view**: Tests become ONE signal among many, not source of truth. Philosophy + model judgment + human oversight is the stack.
+
+**Recommendation**: Revisit in a future phase. For now, three-layer audit is the testing strategy.
+
+**Added**: 2026-01-03

@@ -23,11 +23,11 @@ You are the **interactive team lead** for this refactor. You're not a background
 
 **Refactor**: major-refactor-mode-phase-1
 **Status**: executing
-**Current Session**: 4.2
+**Current Session**: 4.3
 
-**Sessions**: 5 completed, 0 in progress, 0 pending
+**Sessions**: 6 completed, 1 in progress, 0 pending
 
-**Latest Signal**: session_done from 4.2
+**Latest Signal**: session_started from 4.3
 
 
 ---
@@ -62,11 +62,21 @@ Before doing anything substantial, ensure you understand:
 ### "start the next session" / "let's continue"
 
 1. Identify the next session from EXECUTION_PLAN.md
-2. **BEFORE launching**, prompt the user:
+2. **Consider thinking depth** - before launching, assess:
+   | Session Type | Plan Mode? | Extended Thinking? |
+   |--------------|------------|-------------------|
+   | Simple/scoped implementation | No | No |
+   | Architectural changes | Yes | Yes |
+   | Multiple files, unclear scope | Yes | Maybe |
+   | Security-sensitive | No | Yes |
+   | First session of a phase | Maybe | Yes |
+
+   If the session warrants deeper thinking, mention it to the user.
+3. **BEFORE launching**, prompt the user:
    > "Ready to launch [session]. HANDS OFF KEYBOARD AND MOUSE until the new agent is running. Say 'go' when ready."
-3. Wait for user confirmation
-4. Run: `forge refactor start major-refactor-mode-phase-1 <session-id>`
-5. Report the new session has been launched
+4. Wait for user confirmation
+5. Run: `forge refactor start major-refactor-mode-phase-1 <session-id>`
+6. Report the new session has been launched
 
 **Why the pause?** AppleScript needs a few seconds to open new terminal tabs. Active keyboard/mouse input interferes with the launch. This applies to ALL agent launches (sessions, orchestrators, auditors).
 
@@ -101,6 +111,23 @@ Agents communicate via JSON files in `signals/`:
 - List files in `signals/` directory
 - Read recent `.json` files to see what happened
 - Report findings to user
+
+---
+
+## Terminal Window Management
+
+**When a session completes and audit passes:**
+- User can close that session's terminal window
+- User can close the audit terminal window
+- Orchestrator window stays open
+
+**Tell the user proactively:**
+> "4.2 is fully closed out (completed, audit passed, pushed). You can close the 4.2 and its audit terminal windows."
+
+**Windows to keep open:**
+- Orchestrator (you) - until handoff
+- Any in-progress session
+- Any pending audit
 
 ---
 

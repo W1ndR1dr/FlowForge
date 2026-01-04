@@ -477,7 +477,9 @@ This is a guide, not a gate. Use your judgment on severity and relevance.
    ```
 
 3. Tell the user:
-   > "Audit FAILED for sessions {sessions_str}. Return to the orchestrator to relay fixes to the builder."
+   > "Audit FAILED for session {sessions_str}.
+   >
+   > **Go back to your orchestrator terminal** and paste this output. The orchestrator will guide you through getting fixes from the builder."
 
 ### If Audit Passes:
 
@@ -487,9 +489,9 @@ This is a guide, not a gate. Use your judgment on severity and relevance.
    ```
 
 2. Tell the user:
-   > "Audit PASSED for sessions {sessions_str}. Work aligns with philosophy.
+   > "Audit PASSED for session {sessions_str}. Work aligns with philosophy.
    >
-   > Return to the orchestrator to close out this session and continue to the next."
+   > **Go back to your orchestrator terminal** and tell them the audit passed. They'll guide you to the next step."
 
 ### If Escalation is Needed:
 
@@ -501,9 +503,9 @@ If you observe recurring issues across iterations, fundamental architectural pro
    ```
 
 2. Tell the user:
-   > "Recommend ESCALATING sessions {sessions_str}. This needs human decision.
+   > "Recommend ESCALATING session {sessions_str}. This needs a human decision - the issue is too fundamental for automated revision.
    >
-   > Return to the orchestrator to discuss next steps."
+   > **Go back to your orchestrator terminal** and paste this output. We'll figure out the right path forward together."
 
 ---
 
