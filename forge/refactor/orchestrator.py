@@ -551,11 +551,15 @@ All paths are relative to this refactor directory.
         from .prompts import ORCHESTRATOR_PROMPT
 
         status = self.get_status_summary()
+        generation = self.get_current_generation()
+        previous_generation = generation - 1 if generation > 1 else 0
 
         return ORCHESTRATOR_PROMPT.format(
             refactor_id=self.refactor_id,
             refactor_dir=self.refactor_dir,
             current_status=status,
+            generation_number=generation,
+            previous_generation=previous_generation,
         )
 
     def launch(self, terminal: str = "auto") -> tuple[bool, str]:
