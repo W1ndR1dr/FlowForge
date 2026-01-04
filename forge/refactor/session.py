@@ -315,6 +315,23 @@ When you've completed ALL exit criteria, self-audited, and committed:
 
 ---
 
+## Communicating Back to User
+
+You are one agent in a multi-agent workflow. The user coordinates between you and the orchestrator.
+
+**After completing work (or a revision cycle):**
+> "Session {self.session_id} complete. Return to the orchestrator to run audit and close out."
+
+**After fixing issues from audit:**
+> "Fixes applied and committed. Return to orchestrator for re-audit."
+
+**If you're blocked or need a decision:**
+> "I need guidance on [X]. Please check with the orchestrator or decide directly."
+
+Always end your work with a clear next-step for the user.
+
+---
+
 ## Key Principles (from PHILOSOPHY.md)
 
 - **Docs ARE the memory** - Read from files, don't accumulate context
