@@ -327,10 +327,7 @@ forge refactor status {self.refactor_id}
 
 **When to handoff:** User sees context getting tight (~70%+) via `/context`
 
-**How to trigger (plain English):**
-- "context is getting tight, let's handoff"
-- "spin up a new orchestrator"
-- "time for a fresh orchestrator"
+**How to trigger:** Natural language - the orchestrator will infer intent. If unclear, it will ask.
 
 **What happens:**
 1. Orchestrator updates this ORCHESTRATOR_HANDOFF.md with current state
@@ -348,11 +345,13 @@ forge refactor status {self.refactor_id}
 
 ## Key Files
 
-- `docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md` - Principles (read first!)
-- `docs/MAJOR_REFACTOR_MODE/DECISIONS.md` - Architecture decisions
-- `docs/MAJOR_REFACTOR_MODE/EXECUTION_PLAN.md` - All session specs
-- `.forge/refactors/{self.refactor_id}/state.json` - Runtime state
-- `.forge/refactors/{self.refactor_id}/signals/` - Agent signals
+- `PHILOSOPHY.md` - Principles (stable anchor, read first!)
+- `DECISIONS.md` - Architecture decisions
+- `EXECUTION_PLAN.md` - All session specs
+- `state.json` - Runtime state
+- `signals/` - Agent signals
+
+All paths are relative to this refactor directory.
 
 ---
 
