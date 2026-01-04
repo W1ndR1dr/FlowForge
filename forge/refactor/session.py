@@ -40,6 +40,7 @@ class SessionSpec:
     exit_criteria: list[str]
     git_instructions: str
     handoff: str
+    phase_context: str = ""  # Phase-level context (required reading, user preferences, etc.)
 
     @classmethod
     def from_markdown(cls, session_id: str, content: str) -> Optional["SessionSpec"]:
@@ -212,9 +213,51 @@ class ExecutionSession:
                 session_pattern = rf"(###\s+Session\s+{re.escape(self.session_id)}.*?)(?=###\s+Session|\Z)"
                 match = re.search(session_pattern, content, re.DOTALL)
                 if match:
-                    return SessionSpec.from_markdown(self.session_id, match.group(1))
+                    spec = SessionSpec.from_markdown(self.session_id, match.group(1))
+                    if spec:
+                        # Extract phase-level context (required reading, user preferences, etc.)
+                        # Look for the phase header above this session
+                        spec.phase_context = self._extract_phase_context(content, self.session_id)
+                    return spec
 
         return None
+
+    def _extract_phase_context(self, content: str, session_id: str) -> str:
+        """
+        Extract phase-level context from EXECUTION_PLAN.md.
+
+        Looks for blockquote sections (> **CRITICAL...) between the phase header
+        (## Phase X:) and the first session (### Session X.1:).
+        """
+        # Find which phase this session belongs to
+        # Session IDs are like "5.1", "5.2" - phase is the integer part
+        phase_num = session_id.split(".")[0]
+
+        # Find the phase header and content up to the first session
+        phase_pattern = rf"(##\s+Phase\s+{re.escape(phase_num)}:.*?)(?=###\s+Session)"
+        phase_match = re.search(phase_pattern, content, re.DOTALL)
+
+        if not phase_match:
+            return ""
+
+        phase_header = phase_match.group(1)
+
+        # Extract blockquote content (lines starting with >)
+        blockquote_lines = []
+        in_blockquote = False
+        for line in phase_header.split("\n"):
+            if line.strip().startswith(">"):
+                in_blockquote = True
+                # Remove the > prefix and clean up
+                blockquote_lines.append(line.strip()[1:].strip())
+            elif in_blockquote and line.strip() == "":
+                # Empty line might end blockquote or be part of it
+                blockquote_lines.append("")
+            elif in_blockquote:
+                # Non-blockquote line ends the blockquote
+                break
+
+        return "\n".join(blockquote_lines).strip()
 
     def generate_execution_claude_md(self, spec: SessionSpec) -> str:
         """
@@ -230,6 +273,14 @@ class ExecutionSession:
         exit_criteria_str = "\n".join(f"- [ ] {item}" for item in spec.exit_criteria)
         ask_user_str = "\n".join(f"- {item}" for item in spec.ask_user_if) if spec.ask_user_if else "- No specific pause triggers for this session"
 
+        # Build phase context section if present
+        phase_context_section = ""
+        if spec.phase_context:
+            phase_context_section = f"""
+**Phase-Level Context:**
+{spec.phase_context}
+"""
+
         claude_md = f'''# Execution Session: {spec.title}
 
 > **Refactor**: {self.refactor_id}
@@ -238,13 +289,14 @@ class ExecutionSession:
 
 ---
 
-## FIRST: Read These Docs
+## FIRST: Read These Docs (REQUIRED)
 
 Before doing ANYTHING, read these files to understand the context:
 
+**Philosophy & Decisions:**
 1. `docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md` - Guiding principles
 2. `docs/MAJOR_REFACTOR_MODE/DECISIONS.md` - Architecture decisions (don't re-litigate)
-
+{phase_context_section}
 ---
 
 ## Your Mission
