@@ -9,9 +9,8 @@
 ## Current State
 
 **Phase 1**: ✅ COMPLETE (Sessions 1.1 + 1.2)
-**Phase 2**: 🔄 IN PROGRESS
-- Session 2.1: ✅ COMPLETE (Complexity Detection)
-- Session 2.2: 🔄 RUNNING (Codebase Analyzer)
+**Phase 2**: ✅ COMPLETE (Sessions 2.1 + 2.2) - Prometheus audited, PASS
+**Phase 3**: 🔄 Ready to start Session 3.1
 
 **Git**: All pushed to origin/main
 
@@ -36,10 +35,14 @@
 - Helper methods: `is_major_refactor_detected()`, `get_major_refactor()`
 - Commit: c7eae0b
 
-### Session 2.2 🔄
-- Codebase Analyzer - IN PROGRESS
+### Session 2.2 ✅
+- `forge/refactor/analyzer.py` - CodebaseAnalyzer class
+- Two-stage Claude analysis (identify files → deep dive)
+- Generates PRE_REFACTOR.md
+- CLI: `forge refactor analyze {id} --goal "..."`
+- Commit: 288d207
 
-**Audit**: Phase 1 passed all checks. Prometheus reviewing Phase 2.
+**Audit**: Phase 1 & Phase 2 passed all checks (Prometheus).
 
 ---
 
@@ -97,8 +100,8 @@ Tabs are named for quick identification:
 Step 0: Human + Claude (manual)     ✅ DONE
 Step 1: Planning Agent              ✅ DONE
 Step 2: Phase 1 Foundation          ✅ DONE
-Step 3: Phase 2 Detection           🔄 IN PROGRESS (2.1 done, 2.2 running)
-Step 4: Phase 3 Orchestrator        ⬜ Flywheel kicks in here
+Step 3: Phase 2 Detection           ✅ DONE (2.1 + 2.2 audited)
+Step 4: Phase 3 Orchestrator        🔄 NEXT - Flywheel kicks in here!
 Step 5: Self-sustaining             ⬜
 ```
 

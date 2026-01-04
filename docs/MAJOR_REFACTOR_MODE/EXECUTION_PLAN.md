@@ -1552,14 +1552,45 @@ The feature is now ready for use!
 ---
 
 ### Session 2.1: Complexity Detection
-**Date**: (not started)
-**Status**: PENDING
+**Date**: 2026-01-03
+**Status**: DONE
+
+**Completed**:
+- [x] Added major refactor detection to BRAINSTORM_SYSTEM_PROMPT
+- [x] Added major refactor detection to REFINE_SYSTEM_PROMPT
+- [x] Output marker: `MAJOR_REFACTOR_RECOMMENDED`
+- [x] Helper methods: `is_major_refactor_detected()`, `get_major_refactor()`
+
+**Discoveries**:
+- Added detection to BOTH prompts (not just REFINE) - user might start with brainstorm that turns out massive
+- "Signs" list provides guidance without hobbling model (AGI-pilled balance)
+
+**Commit**: c7eae0b
 
 ---
 
 ### Session 2.2: Codebase Analyzer
-**Date**: (not started)
-**Status**: PENDING
+**Date**: 2026-01-03
+**Status**: DONE
+
+**Completed**:
+- [x] Created `forge/refactor/analyzer.py` with CodebaseAnalyzer class
+- [x] Scans file structure (respects .gitignore)
+- [x] Two-stage Claude analysis: identify relevant files → deep analysis
+- [x] Generates PRE_REFACTOR.md with all required sections
+- [x] CLI command: `forge refactor analyze {id} --goal "..."`
+
+**Discoveries**:
+- Two-stage analysis is efficient: first identifies 5-15 relevant files, then deep-dives
+- File sampling: max 80 lines per file prevents context overflow
+- JSON parsing with fallback ensures graceful degradation
+
+**Future Improvements**:
+- Claude CLI calls can be slow (~30-60s) - could cache results
+- Consider async processing for large codebases
+- Could add --depth flag for analysis thoroughness
+
+**Commit**: 288d207
 
 ---
 
