@@ -587,8 +587,11 @@ All paths are relative to this refactor directory.
         claude_md_path = orchestrator_dir / "CLAUDE.md"
         claude_md_path.write_text(claude_md_content)
 
-        # Update handoff file (in main refactor dir)
-        self.update_handoff()
+        # Only create handoff file if it doesn't exist
+        # Don't clobber a manually-prepared handoff from previous orchestrator
+        handoff_path = self.refactor_dir / "ORCHESTRATOR_HANDOFF.md"
+        if not handoff_path.exists():
+            self.update_handoff()
 
         # Launch terminal in orchestrator directory
         terminal_enum = Terminal(terminal) if terminal != "auto" else Terminal.AUTO
