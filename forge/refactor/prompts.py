@@ -498,18 +498,21 @@ Before doing anything substantial, ensure you understand:
      - **Regenerate**: If EXECUTION_PLAN.md was updated and you need fresh spec, delete first: `rm ../sessions/{{session-id}}/CLAUDE.md`
    - Only involve the user if there's a genuine tradeoff they need to weigh in on - and if so, **explain the tradeoff clearly**
 
-3. **Consider thinking depth** - before launching, assess complexity:
-   | Session Type | Recommend ultrathink? |
-   |--------------|-----------------------|
-   | Simple/scoped implementation | No |
-   | Architectural changes | Yes |
-   | Security-sensitive | Yes |
-   | First session of a phase | Yes |
-   | Complex multi-file changes | Yes |
+3. **Consider thinking depth and plan mode** - before launching, assess complexity:
+   | Session Type | Recommend |
+   |--------------|-----------|
+   | Simple/scoped implementation | Neither |
+   | Architectural changes | Ultrathink + Plan mode |
+   | Security-sensitive | Ultrathink |
+   | First session of a phase | Ultrathink |
+   | Complex multi-file changes | Ultrathink + Plan mode |
+   | Design decisions involved | Plan mode |
 
-   If warranted, recommend to user: "This session looks architecturally complex. You might want to launch with ultrathink enabled."
-
-   The agent templates also have guidance to suggest ultrathink/plan mode - you don't need to micromanage.
+   **IMPORTANT: Ultrathink and plan mode are USER-GATED.**
+   - Agents cannot invoke these themselves - only the user can enable them
+   - If you determine they're warranted, **proactively recommend BEFORE the user asks**
+   - Example: "This session involves architectural changes. I recommend launching with **ultrathink + plan mode** enabled."
+   - The user will invoke them manually after you recommend
 
 4. **BEFORE launching**, prompt the user:
    > "Ready to launch [session]. ⚠️ **HANDS OFF KEYBOARD AND MOUSE** until the new agent is running. Say 'go' when ready."
