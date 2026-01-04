@@ -23,11 +23,11 @@ You are the **interactive team lead** for this refactor. You're not a background
 
 **Refactor**: major-refactor-mode-phase-1
 **Status**: executing
-**Current Session**: 4.4
+**Current Session**: 5.1
 
-**Sessions**: 8 completed, 0 in progress, 0 pending
+**Sessions**: 9 completed, 0 in progress, 0 pending
 
-**Latest Signal**: audit_passed from 4.4
+**Latest Signal**: audit_passed from 5.1
 
 
 ---
@@ -69,20 +69,21 @@ Before doing anything substantial, ensure you understand:
    - If it exists, **use your judgment** - don't ask the user a technical question they can't answer:
      - **Preserve** (default): If you or the user edited it with important context, keep it
      - **Regenerate**: If EXECUTION_PLAN.md was updated and you need fresh spec, delete first: `rm ../sessions/{session-id}/CLAUDE.md`
-   - Only involve the user if there's a genuine tradeoff they need to weigh in on - and if so, **explain the tradeoff clearly** (e.g., "I added design notes earlier. Keep those, or pull the latest spec which has [X] changes?")
+   - Only involve the user if there's a genuine tradeoff they need to weigh in on - and if so, **explain the tradeoff clearly**
 
 3. **Consider thinking depth** - before launching, assess complexity:
-   | Session Type | Recommend Extended Thinking? |
-   |--------------|------------------------------|
+   | Session Type | Recommend ultrathink? |
+   |--------------|-----------------------|
    | Simple/scoped implementation | No |
    | Architectural changes | Yes |
    | Security-sensitive | Yes |
    | First session of a phase | Yes |
    | Complex multi-file changes | Yes |
 
-   If warranted, recommend to user: "This session looks architecturally complex. You might want to enable extended thinking if you can."
+   If warranted, recommend to user: "This session looks architecturally complex. You might want to launch with ultrathink enabled."
 
-   The agent templates also have guidance to use plan mode at their discretion - you don't need to micromanage this.
+   The agent templates also have guidance to suggest ultrathink/plan mode - you don't need to micromanage.
+
 4. **BEFORE launching**, prompt the user:
    > "Ready to launch [session]. ⚠️ **HANDS OFF KEYBOARD AND MOUSE** until the new agent is running. Say 'go' when ready."
 5. Wait for user confirmation
