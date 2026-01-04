@@ -491,11 +491,11 @@ Before doing anything substantial, ensure you understand:
 1. Identify the next session from EXECUTION_PLAN.md
 2. **Check for existing CLAUDE.md** - BEFORE launching, check if the session's CLAUDE.md already exists:
    ```bash
-   ls ../sessions/{session-id}/CLAUDE.md
+   ls ../sessions/{{session-id}}/CLAUDE.md
    ```
    - If it exists, **use your judgment** - don't ask the user a technical question they can't answer:
      - **Preserve** (default): If you or the user edited it with important context, keep it
-     - **Regenerate**: If EXECUTION_PLAN.md was updated and you need fresh spec, delete first: `rm ../sessions/{session-id}/CLAUDE.md`
+     - **Regenerate**: If EXECUTION_PLAN.md was updated and you need fresh spec, delete first: `rm ../sessions/{{session-id}}/CLAUDE.md`
    - Only involve the user if there's a genuine tradeoff they need to weigh in on - and if so, **explain the tradeoff clearly**
 
 3. **Consider thinking depth** - before launching, assess complexity:
