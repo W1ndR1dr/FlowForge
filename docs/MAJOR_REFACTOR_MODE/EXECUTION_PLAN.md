@@ -1584,84 +1584,72 @@ Note for Session 5.2:
 
 ---
 
-### Session 5.2: Phase Cards & Notifications
+### Session 5.2: Phase Cards & Notifications (SUBDIVIDED)
+
+> **Note**: Session 5.2 was subdivided mid-execution due to context limits.
+> It completed NotificationManager.swift only. Remaining work split into 5.2a, 5.2b, 5.2c.
 
 | | |
 |---|---|
 | **Worktree** | NO - Direct to main branch |
-| **Scope** | IN: Phase cards, notifications, mode switch in brainstorm. OUT: Pause/resume (Phase 6) |
-| **Start When** | Session 5.1 complete (basic dashboard exists) |
-| **Stop When** | Notifications work, can trigger mode switch from brainstorm |
+| **Status** | SUBDIVIDED - See 5.2a, 5.2b, 5.2c below |
+| **Completed** | NotificationManager.swift (bb3bb9c) |
 
 ---
 
-**PROMPT** (copy this into Claude Code):
+### Session 5.2a: Toast Notifications & Wiring
+
+| | |
+|---|---|
+| **Worktree** | NO - Direct to main branch |
+| **Scope** | IN: ToastView, AppState toast support, ContentView integration, wire events. OUT: Phase cards, mode switch |
+| **Start When** | Session 5.2 subdivided (NotificationManager exists) |
+| **Stop When** | In-app toasts work, notifications trigger on refactor events |
+
+---
+
+**PROMPT**:
 
 ```
 FIRST: Read these design research docs:
 - docs/design/UI_PATTERNS_RESEARCH.md - UX patterns from Linear, Asana, Basecamp
 - docs/design/LINEAR_SWIFTUI_GUIDE.md - SwiftUI implementation patterns
 
-User preferences:
-- Rebuild > Remodel: Start fresh if it produces better result than adapting existing code
-- No sentimentality about existing UI
-- Pre-MVP mindset, zero technical debt
+Context: Session 5.2 was subdivided. NotificationManager.swift already exists.
+Your job: Complete the toast notification infrastructure.
 
-Key patterns from research:
-- Calm notifications (badge-only by default, not naggy)
-- Progressive disclosure for phase details
-- 150-200ms animation timing
-- Decision prompts: context + specific ask + escape hatch
+Reference the builder's plan: The original session created a detailed plan.
+Key specs for ToastView:
+- Toast struct with type (info/success/warning/error), message, auto-dismiss
+- ToastView - individual toast with icon, message, dismiss
+- ToastContainerView - stacks toasts, limits to 3 visible, auto-dismiss
+- Position: bottom-center, floating above content
+- Animation: 200ms spring enter, 150ms fade exit
 
-Look at ForgeApp/Design/DesignTokens.swift for styling.
-Look at ForgeApp/Design/Components/WorkspaceCard.swift for card pattern.
+Files to create/modify:
+1. ForgeApp/Views/Components/ToastView.swift (new)
+   - Toast model, ToastView, ToastContainerView
 
-Enhance Major Refactor Mode UI:
+2. ForgeApp/Models/AppState.swift (modify)
+   - Add @Published var toasts: [Toast] = []
+   - Add func showToast(_ toast: Toast)
 
-1. Create ForgeApp/Views/Refactor/PhaseCardView.swift:
-   - Extend WorkspaceCard pattern
-   - Show: phase name, status, active worktrees count
-   - Click to expand details
-   - "Open Terminal" button to launch worktree
+3. ForgeApp/Views/ContentView.swift (modify)
+   - Add ToastContainerView overlay
 
-2. Add notifications system:
-   - In-app toasts: ForgeApp/Views/Components/ToastView.swift
-   - macOS system notifications using UNUserNotificationCenter
-   - Notification triggers:
-     - Phase started
-     - Phase complete
-     - Audit passed/failed
-     - Needs attention
+4. Wire notification triggers for refactor state changes
 
-3. Add mode switch to BrainstormChatView:
-   - Detect MAJOR_REFACTOR_RECOMMENDED in Claude's response
-   - Show: "Claude recommends Major Refactor Mode" banner
-   - Button: "Switch to Major Refactor Mode"
-   - On click: navigate to refactor creation flow
-
-4. Run xcodegen generate before building
-
-Test: Trigger a notification, see it appear. Start brainstorm with
-large idea, see mode switch button.
+Test: Trigger a toast programmatically, see it appear and auto-dismiss.
 ```
-
----
-
-**ASK USER IF...**
-
-- Phase card design looks right
-- Notification wording is good
-- Mode switch placement in brainstorm is correct
 
 ---
 
 **EXIT CRITERIA**
 
-- [ ] PhaseCardView shows rich phase information
-- [ ] In-app toast notifications work
-- [ ] macOS system notifications work
-- [ ] BrainstormChatView detects MAJOR_REFACTOR_RECOMMENDED
-- [ ] Mode switch button appears and navigates correctly
+- [ ] ToastView.swift created with Toast model and container
+- [ ] AppState has toast support
+- [ ] ContentView shows toast overlay
+- [ ] Can trigger toast from code
 
 ---
 
@@ -1670,12 +1658,130 @@ large idea, see mode switch button.
 ```bash
 cd ForgeApp && xcodegen generate
 git add ForgeApp/
-git commit -m "feat(refactor): Session 5.2 - Phase cards and notifications
+git commit -m "feat(refactor): Session 5.2a - Toast notifications
 
-- Add PhaseCardView with rich phase info
-- Add notification system (in-app + macOS)
-- Add mode switch trigger in BrainstormChatView
-- Detect MAJOR_REFACTOR_RECOMMENDED marker"
+- Add ToastView with stacking container
+- Add toast support to AppState
+- Integrate in ContentView overlay"
+```
+
+---
+
+### Session 5.2b: Phase Cards (SessionRow Enhancement)
+
+| | |
+|---|---|
+| **Worktree** | NO - Direct to main branch |
+| **Scope** | IN: Enhance SessionRow with expand/collapse, details, Open Terminal button. OUT: Notifications, mode switch |
+| **Start When** | Session 5.2a complete |
+| **Stop When** | SessionRow expands to show full phase details |
+
+---
+
+**PROMPT**:
+
+```
+FIRST: Read these design research docs:
+- docs/design/UI_PATTERNS_RESEARCH.md - UX patterns
+- docs/design/LINEAR_SWIFTUI_GUIDE.md - SwiftUI patterns
+
+Context: Enhance the existing SessionRow in RefactorDashboardView to be an expandable phase card.
+
+Specs:
+- Add @State private var isExpanded = false
+- Add disclosure triangle (macOS HIG pattern)
+- Collapsed: phase name, status badge, worktree count
+- Expanded: full details, audit status, revision count, notes
+- Add "Open Terminal" button for in-progress sessions
+- 150ms animation on disclosure triangle rotation
+
+File to modify:
+- ForgeApp/Views/Refactor/RefactorDashboardView.swift
+
+Test: Click a session row, see it expand with details.
+```
+
+---
+
+**EXIT CRITERIA**
+
+- [ ] SessionRow has expand/collapse with disclosure triangle
+- [ ] Expanded view shows audit status, iterations, notes
+- [ ] "Open Terminal" button appears for in-progress sessions
+- [ ] Animation is smooth (150ms)
+
+---
+
+**GIT INSTRUCTIONS**
+
+```bash
+git add ForgeApp/Views/Refactor/RefactorDashboardView.swift
+git commit -m "feat(refactor): Session 5.2b - Expandable phase cards
+
+- Add expand/collapse to SessionRow
+- Show full session details when expanded
+- Add Open Terminal button for in-progress sessions"
+```
+
+---
+
+### Session 5.2c: Mode Switch in Brainstorm
+
+| | |
+|---|---|
+| **Worktree** | NO - Direct to main branch |
+| **Scope** | IN: Detect MAJOR_REFACTOR_RECOMMENDED, show banner, navigate to refactor mode. OUT: Everything else |
+| **Start When** | Session 5.2b complete |
+| **Stop When** | Mode switch banner appears and navigates correctly |
+
+---
+
+**PROMPT**:
+
+```
+FIRST: Read these design research docs:
+- docs/design/UI_PATTERNS_RESEARCH.md - UX patterns
+- docs/design/LINEAR_SWIFTUI_GUIDE.md - SwiftUI patterns
+
+Context: Add detection and mode switch for major refactor recommendations in brainstorm.
+
+Files to modify:
+
+1. ForgeApp/Services/BrainstormClient.swift
+   - Add @Published var majorRefactorRecommended = false
+   - In parseMessage() case "message_complete": check if content contains "MAJOR_REFACTOR_RECOMMENDED"
+   - Reset on reset() call
+
+2. ForgeApp/Views/Brainstorm/BrainstormChatView.swift
+   - Create MajorRefactorBanner component inline
+   - Show when client.majorRefactorRecommended is true
+   - Amber background (informational, not alarming)
+   - Copy: "Claude recommends Major Refactor Mode for this feature"
+   - Buttons: "Continue Brainstorming" (dismiss) | "Switch to Refactor Mode" (navigate)
+   - Transition: slide down from top with opacity
+
+Test: In brainstorm, when Claude's response contains the marker, banner should appear.
+```
+
+---
+
+**EXIT CRITERIA**
+
+- [ ] BrainstormClient detects MAJOR_REFACTOR_RECOMMENDED marker
+- [ ] MajorRefactorBanner appears when detected
+- [ ] "Continue Brainstorming" dismisses banner
+- [ ] "Switch to Refactor Mode" navigates to refactor creation
+
+---
+
+**GIT INSTRUCTIONS**
+
+```bash
+git add ForgeApp/Services/BrainstormClient.swift ForgeApp/Views/Brainstorm/BrainstormChatView.swift
+git commit -m "feat(refactor): Session 5.2c - Mode switch in brainstorm
+
+- Detect MAJOR_REFACTOR_RECOMMENDED in Claude response
+- Show mode switch banner with navigation"
 ```
 
 ---
@@ -1683,19 +1789,11 @@ git commit -m "feat(refactor): Session 5.2 - Phase cards and notifications
 **HANDOFF**
 
 Note for Phase 6:
-- How notifications are triggered
-- How mode switch works
-- What's left for full integration
-
----
-
-**Files to create:**
-- `ForgeApp/Views/Refactor/PhaseCardView.swift`
-- `ForgeApp/Views/Components/ToastView.swift` (if doesn't exist)
-
-**Files to modify:**
-- `ForgeApp/Views/Brainstorm/BrainstormChatView.swift`
-- `ForgeApp/Views/Refactor/RefactorDashboardView.swift`
+- NotificationManager exists (5.2)
+- Toast system exists (5.2a)
+- Phase cards expand (5.2b)
+- Mode switch works (5.2c)
+- Ready for full integration
 
 ---
 
@@ -2125,6 +2223,35 @@ The feature is now ready for use!
 ---
 
 ### Session 5.2: Phase Cards & Notifications
+**Date**: 2026-01-04
+**Status**: SUBDIVIDED
+
+**Completed**:
+- [x] NotificationManager.swift (bb3bb9c)
+
+**Not Completed** (subdivided into 5.2a, 5.2b, 5.2c):
+- [ ] ToastView.swift → 5.2a
+- [ ] AppState toast support → 5.2a
+- [ ] SessionRow expand/collapse → 5.2b
+- [ ] Mode switch detection → 5.2c
+
+**Reason**: Context limit reached at 68%. Subdivided to preserve momentum.
+
+---
+
+### Session 5.2a: Toast Notifications & Wiring
+**Date**: (not started)
+**Status**: PENDING
+
+---
+
+### Session 5.2b: Phase Cards (SessionRow Enhancement)
+**Date**: (not started)
+**Status**: PENDING
+
+---
+
+### Session 5.2c: Mode Switch in Brainstorm
 **Date**: (not started)
 **Status**: PENDING
 
