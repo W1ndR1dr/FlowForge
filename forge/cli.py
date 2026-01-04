@@ -1739,12 +1739,13 @@ app.add_typer(refactor_app, name="refactor")
 
 @refactor_app.command("plan")
 def refactor_plan(
-    title: str = typer.Argument(..., help="Title for the refactor"),
-    goal: str = typer.Option(..., "--goal", "-g", help="What you want to accomplish"),
+    title: Optional[str] = typer.Argument(None, help="Title for the refactor (required for new, ignored for --resume)"),
+    goal: Optional[str] = typer.Option(None, "--goal", "-g", help="What you want to accomplish"),
+    resume: Optional[str] = typer.Option(None, "--resume", "-r", help="Resume planning for existing refactor ID"),
     terminal: str = typer.Option("auto", "--terminal", "-t", help="Terminal: warp, iterm, terminal, auto"),
 ):
     """
-    🧠 Start a Planning Agent session for a major refactor.
+    🧠 Start or resume a Planning Agent session for a major refactor.
 
     The Planning Agent is an interactive Claude Code session that helps you:
     - Explore the codebase before proposing changes
@@ -1752,8 +1753,11 @@ def refactor_plan(
     - Debate alternatives and document decisions
     - Create complete planning docs (PHILOSOPHY, DECISIONS, EXECUTION)
 
-    Example:
+    Start new planning:
         forge refactor plan "API Restructure" --goal "Split monolith into microservices"
+
+    Resume existing planning:
+        forge refactor plan --resume api-restructure
 
     Naming tip: Avoid "Phase N" in titles - the refactor will have internal phases
     (sessions 1.x, 2.x, etc.) which creates confusing redundancy. Use descriptive
@@ -1765,11 +1769,39 @@ def refactor_plan(
 
     from .refactor import PlanningAgent
 
+    agent = PlanningAgent(project_root)
+
+    # Resume mode: continue from PLANNING_HANDOFF.md
+    if resume:
+        console.print(f"\n🧠 [bold]Resuming Planning Session[/bold]: {resume}\n")
+        console.print("[yellow]⚠️  HANDS OFF KEYBOARD AND MOUSE until the new agent is running.[/yellow]\n")
+
+        success, message = agent.resume(
+            refactor_id=resume,
+            terminal=terminal,
+        )
+
+        if success:
+            console.print(f"[green]✓[/green] {message}")
+        else:
+            console.print(f"[red]✗[/red] {message}")
+            raise typer.Exit(1)
+        return
+
+    # New planning: require title and goal
+    if not title:
+        console.print("[red]✗[/red] Title is required for new planning sessions.")
+        console.print("[dim]Usage: forge refactor plan \"Title\" --goal \"...\"[/dim]")
+        console.print("[dim]Or resume: forge refactor plan --resume <refactor-id>[/dim]")
+        raise typer.Exit(1)
+
+    if not goal:
+        console.print("[red]✗[/red] Goal is required for new planning sessions (--goal).")
+        raise typer.Exit(1)
+
     console.print(f"\n🧠 [bold]Major Refactor Mode[/bold]: {title}\n")
     console.print(f"[dim]Goal: {goal}[/dim]\n")
     console.print("[yellow]⚠️  HANDS OFF KEYBOARD AND MOUSE until the new agent is running.[/yellow]\n")
-
-    agent = PlanningAgent(project_root)
 
     success, message, refactor_id = agent.launch(
         title=title,

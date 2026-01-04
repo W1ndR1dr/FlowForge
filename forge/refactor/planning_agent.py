@@ -13,12 +13,15 @@ all future execution agents will read.
 """
 
 import json
+import re
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 import subprocess
+
+from rich.console import Console
 
 from ..terminal import open_terminal_in_directory, Terminal
 
@@ -224,6 +227,74 @@ The user is a **vibecoder** - they work extensively with AI but are NOT a develo
 ---
 
 {planning_guide}
+
+---
+
+## Handoff Protocol
+
+**When to handoff:** When context is getting tight (~70%+ via `/context`), or if you've been at this for a while and feel things getting fuzzy.
+
+**Signs you might need a handoff:**
+- You're repeating yourself or asking clarifying questions you already asked
+- User mentions they've been at this for a while
+- You're uncertain about earlier decisions
+- Your responses are getting shorter or less nuanced
+
+**Proactive checkpoint:** If you've covered significant ground (multiple major decisions, substantial doc drafts), offer:
+> "We've covered a lot. Want me to do a handoff checkpoint? I'll save our progress to PLANNING_HANDOFF.md so nothing is lost, and you can continue fresh or pick up later."
+
+**HANDS OFF - Before handoff, you MUST:**
+
+1. **Update PLANNING_HANDOFF.md** with:
+   - Conversation context (key discussion points, NOT transcript)
+   - Open questions (what we haven't decided yet)
+   - Decisions in progress (what we're currently debating)
+   - Document status (which docs are not started/in progress/complete)
+   - User preferences discovered (their philosophy, what matters to them)
+   - Why you're handing off (context tight, natural break, etc.)
+
+2. **Tell the user exactly what to do:**
+   > "I've updated PLANNING_HANDOFF.md with our progress.
+   >
+   > **To continue in a new session:**
+   > 1. Open a **new terminal tab** in this same Warp window
+   > 2. Run: `forge refactor plan --resume {refactor_id}`
+   >
+   > The next planner will read the handoff and continue where we left off.
+   > You can close this tab after the new one is running."
+
+---
+
+## "Where Were We?" Handler
+
+If the user says "where were we?", "continue", "resume", or similar:
+
+1. **Check PLANNING_HANDOFF.md** - Read it to understand prior context
+2. **Announce continuity**: "I'm Planner #N for [refactor], continuing from #N-1. Let me review where we left off..."
+3. **Summarize**: "Last time we were discussing [X], deciding between [Y] and [Z]. We had completed [docs] and still need to work on [docs]."
+4. **Ask**: "Should we continue from there, or do you want to recap anything first?"
+
+If PLANNING_HANDOFF.md doesn't exist but user says "where were we?", they may be returning to an interrupted session:
+- Check which docs exist and their state
+- Summarize what's been written
+- Ask what they'd like to focus on
+
+---
+
+## Context-Aware Cues
+
+**At session start:** Note your generation number. If you're Planner #2+, read PLANNING_HANDOFF.md first.
+
+**During planning:** Periodically assess context usage mentally. If you feel things getting fuzzy or you've been going for a while, mention it:
+> "We've made good progress. My context is getting fuller - want me to checkpoint to PLANNING_HANDOFF.md?"
+
+**After major milestones:** When completing a doc draft or major decision round:
+> "PHILOSOPHY.md is drafted. Good checkpoint opportunity if you want to take a break - I can save progress to PLANNING_HANDOFF.md."
+
+**Always tell user which terminal:**
+- When handing off: "Open a **new terminal tab** and run..."
+- When done: "Go back to your **original terminal** (where you ran forge refactor plan)..."
+- When asking user to run commands: Be explicit about which window
 
 ---
 
@@ -437,3 +508,297 @@ Every session in EXECUTION.md should have:
         """Get the directory for a refactor."""
         refactor_dir = self.refactors_dir / refactor_id
         return refactor_dir if refactor_dir.exists() else None
+
+    def get_current_generation(self, refactor_dir: Path) -> int:
+        """
+        Parse PLANNING_HANDOFF.md to find current generation number.
+
+        Looks for "Generation: Planner #N → #N+1" and returns N+1
+        (the number AFTER the arrow, which is the incoming planner's number).
+
+        Returns 1 if no handoff file exists (first planner).
+        """
+        handoff_path = refactor_dir / "PLANNING_HANDOFF.md"
+        if not handoff_path.exists():
+            return 1
+
+        content = handoff_path.read_text()
+
+        # Look for "Generation: Planner #N → #N+1"
+        # The number after the arrow is the current/incoming generation
+        match = re.search(r"Generation:\s*Planner\s*#(\d+)\s*→\s*#(\d+)", content)
+        if match:
+            # Return the number AFTER the arrow (the incoming generation)
+            return int(match.group(2))
+
+        # Fallback: no generation info found, assume first
+        return 1
+
+    def update_handoff(
+        self,
+        refactor_id: str,
+        conversation_context: str = "",
+        open_questions: list[str] | None = None,
+        decisions_in_progress: list[str] | None = None,
+        docs_state: dict | None = None,
+        user_preferences: list[str] | None = None,
+        why_handoff: str = "",
+    ) -> Path:
+        """
+        Write current planning state to PLANNING_HANDOFF.md.
+
+        This is how Planning Agent context survives handoffs.
+        The next planner reads this file to continue.
+
+        Args:
+            refactor_id: The refactor ID
+            conversation_context: Summary of key discussion points (not transcript)
+            open_questions: Unresolved questions or pending decisions
+            decisions_in_progress: Decisions being debated but not yet final
+            docs_state: Status of each planning doc (not started/in progress/complete)
+            user_preferences: User preferences discovered during conversation
+            why_handoff: Reason for handoff (context tight, user requested, etc.)
+        """
+        console = Console()
+
+        # Path traversal protection
+        if ".." in refactor_id or refactor_id.startswith("/"):
+            raise ValueError(f"Invalid refactor ID: {refactor_id}")
+
+        refactor_dir = self.refactors_dir / refactor_id
+
+        # Additional check: ensure resolved path is under refactors_dir
+        try:
+            refactor_dir.resolve().relative_to(self.refactors_dir.resolve())
+        except ValueError:
+            raise ValueError(f"Invalid refactor ID: {refactor_id}")
+
+        if not refactor_dir.exists():
+            raise ValueError(f"Refactor not found: {refactor_id}")
+
+        # Warn if critical fidelity fields are empty
+        if not why_handoff:
+            console.print(
+                "[yellow]Warning: No handoff reason provided. "
+                "Consider adding context for the next planner.[/yellow]"
+            )
+
+        # Auto-detect generation from existing handoff (or 1 if first)
+        generation = self.get_current_generation(refactor_dir)
+
+        # Get metadata
+        metadata = self.get_refactor(refactor_id)
+        title = metadata.title if metadata else refactor_id
+        goal = metadata.goal if metadata else "Unknown"
+
+        # Build docs state section
+        docs_state = docs_state or {}
+        default_docs = ["PHILOSOPHY.md", "VISION.md", "DECISIONS.md", "PRE_REFACTOR.md", "EXECUTION_PLAN.md"]
+        docs_lines = []
+        for doc in default_docs:
+            status = docs_state.get(doc, "not started")
+            status_emoji = {
+                "not started": "⬜",
+                "in progress": "🔄",
+                "complete": "✅",
+                "draft": "📝",
+            }.get(status, "❓")
+            docs_lines.append(f"- {status_emoji} {doc}: {status}")
+
+        # Build open questions section
+        if open_questions:
+            questions_str = "\n".join(f"- {q}" for q in open_questions)
+        else:
+            questions_str = "No open questions."
+
+        # Build decisions in progress section
+        if decisions_in_progress:
+            decisions_str = "\n".join(f"- {d}" for d in decisions_in_progress)
+        else:
+            decisions_str = "No decisions pending."
+
+        # Build user preferences section
+        if user_preferences:
+            prefs_str = "\n".join(f"- {p}" for p in user_preferences)
+        else:
+            prefs_str = "None discovered yet."
+
+        # Build generation transition string
+        next_generation = generation + 1
+        generation_str = f"Planner #{generation} → #{next_generation}"
+
+        handoff_content = f'''# Planning Handoff - {refactor_id}
+
+> **Updated**: {datetime.now().strftime("%Y-%m-%d %H:%M")}
+> **Refactor**: {title}
+> **Goal**: {goal}
+> **Generation**: {generation_str}
+
+---
+
+## IMPORTANT: Read This Before Starting
+
+You are **Planner #{next_generation}** for the "{title}" refactor.
+A previous planner has handed off to you. Read this file carefully before continuing.
+
+Introduce yourself: "I'm Planner #{next_generation} for {title}, continuing from #{generation}. Let me review where we left off..."
+
+---
+
+## Why This Handoff
+
+{why_handoff if why_handoff else "No specific reason recorded."}
+
+---
+
+## Conversation Context
+
+{conversation_context if conversation_context else "No conversation context recorded."}
+
+---
+
+## Open Questions / Pending Decisions
+
+{questions_str}
+
+---
+
+## Decisions In Progress
+
+These decisions were being discussed but not yet finalized:
+
+{decisions_str}
+
+---
+
+## User Preferences Discovered
+
+The previous planner learned these about the user:
+
+{prefs_str}
+
+---
+
+## Document Status
+
+{chr(10).join(docs_lines)}
+
+---
+
+## Planning Commands
+
+**Resume planning:**
+```bash
+forge refactor plan --resume {refactor_id}
+```
+
+**Launch orchestrator (after planning complete):**
+```bash
+forge refactor orchestrate {refactor_id}
+```
+
+---
+
+## Key Files
+
+- `CLAUDE.md` - Planning session instructions (you're reading context from there too)
+- `metadata.json` - Refactor metadata
+
+Planning docs (in this directory):
+- `PHILOSOPHY.md` - Principles (IMMUTABLE once written)
+- `VISION.md` - Target state (IMMUTABLE once written)
+- `DECISIONS.md` - What we decided + rejected alternatives
+- `PRE_REFACTOR.md` - Codebase analysis
+- `EXECUTION_PLAN.md` - Phased sessions
+
+---
+
+## Important Context
+
+- User is AGI-pilled: trust model judgment over hardcoded rules
+- Docs as memory: write things down, context compaction loses fidelity
+- User is vibecoder: don't ask deep technical questions, make the call
+- Ask 2-3 questions at a time, not 10
+- Document rejected alternatives - future sessions need to know what NOT to do
+'''
+
+        handoff_path = refactor_dir / "PLANNING_HANDOFF.md"
+        handoff_path.write_text(handoff_content)
+
+        return handoff_path
+
+    def resume(
+        self,
+        refactor_id: str,
+        terminal: str = "auto",
+    ) -> tuple[bool, str]:
+        """
+        Resume a Planning Agent session from PLANNING_HANDOFF.md.
+
+        Launches a new Claude session that reads the handoff and continues
+        where the previous planner left off.
+
+        Returns (success, message).
+        """
+        # Path traversal protection: ensure refactor_id doesn't escape refactors_dir
+        if ".." in refactor_id or refactor_id.startswith("/"):
+            return False, f"Invalid refactor ID: {refactor_id}"
+
+        refactor_dir = self.refactors_dir / refactor_id
+
+        # Additional check: ensure resolved path is under refactors_dir
+        try:
+            refactor_dir.resolve().relative_to(self.refactors_dir.resolve())
+        except ValueError:
+            return False, f"Invalid refactor ID: {refactor_id}"
+
+        if not refactor_dir.exists():
+            return False, f"Refactor not found: {refactor_id}"
+
+        handoff_path = refactor_dir / "PLANNING_HANDOFF.md"
+        if not handoff_path.exists():
+            return False, (
+                f"No PLANNING_HANDOFF.md found for {refactor_id}.\n"
+                f"Either this is a fresh planning session (use 'forge refactor plan' instead),\n"
+                f"or the previous planner didn't create a handoff."
+            )
+
+        # Get generation number for display
+        generation = self.get_current_generation(refactor_dir)
+
+        # Get metadata for tab title
+        metadata = self.get_refactor(refactor_id)
+        title = metadata.title if metadata else refactor_id
+
+        terminal_enum = Terminal(terminal) if terminal != "auto" else Terminal.AUTO
+
+        # Launch Claude in the refactor directory
+        claude_command = 'claude --dangerously-skip-permissions'
+
+        # Tab title shows generation: "[ShortTitle] Planner #N"
+        skip_words = {'mode', 'phase', 'implementation', 'the', 'a', 'an', 'for'}
+        words = [w for w in title.split() if w.lower() not in skip_words][:2]
+        short_title = ''.join(words) if words else 'Refactor'
+        tab_title = f"{short_title} Planner #{generation}"
+
+        success = open_terminal_in_directory(
+            directory=refactor_dir,
+            terminal=terminal_enum,
+            command=claude_command,
+            title=tab_title,
+            initial_input="Where were we?",  # This triggers the "where were we" handler
+        )
+
+        if success:
+            return True, (
+                f"Planning session resumed for {refactor_id}!\n\n"
+                f"Planner #{generation} will read PLANNING_HANDOFF.md and continue.\n"
+                f"It will summarize where you left off."
+            )
+        else:
+            return False, (
+                f"Could not open terminal. Start manually:\n\n"
+                f"  cd {refactor_dir}\n"
+                f"  {claude_command}\n\n"
+                f"Then say: 'Where were we?'"
+            )
