@@ -20,13 +20,11 @@
       "completed_at": "2025-12-24T12:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 0 - init.py with codebase scanning",
       "tags": [
         "wave0",
         "cli",
         "foundation"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave0-backend-crud": {
@@ -48,13 +46,11 @@
       "completed_at": "2025-12-24T12:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 0 - Full CRUD in server.py",
       "tags": [
         "wave0",
         "backend",
         "foundation"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave0-prompt-template-v2": {
@@ -76,13 +72,11 @@
       "completed_at": "2025-12-24T12:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 0 - Rich prompts with expert patterns",
       "tags": [
         "wave0",
         "prompts",
         "foundation"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave1-brainstorm-mode": {
@@ -104,13 +98,11 @@
       "completed_at": "2025-12-24T17:30:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 1 - brainstorm.py with CLI integration",
       "tags": [
         "wave1",
         "cli",
         "claude"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave1-proposal-parser": {
@@ -132,12 +124,10 @@
       "completed_at": "2025-12-24T17:30:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 1 - Parser in brainstorm.py + AppState.swift",
       "tags": [
         "wave1",
         "parser"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave1-approve-decline-defer-ui": {
@@ -159,13 +149,11 @@
       "completed_at": "2025-12-24T20:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 1 - ProposalReviewView.swift, ProposalCard.swift",
       "tags": [
         "wave1",
         "swiftui",
         "gui"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave1-copy-prompt": {
@@ -187,13 +175,11 @@
       "completed_at": "2025-12-24T18:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 1 - Core workflow feature",
       "tags": [
         "wave1",
         "clipboard",
         "workflow"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave1-feature-editing": {
@@ -215,13 +201,11 @@
       "completed_at": "2025-12-24T18:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 1 - FeatureEditSheet.swift",
       "tags": [
         "wave1",
         "swiftui",
         "gui"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave1-macos-app-core": {
@@ -243,13 +227,11 @@
       "completed_at": "2025-12-24T15:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 1 - Full macOS app with KanbanView, FeatureCard, ProjectListView, AppState, APIClient",
       "tags": [
         "wave1",
         "macos",
         "swiftui"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave2-ios-app": {
@@ -271,13 +253,11 @@
       "completed_at": "2025-12-24T20:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 2 - ForgeApp_iOS.swift with full feature set",
       "tags": [
         "wave2",
         "ios",
         "swiftui"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave2-realtime-sync": {
@@ -299,13 +279,11 @@
       "completed_at": "2025-12-24T18:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 2 - WebSocketClient.swift + server.py WebSocket endpoints",
       "tags": [
         "wave2",
         "websocket",
         "sync"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave25-connection-status": {
@@ -327,13 +305,11 @@
       "completed_at": "2025-12-24T20:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 2.5 - ConnectionStatusBadge, testConnection(), iOSSettingsView",
       "tags": [
         "wave25",
         "ios",
         "ux"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave25-tailscale-config": {
@@ -355,13 +331,11 @@
       "completed_at": "2025-12-24T20:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 2.5 - PlatformConfig.swift with Tailscale hostname",
       "tags": [
         "wave25",
         "networking",
         "tailscale"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave25-brainstorm-input": {
@@ -383,13 +357,11 @@
       "completed_at": "2025-12-24T21:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 2.5 - BrainstormInputView.swift, replaces placeholder",
       "tags": [
         "wave25",
         "brainstorm",
         "gui"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave25-app-icons": {
@@ -411,13 +383,11 @@
       "completed_at": "2025-12-24T22:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 2.5 - AppIcon.icns for macOS, AppIcon.appiconset for iOS",
       "tags": [
         "wave25",
         "design",
         "icons"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave3-blocked-column": {
@@ -439,13 +409,11 @@
       "completed_at": "2025-12-24T23:16:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 3 - Feature.swift blocked status + KanbanView 5th column",
       "tags": [
         "wave3",
         "kanban",
         "status"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave3-keyboard-shortcuts": {
@@ -467,13 +435,11 @@
       "completed_at": "2025-12-24T23:18:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 3 - ForgeApp.swift .commands block",
       "tags": [
         "wave3",
         "macos",
         "keyboard"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave3-search-filter": {
@@ -495,13 +461,11 @@
       "completed_at": "2025-12-24T23:19:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 3 - KanbanView search and filter state",
       "tags": [
         "wave3",
         "search",
         "filter"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave4-max-features": {
@@ -523,13 +487,11 @@
       "completed_at": "2025-12-25T00:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 4.1 - registry.py MAX_PLANNED_FEATURES + GUI slots indicator",
       "tags": [
         "wave4",
         "constraints",
         "shipping-machine"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave4-scope-creep-detection": {
@@ -551,13 +513,11 @@
       "completed_at": "2025-12-25T00:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 4.1 - brainstorm.py check_shippable() + /scope-check endpoint",
       "tags": [
         "wave4",
         "constraints",
         "shipping-machine"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave4-build-command": {
@@ -579,13 +539,11 @@
       "completed_at": "2025-12-25T00:15:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 4.2 - cli.py build() combines add + start + prompt copy",
       "tags": [
         "wave4",
         "cli",
         "shipping-machine"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave4-ship-command": {
@@ -609,13 +567,11 @@
       "completed_at": "2025-12-25T00:20:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 4.2 - cli.py ship() wraps merge + cleanup + streak update",
       "tags": [
         "wave4",
         "cli",
         "shipping-machine"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave4-shipping-streaks": {
@@ -637,13 +593,11 @@
       "completed_at": "2025-12-25T00:30:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 4.4 - registry.py ShippingStats + AppState.swift + /shipping-stats endpoint",
       "tags": [
         "wave4",
         "momentum",
         "gamification"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave4-mission-control": {
@@ -667,13 +621,11 @@
       "completed_at": "2025-12-25T01:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 4.4 - MissionControlView.swift + ContentView toggle",
       "tags": [
         "wave4",
         "gui",
         "shipping-machine"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "wave3-pi-deployment": {
@@ -695,13 +647,11 @@
       "completed_at": "2025-12-26T12:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Wave 3 - Deployed to Pi with systemd, Tailscale, offline-first caching",
       "tags": [
         "wave3",
         "devops",
         "pi"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "add-hidereveal-for-sidebar-projects": {
@@ -723,9 +673,7 @@
       "completed_at": "2025-12-27T13:17:14.744137",
       "spec_path": null,
       "prompt_path": "/Users/Brian/Projects/Active/Forge/.forge/prompts/add-hidereveal-for-sidebar-projects.md",
-      "notes": null,
       "tags": [],
-      "session_id": null,
       "extensions": {}
     },
     "should-move-the-brain-button-and-the-plus-button-s": {
@@ -844,14 +792,12 @@
       "completed_at": "2025-12-29T00:00:00.000000",
       "spec_path": null,
       "prompt_path": null,
-      "notes": "Files modified: forge/server.py, forge/mcp_server.py",
       "tags": [
         "backend",
         "api",
         "sync",
         "cleanup"
       ],
-      "session_id": null,
       "extensions": {}
     },
     "refine-feature-doesnt-work-in-ios-should-consider-": {
@@ -992,6 +938,72 @@
       "worktree_path": null,
       "created_at": "2025-12-29T00:38:06.171191",
       "updated_at": "2025-12-29T00:38:06.171201",
+      "started_at": null,
+      "completed_at": null,
+      "spec_path": null,
+      "prompt_path": null,
+      "tags": [],
+      "extensions": {}
+    },
+    "session-resume": {
+      "id": "session-resume",
+      "title": "Robust Session Resume",
+      "description": "Make accidentally closed terminal windows recoverable. If a user closes a Warp window mid-session, they can restart it with `forge refactor start <id> <session>` since state already persists in .forge/refactors/. Enhance the resume flow to detect partial progress, show what was completed, and pick up where Claude left off. Leverage existing infrastructure: RESUMED signal, forge refactor resume command, Claude --resume flag.",
+      "status": "inbox",
+      "priority": 5,
+      "complexity": "medium",
+      "parent_id": null,
+      "children": [],
+      "depends_on": [],
+      "blocked_by": [],
+      "branch": null,
+      "worktree_path": null,
+      "created_at": "2026-01-03T15:25:28.491935",
+      "updated_at": "2026-01-03T15:25:28.491941",
+      "started_at": null,
+      "completed_at": null,
+      "spec_path": null,
+      "prompt_path": null,
+      "tags": [],
+      "extensions": {}
+    },
+    "terminology-consistency-audit": {
+      "id": "terminology-consistency-audit",
+      "title": "Terminology Consistency Audit",
+      "description": "Audit and standardize terminology across codebase and docs. Problem: overlapping jargon confuses new agents (Capture vs Brainstorm, Refine vs Crystallize, idea vs inbox vs planned). Solution: Create canonical glossary in CLAUDE.md, then systematically rename across Python, Swift, and docs. Good candidate for Major Refactor Mode test - touches many files but low architectural risk.",
+      "status": "inbox",
+      "priority": 5,
+      "complexity": "medium",
+      "parent_id": null,
+      "children": [],
+      "depends_on": [],
+      "blocked_by": [],
+      "branch": null,
+      "worktree_path": null,
+      "created_at": "2026-01-03T15:48:11.083569",
+      "updated_at": "2026-01-03T15:48:11.083576",
+      "started_at": null,
+      "completed_at": null,
+      "spec_path": null,
+      "prompt_path": null,
+      "tags": [],
+      "extensions": {}
+    },
+    "orchestrator-handoff-command": {
+      "id": "orchestrator-handoff-command",
+      "title": "Orchestrator Handoff Command",
+      "description": "Add 'forge refactor handoff <id>' command that: 1) Updates ORCHESTRATOR_HANDOFF.md with current state, 2) Opens new Warp tab with fresh Claude, 3) New Claude reads handoff and continues. Triggered via plain English ('let's handoff', 'spin up new orchestrator'). User monitors context via /context and triggers when ~70%+. Preserves old tab for posterity.",
+      "status": "inbox",
+      "priority": 5,
+      "complexity": "medium",
+      "parent_id": null,
+      "children": [],
+      "depends_on": [],
+      "blocked_by": [],
+      "branch": null,
+      "worktree_path": null,
+      "created_at": "2026-01-03T16:28:11.872722",
+      "updated_at": "2026-01-03T16:28:11.872728",
       "started_at": null,
       "completed_at": null,
       "spec_path": null,

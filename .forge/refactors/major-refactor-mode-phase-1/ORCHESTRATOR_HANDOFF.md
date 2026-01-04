@@ -1,17 +1,19 @@
 # Orchestrator Handoff - Major Refactor Mode Phase 1
 
 > **Updated**: 2026-01-03
-> **From**: Manual orchestrator session (bash shell broke)
-> **To**: Next Claude session
+> **From**: Orchestrator #4
+> **To**: Next orchestrator (or self after context compaction)
 
 ---
 
 ## Current State
 
 **Phase 1**: ✅ COMPLETE (Sessions 1.1 + 1.2)
-**Phase 2**: 🔄 Ready to start Session 2.1
+**Phase 2**: 🔄 IN PROGRESS
+- Session 2.1: ✅ COMPLETE (Complexity Detection)
+- Session 2.2: 🔄 RUNNING (Codebase Analyzer)
 
-**Git**: Pushed to origin/main (commits for 1.1 and 1.2)
+**Git**: All pushed to origin/main
 
 ---
 
@@ -27,53 +29,75 @@
 ### Session 1.2 ✅
 - `forge/refactor/session.py` - ExecutionSession class, session spec parsing
 - `forge refactor start/done` CLI commands
-- Fixed: Added `initial_input="Let's begin!"` to match planning agent launch
 
-**Audit**: Phase 1 passed all checks.
+### Session 2.1 ✅
+- Added major refactor detection to BRAINSTORM and REFINE prompts
+- Marker: `MAJOR_REFACTOR_RECOMMENDED`
+- Helper methods: `is_major_refactor_detected()`, `get_major_refactor()`
+- Commit: c7eae0b
 
----
+### Session 2.2 🔄
+- Codebase Analyzer - IN PROGRESS
 
-## Your Mission
-
-**Execute Session 2.1: Complexity Detection**
-
-1. First, commit the session.py fix (added initial_input):
-   ```bash
-   cd /Users/Brian/Projects/Active/Forge
-   git add forge/refactor/session.py
-   git commit -m "fix(refactor): Add initial_input to session launch for auto-start"
-   git push
-   ```
-
-2. Then launch Session 2.1:
-   ```bash
-   forge refactor start major-refactor-mode-phase-1 2.1
-   ```
-
-3. A new Warp window should open with Claude starting automatically.
+**Audit**: Phase 1 passed all checks. Prometheus reviewing Phase 2.
 
 ---
 
-## Session 2.1 Summary
+## Orchestrator Commands
 
-**Goal**: Add complexity detection to BrainstormAgent
+**Launch session:**
+```bash
+forge refactor start major-refactor-mode-phase-1 2.2
+```
 
-The session spec is in `docs/MAJOR_REFACTOR_MODE/EXECUTION_PLAN.md` - search for "Session 2.1".
+**Check session status:**
+```bash
+forge refactor status major-refactor-mode-phase-1
+```
 
-Key points:
-- Modify `forge/agents/prompts.py` - Add detection guidance to REFINE_SYSTEM_PROMPT
-- Claude decides when something is too big (AGI-pilled, no hardcoded thresholds)
-- Output marker: `MAJOR_REFACTOR_RECOMMENDED`
+**When session completes, launch next:**
+```bash
+forge refactor start major-refactor-mode-phase-1 <next-session>
+```
+
+---
+
+## Tab Title Scheme
+
+Tabs are named for quick identification:
+- `MajorRefactor Planner` - Planning sessions
+- `2.2 Builder` - Execution sessions (phase.session + role)
+- `2 Auditor` - Phase audits (phase + role)
+- `Forge Ship` - Shipping operations
+
+---
+
+## Orchestrator Handoff Protocol
+
+**When to handoff:** User sees context getting tight (~70%+) via `/context`
+
+**How to trigger (plain English):**
+- "context is getting tight, let's handoff"
+- "spin up a new orchestrator"
+- "time for a fresh orchestrator"
+
+**What happens:**
+1. Orchestrator updates this ORCHESTRATOR_HANDOFF.md with current state
+2. Runs: `forge refactor handoff major-refactor-mode-phase-1` (when built)
+3. New tab opens with fresh Claude
+4. Old tab preserved for posterity
+
+**Until handoff command exists:** Manually open new Claude Code tab and point it here.
 
 ---
 
 ## Bootstrapping Ladder
 
 ```
-Step 0: Human + Claude (manual)     ← YOU ARE HERE
+Step 0: Human + Claude (manual)     ✅ DONE
 Step 1: Planning Agent              ✅ DONE
 Step 2: Phase 1 Foundation          ✅ DONE
-Step 3: Phase 2 Detection           🔄 NEXT (2.1, 2.2)
+Step 3: Phase 2 Detection           🔄 IN PROGRESS (2.1 done, 2.2 running)
 Step 4: Phase 3 Orchestrator        ⬜ Flywheel kicks in here
 Step 5: Self-sustaining             ⬜
 ```
@@ -89,8 +113,19 @@ Step 5: Self-sustaining             ⬜
 
 ---
 
-## Notes
+## Important Context
 
-- User wants methodical, low-error execution - no shortcuts
-- User is non-technical (vibecoder) - don't ask implementation questions
-- Commit after each session, update session log in EXECUTION_PLAN.md
+- User is AGI-pilled: trust model judgment over hardcoded rules
+- Docs as memory: write things down, context compaction loses fidelity
+- User is vibecoder: don't ask deep technical questions, make the call
+- Commit after each session, push to main
+- Tab titles help identify parallel sessions visually
+
+---
+
+## Notes from This Session
+
+- Added tab title support for Warp (ANSI escape sequences)
+- Standardized titles: `X.Y Builder`, `[Title] Planner`, `X Auditor`
+- Added `session-resume` and `terminology-consistency-audit` to backlog
+- Prometheus feedback: detection should flow to `forge refactor plan`, not directly to execution
