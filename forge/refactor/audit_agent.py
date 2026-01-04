@@ -192,15 +192,16 @@ class AuditAgent:
         Uses git to find what was changed, so the audit can validate
         the actual implementation, not just documented outputs.
 
-        Includes both stats AND actual patches so auditor can see the code.
+        Shows ALL commits made during the session (from start_commit to commit_hash),
+        not just the final commit. This ensures the auditor sees the full work.
         """
         import subprocess
 
         # Get commits from these sessions
         changes = []
-        max_lines_per_commit = 500  # Intelligent truncation per commit
+        max_lines_per_commit = 400  # Intelligent truncation per commit
         total_lines = 0
-        max_total_lines = 1500  # Cap total output
+        max_total_lines = 2000  # Cap total output (increased for multi-commit)
 
         state_path = self.refactor_dir / "state.json"
         if state_path.exists():
@@ -212,20 +213,82 @@ class AuditAgent:
                     break
 
                 session_state = state.get_session(session_id)
-                if session_state and session_state.commit_hash:
-                    commit_hash = session_state.commit_hash
+                if not session_state:
+                    continue
 
-                    # Get diff with actual patch content
+                start_commit = session_state.start_commit
+                end_commit = session_state.commit_hash
+
+                if not end_commit:
+                    changes.append(f"### Session {session_id}: No commit recorded\n")
+                    continue
+
+                # Track whether we successfully showed the range
+                showed_range = False
+
+                # If we have both start and end, try to show the range
+                if start_commit and start_commit != end_commit:
+                    changes.append(f"### Session {session_id} commits ({start_commit}..{end_commit}):\n")
+
+                    # First, list all commits in the range
                     try:
                         result = subprocess.run(
-                            ["git", "show", "--stat", "--patch", commit_hash],
+                            ["git", "log", "--oneline", f"{start_commit}..{end_commit}"],
+                            capture_output=True,
+                            text=True,
+                            cwd=self.project_root,
+                        )
+                        if result.returncode == 0 and result.stdout.strip():
+                            commit_list = result.stdout.strip().split('\n')
+                            changes.append(f"**Commits made ({len(commit_list)} total):**\n")
+                            for commit_line in commit_list:
+                                changes.append(f"- {commit_line}")
+                            changes.append("\n")
+
+                            # Show patches for each commit
+                            for commit_line in commit_list:
+                                if total_lines >= max_total_lines:
+                                    changes.append("\n... (truncated, too many changes)")
+                                    break
+
+                                commit_sha = commit_line.split()[0]
+                                try:
+                                    patch_result = subprocess.run(
+                                        ["git", "show", "--stat", "--patch", commit_sha],
+                                        capture_output=True,
+                                        text=True,
+                                        cwd=self.project_root,
+                                    )
+                                    if patch_result.returncode == 0:
+                                        changes.append(f"\n#### Commit {commit_sha}\n")
+                                        lines = patch_result.stdout.split('\n')
+                                        truncated = lines[:max_lines_per_commit]
+                                        changes.append('\n'.join(truncated))
+                                        if len(lines) > max_lines_per_commit:
+                                            changes.append(f"\n... ({len(lines) - max_lines_per_commit} more lines)")
+                                        total_lines += min(len(lines), max_lines_per_commit)
+                                except Exception:
+                                    pass
+
+                            showed_range = True
+                    except Exception:
+                        # Fall back to showing just the end commit
+                        changes.append(f"(Could not get commit range, falling back to final commit)\n")
+
+                # Show single commit if no range or range failed
+                if not showed_range:
+                    if not (start_commit and start_commit != end_commit):
+                        # Only add header if we haven't already (no failed range attempt)
+                        changes.append(f"### Session {session_id} commit: {end_commit}\n")
+
+                    try:
+                        result = subprocess.run(
+                            ["git", "show", "--stat", "--patch", end_commit],
                             capture_output=True,
                             text=True,
                             cwd=self.project_root,
                         )
                         if result.returncode == 0:
-                            changes.append(f"### Commit {commit_hash} (Session {session_id})\n")
-                            # Truncate per-commit but show actual code
                             lines = result.stdout.split('\n')
                             truncated = lines[:max_lines_per_commit]
                             changes.append('\n'.join(truncated))
@@ -413,6 +476,9 @@ This is a guide, not a gate. Use your judgment on severity and relevance.
    forge refactor audit-fail {self.refactor_id} {sessions_str} --issues "Brief summary of issues"
    ```
 
+3. Tell the user:
+   > "Audit FAILED for sessions {sessions_str}. Return to the orchestrator to relay fixes to the builder."
+
 ### If Audit Passes:
 
 1. Run this command to signal approval:
@@ -421,7 +487,23 @@ This is a guide, not a gate. Use your judgment on severity and relevance.
    ```
 
 2. Tell the user:
-   > "Audit PASSED for sessions {sessions_str}. Work aligns with philosophy."
+   > "Audit PASSED for sessions {sessions_str}. Work aligns with philosophy.
+   >
+   > Return to the orchestrator to close out this session and continue to the next."
+
+### If Escalation is Needed:
+
+If you observe recurring issues across iterations, fundamental architectural problems, or scope confusion that revision won't fix:
+
+1. Run this command to signal escalation:
+   ```bash
+   forge refactor escalate {self.refactor_id} {sessions_str} --reason "Brief explanation"
+   ```
+
+2. Tell the user:
+   > "Recommend ESCALATING sessions {sessions_str}. This needs human decision.
+   >
+   > Return to the orchestrator to discuss next steps."
 
 ---
 

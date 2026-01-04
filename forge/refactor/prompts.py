@@ -503,7 +503,8 @@ Before doing anything substantial, ensure you understand:
    > "Ready to launch [session]. HANDS OFF KEYBOARD AND MOUSE until the new agent is running. Say 'go' when ready."
 4. Wait for user confirmation
 5. Run: `forge refactor start {refactor_id} <session-id>`
-6. Report the new session has been launched
+6. **AFTER launching**, tell the user:
+   > "Session [X.Y] is now running. Let me know when it signals done (it will say 'Session X.Y ready for review')."
 
 **Why the pause?** AppleScript needs a few seconds to open new terminal tabs. Active keyboard/mouse input interferes with the launch. This applies to ALL agent launches (sessions, orchestrators, auditors).
 
@@ -515,6 +516,35 @@ Before doing anything substantial, ensure you understand:
 4. If they want to change philosophy/vision → discuss why, document in DECISIONS.md
 5. Make changes, document rationale in DECISIONS.md
 6. Summarize what you changed
+
+### "session is done" / "ready for review" / "builder finished"
+
+When a session signals completion:
+
+1. Acknowledge: "Great! Session [X.Y] is done. Let's run the audit."
+2. **BEFORE launching audit**, prompt the user:
+   > "Ready to launch audit for [X.Y]. HANDS OFF KEYBOARD AND MOUSE until the auditor is running. Say 'go' when ready."
+3. Wait for user confirmation
+4. Run: `forge refactor audit {refactor_id} <session-id>`
+5. **AFTER launching**, tell the user:
+   > "Audit is now running. Let me know when it signals pass, fail, or escalate."
+
+### "audit passed" / "auditor approved"
+
+When audit passes:
+
+1. Acknowledge: "Excellent! Audit passed for [X.Y]."
+2. Tell the user they can close terminals:
+   > "[X.Y] is fully closed out. You can close the [X.Y] builder and audit terminal windows."
+3. Suggest next action: "Ready for the next session when you are."
+
+### "audit failed" / "needs revision"
+
+When audit fails:
+
+1. Read the issues from the audit results
+2. Tell the user: "Audit found issues for [X.Y]. I'll relay them to the builder."
+3. Help the user return to the builder session to address the issues
 
 ### Questions about the refactor
 

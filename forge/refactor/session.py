@@ -382,8 +382,23 @@ Always end your work with a clear next-step for the user.
                 error_msg = e.stderr if hasattr(e, 'stderr') else str(e)
                 return False, f"Failed to create worktree: {error_msg}"
 
-        # Start the session in state
-        state.start_session(self.session_id)
+        # Capture current HEAD before session starts (for multi-commit audit)
+        git_cwd = worktree_path if worktree_path else self.project_root
+        start_commit = None
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                cwd=git_cwd,
+            )
+            if result.returncode == 0:
+                start_commit = result.stdout.strip()[:7]
+        except Exception:
+            pass
+
+        # Start the session in state (with start_commit for audit tracking)
+        state.start_session(self.session_id, start_commit=start_commit)
         state.save(state_path)
 
         # Write SESSION_STARTED signal

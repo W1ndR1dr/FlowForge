@@ -52,7 +52,8 @@ class SessionState:
     status: SessionStatus = SessionStatus.PENDING
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
-    commit_hash: Optional[str] = None
+    start_commit: Optional[str] = None  # HEAD when session started (for multi-commit audit)
+    commit_hash: Optional[str] = None  # HEAD when session completed
     audit_result: AuditResult = AuditResult.PENDING
     notes: str = ""  # Handoff notes for next session
     iteration_count: int = 0  # Tracks audit iterations for visibility
@@ -64,6 +65,7 @@ class SessionState:
             "status": self.status.value,
             "started_at": self.started_at,
             "completed_at": self.completed_at,
+            "start_commit": self.start_commit,
             "commit_hash": self.commit_hash,
             "audit_result": self.audit_result.value,
             "notes": self.notes,
@@ -78,6 +80,7 @@ class SessionState:
             status=SessionStatus(data.get("status", "pending")),
             started_at=data.get("started_at"),
             completed_at=data.get("completed_at"),
+            start_commit=data.get("start_commit"),
             commit_hash=data.get("commit_hash"),
             audit_result=AuditResult(data.get("audit_result", "pending")),
             notes=data.get("notes", ""),
@@ -203,8 +206,19 @@ class RefactorState:
         """Get a session by ID."""
         return self.sessions.get(session_id)
 
-    def start_session(self, session_id: str) -> SessionState:
-        """Mark a session as started."""
+    def start_session(
+        self,
+        session_id: str,
+        start_commit: Optional[str] = None,
+    ) -> SessionState:
+        """
+        Mark a session as started.
+
+        Args:
+            session_id: The session identifier (e.g., "1.1")
+            start_commit: Current HEAD commit when session starts.
+                         Used by audit to show ALL commits made during session.
+        """
         if session_id not in self.sessions:
             self.add_session(session_id)
 
@@ -212,6 +226,8 @@ class RefactorState:
         old_status = session.status
         session.status = SessionStatus.IN_PROGRESS
         session.started_at = datetime.now().isoformat()
+        if start_commit:
+            session.start_commit = start_commit
         self.current_session = session_id
         self.status = RefactorStatus.EXECUTING
         if self.started_at is None:
@@ -221,6 +237,7 @@ class RefactorState:
             session_id=session_id,
             old_status=old_status.value,
             new_status=session.status.value,
+            start_commit=start_commit,
         )
         return session
 

@@ -239,7 +239,9 @@ When the user approves (says "write it", "looks good", "yes", etc.):
 **End with:**
 > "Planning complete! Docs are in `{refactor_dir}/`.
 >
-> To start Phase 1, run: `forge refactor start {refactor_id} 1.1`"
+> **Next steps:**
+> - To launch the orchestrator (recommended): `forge refactor orchestrate {refactor_id}`
+> - To start Phase 1 directly: `forge refactor start {refactor_id} 1.1`"
 
 ---
 
