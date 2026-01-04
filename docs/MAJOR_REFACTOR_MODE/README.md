@@ -70,8 +70,8 @@ Each session has:
 | Document | Purpose | Mutable? |
 |----------|---------|----------|
 | README.md | Overview and reading order | Yes |
-| PHILOSOPHY.md | Guiding principles, anti-patterns | No |
-| VISION.md | Target state, success criteria | No |
+| PHILOSOPHY.md | Guiding principles, anti-patterns | Stable anchor |
+| VISION.md | Target state, success criteria | Stable anchor |
 | DECISIONS.md | Architectural choices with rationale | Yes (append-only) |
 | EXECUTION_PLAN.md | Session prompts, progress tracking | Yes |
 

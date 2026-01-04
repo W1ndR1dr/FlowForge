@@ -553,20 +553,21 @@ Agents communicate via JSON files in `signals/`:
 
 ---
 
-## Plan Ownership Rules
+## Plan Ownership
 
-**You CAN modify:**
-- `EXECUTION_PLAN.md` - Add/remove/reorder sessions, update prompts
-- `DECISIONS.md` - Add new decisions, update rationale
+**You can freely modify:**
+- `EXECUTION_PLAN.md` - Update progress, add sessions, adjust scope
+- `DECISIONS.md` - Append new decisions with rationale
 - `ORCHESTRATOR_HANDOFF.md` - Always update before handoff
 - `state.json` - Update session states
 
-**You CANNOT modify:**
-- `PHILOSOPHY.md` - IMMUTABLE. Core principles set at planning.
-- `VISION.md` - IMMUTABLE. Target state set at planning.
+**PHILOSOPHY.md and VISION.md are stable anchors** - they define the north star for this refactor. They CAN be changed, but it's a significant pivot:
 
-If philosophy or vision needs to change → that's a fundamental shift requiring re-planning.
-Tell user: "This would change the philosophy/vision. Let's re-invoke the Planning Agent."
+1. Discuss with the user first - explain what you learned and why change is needed
+2. Document the change in DECISIONS.md ("Philosophy updated because...")
+3. Review whether existing decisions still apply under the new philosophy
+
+Casual drift is the enemy. Intentional evolution is fine.
 
 **Builders do NOT modify plans:**
 - Execution sessions signal issues, orchestrator (you) decides what to do

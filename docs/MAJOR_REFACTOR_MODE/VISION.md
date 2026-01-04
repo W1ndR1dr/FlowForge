@@ -1,6 +1,6 @@
 # Major Refactor Mode - Vision
 
-> **Status**: IMMUTABLE - Target state definition
+> **Status**: STABLE ANCHOR - Target state (change requires explicit pivot)
 > **Created**: 2026-01-03
 
 ---

@@ -1,6 +1,6 @@
 # Major Refactor Mode - Philosophy
 
-> **Status**: IMMUTABLE - Locked at planning start (2026-01-03)
+> **Status**: STABLE ANCHOR - Core principles (change requires explicit pivot)
 > **Purpose**: Guiding principles that govern all implementation decisions
 
 ---
