@@ -79,6 +79,38 @@ Forge users work extensively with AI but may not be Git experts. Major Refactor 
 
 ---
 
+## User as Fidelity Sensor (The Vibes Check)
+
+Formal audits catch structural issues. **User intuition catches "feels wrong."**
+
+The vibecoder doesn't debug code - they notice when:
+- Something feels too risky to yolo
+- The language is too prescriptive (not AGI-pilled)
+- The approach has drifted from original intent
+- "MVP acceptable" is lazy thinking
+
+This is irreplaceable. No audit agent replicates it. Formalize it:
+
+| Layer | What It Catches |
+|-------|-----------------|
+| Builder self-check | Obvious bugs, missing features |
+| Formal auditor | Spec compliance, edge cases |
+| **User vibes check** | Fidelity drift, philosophy violations, "feels off" |
+
+**When vibes are off, pause.** The user's instinct is a signal. Trust it.
+
+---
+
+## Sessions Are Iterative, Not One-Shot
+
+The spec assumes: build → commit → done.
+
+Reality: build → audit → fix → audit → polish → done.
+
+**Expect 1-3 revision passes per session.** This is normal, not failure. Build agents should welcome audit feedback and iterate until polished.
+
+---
+
 ## Design Principles (Reference)
 
 1. **Docs ARE the memory** - No accumulated context, agents read from files
@@ -87,3 +119,5 @@ Forge users work extensively with AI but may not be Git experts. Major Refactor 
 4. **Vibecoders first** - Hide complexity, show progress
 5. **Pause anywhere** - User can always stop, rethink, modify
 6. **Forward-looking** - Model unhobbling, assume capabilities improve
+7. **Three-layer audit** - Builder self-check → Formal auditor → User vibes
+8. **Iteration is expected** - Sessions polish through revision, not one-shot
