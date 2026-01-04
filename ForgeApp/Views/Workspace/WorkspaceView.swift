@@ -88,7 +88,12 @@ struct WorkspaceView: View {
                     // Level 3: Building - what you're actively working on
                     ActiveWorkspacesSection()
 
-                    // Level 4: Done - shipped features
+                    // Level 4: Major Refactors - multi-session work
+                    #if os(macOS)
+                    RefactorDashboardView()
+                    #endif
+
+                    // Level 5: Done - shipped features
                     shippedSection
                 }
                 .padding(Spacing.large)
