@@ -1,47 +1,73 @@
 # Orchestrator Handoff - major-refactor-mode-phase-1
 
-> **Updated**: 2026-01-03 19:13
+> **Updated**: 2026-01-03 20:15
 > **Refactor**: major-refactor-mode-phase-1
 > **Status**: executing
+> **Generation**: Orchestrator #1 → #2
+
+---
+
+## Why This Handoff
+
+Context at 79%. Phase 3 fully closed, ready for Phase 4.
+
+---
+
+## Conversation Context
+
+**Key discussions this session:**
+
+1. **Adversarial auditing** - We manually audited 3.1b, found gaps (generation auto-detection, validation warnings, path clarity), user relayed fixes to builder agent.
+
+2. **Meta-improvement: Phase Closeout** - User caught that I should close phases autonomously before moving on. Added "Phase Closeout (CRITICAL)" section to ORCHESTRATOR_PROMPT.
+
+3. **Signal completion bug** - Session CLAUDE.md didn't tell agents to run `forge refactor done`. Fixed. Also clarified it means "ready for review" not "final victory".
+
+4. **Progressive delegation** - User wants orchestrator to handle procedural work autonomously, only escalate decisions/blockers. This is now codified.
+
+5. **Plain English to agents** - User prefers relaying instructions in plain English. Works but risky if agent's CLAUDE.md doesn't have the command. Explicit commands are safer.
+
+---
+
+## Open Questions / Pending Decisions
+
+- **Starting Phase 4 with 4.2 (Audit Agent) first** - Counterintuitive but reasoned: once audit exists, it validates all future work. User agreed.
+- 4.1 (Phase Agent) comes after 4.2.
 
 ---
 
 ## Current State
 
-**Current Session**: 3.1
+**Phase Progress**
 
-### Phase Progress
+- ✅ Phase 0: Complete (Planning Agent)
+- ✅ Phase 1: Complete (Foundation - state, signals, session launcher)
+- ✅ Phase 2: Complete (Detection + Analyzer)
+- ✅ Phase 3: Complete (Orchestrator + Handoff Fidelity)
+- 🔲 Phase 4: Ready to start (Audit Agent first, then Phase Agent)
 
-- 🔄 Phase 2: In progress
-- 🔄 Phase 3: Complete, awaiting audit
+**Session Summary**
 
-### Session Details
+| Session | Status | Commit | Audit |
+|---------|--------|--------|-------|
+| 0.1 | ✅ | - | passed |
+| 1.1 | ✅ | - | passed |
+| 1.2 | ✅ | - | passed |
+| 2.1 | ✅ | c7eae0b | passed |
+| 2.2 | ✅ | 288d207 | passed |
+| 3.1 | ✅ | c9d7c64 | passed |
+| 3.1b | ✅ | 029cb86 | passed |
 
-- 🔄 Session 2.1: in_progress
-- 🔄 Session 2.2: in_progress
-- ✅ Session 3.1: completed
+**Recent commits (unpushed):**
+- 029cb86 - fix(refactor): Clarify 'done' means ready for review
 
 ---
 
-## Signal Summary
+## What's Next
 
-## Signal Summary
-
-**Total signals**: 7
-
-**Sessions started**: 2.1, 2.1, 2.1, 2.2, 3.1, 3.1
-**Sessions done**: 3.1
-
-### Timeline (most recent)
-- `2026-01-03T15:01:58` 2.1: Session started
-- `2026-01-03T15:15:27` 2.1: Session started
-- `2026-01-03T15:15:56` 2.1: Session started
-- `2026-01-03T15:39:00` 2.2: Session started
-- `2026-01-03T18:22:34` 3.1: Session started
-- `2026-01-03T18:25:03` 3.1: Session started
-- `2026-01-03T19:08:07` 3.1: Session done (commit: c9d7c64)
-
-**Latest**: session_done from 3.1 at 2026-01-03T19:08:07
+1. Launch Session 4.2 (Audit Agent) - `forge refactor start major-refactor-mode-phase-1 4.2`
+2. After 4.2 completes, launch 4.1 (Phase Agent)
+3. Then Phase 5 (Swift UI) and Phase 6 (Integration)
 
 ---
 
@@ -52,11 +78,6 @@
 forge refactor start major-refactor-mode-phase-1 <session-id>
 ```
 
-**Mark session complete:**
-```bash
-forge refactor done <session-id>
-```
-
 **Check status:**
 ```bash
 forge refactor status major-refactor-mode-phase-1
@@ -64,41 +85,20 @@ forge refactor status major-refactor-mode-phase-1
 
 ---
 
-## Handoff Protocol
-
-**When to handoff:** User sees context getting tight (~70%+) via `/context`
-
-**How to trigger:** Natural language - the orchestrator will infer intent. If unclear, it will ask.
-
-**What happens:**
-1. Orchestrator updates this ORCHESTRATOR_HANDOFF.md with current state
-2. User opens new Claude tab in same Warp window
-3. New orchestrator reads ORCHESTRATOR_HANDOFF.md and continues
-4. Old tab preserved for reference
-
----
-
-## Notes from This Session
-
-No additional notes.
-
----
-
 ## Key Files
 
-- `PHILOSOPHY.md` - Principles (stable anchor, read first!)
-- `DECISIONS.md` - Architecture decisions
-- `EXECUTION_PLAN.md` - All session specs
+- `../PHILOSOPHY.md` or `docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md` - Principles (stable anchor)
+- `../DECISIONS.md` or `docs/MAJOR_REFACTOR_MODE/DECISIONS.md` - Architecture decisions
+- `docs/MAJOR_REFACTOR_MODE/EXECUTION_PLAN.md` - All session specs
 - `state.json` - Runtime state
 - `signals/` - Agent signals
-
-All paths are relative to this refactor directory.
 
 ---
 
 ## Important Context
 
 - User is AGI-pilled: trust model judgment over hardcoded rules
-- Docs as memory: write things down, context compaction loses fidelity
 - User is vibecoder: don't ask deep technical questions, make the call
+- **Progressive delegation**: handle procedural work autonomously, only escalate decisions
+- **Phase Closeout**: YOU must close out phases before starting new ones (see ORCHESTRATOR_PROMPT)
 - Commit after each session, push to main
