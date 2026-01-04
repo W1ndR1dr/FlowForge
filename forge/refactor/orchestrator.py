@@ -277,12 +277,26 @@ class OrchestratorSession:
 
         return True, f"Advanced from {from_session} to {to_session}"
 
-    def update_handoff(self, notes: str = "") -> Path:
+    def update_handoff(
+        self,
+        notes: str = "",
+        generation: int = 1,
+        open_questions: list[str] | None = None,
+        conversation_context: str = "",
+        why_handoff: str = "",
+    ) -> Path:
         """
         Write current state to ORCHESTRATOR_HANDOFF.md.
 
         This is how orchestrator context survives handoffs.
         The next orchestrator reads this file to continue.
+
+        Args:
+            notes: General notes from this session
+            generation: Orchestrator generation number (incremented on each handoff)
+            open_questions: List of unresolved questions/pending decisions
+            conversation_context: Summary of key discussion points (not transcript)
+            why_handoff: Reason for handoff (context tight, user requested, etc.)
         """
         state = self.read_state()
         signals = self.check_signals()
@@ -321,11 +335,40 @@ class OrchestratorSession:
             else:
                 phase_lines.append(f"- 🔄 Phase {phase_num}: In progress")
 
+        # Build open questions section
+        if open_questions:
+            questions_str = "\n".join(f"- {q}" for q in open_questions)
+        else:
+            questions_str = "No open questions."
+
+        # Build generation transition string
+        next_generation = generation + 1
+        generation_str = f"Orchestrator #{generation} → #{next_generation}"
+
         handoff_content = f'''# Orchestrator Handoff - {self.refactor_id}
 
 > **Updated**: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 > **Refactor**: {self.refactor_id}
 > **Status**: {state.status.value if state else "unknown"}
+> **Generation**: {generation_str}
+
+---
+
+## Why This Handoff
+
+{why_handoff if why_handoff else "No specific reason recorded."}
+
+---
+
+## Conversation Context
+
+{conversation_context if conversation_context else "No conversation context recorded."}
+
+---
+
+## Open Questions / Pending Decisions
+
+{questions_str}
 
 ---
 
