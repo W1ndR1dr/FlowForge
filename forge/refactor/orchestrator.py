@@ -30,6 +30,24 @@ from .signals import (
 
 
 @dataclass
+class SignalEvent:
+    """A single signal event with timestamp for chronological display."""
+
+    timestamp: str
+    signal_type: str
+    session_id: str
+    summary: str  # Human-readable summary
+
+    def to_dict(self) -> dict:
+        return {
+            "timestamp": self.timestamp,
+            "signal_type": self.signal_type,
+            "session_id": self.session_id,
+            "summary": self.summary,
+        }
+
+
+@dataclass
 class SignalSummary:
     """Summary of signals for display."""
 
@@ -40,6 +58,8 @@ class SignalSummary:
     revisions_needed: list[str]
     pending_questions: list[dict]
     latest_signal: Optional[Signal]
+    # Chronological timeline of all signals
+    timeline: list[SignalEvent] = field(default_factory=list)
 
     def to_markdown(self) -> str:
         """Format as markdown for orchestrator display."""
@@ -64,6 +84,12 @@ class SignalSummary:
             lines.append("\n### Pending Questions")
             for q in self.pending_questions:
                 lines.append(f"- **{q['session_id']}**: {q['question']}")
+
+        # Show chronological timeline (most recent 10)
+        if self.timeline:
+            lines.append("\n### Timeline (most recent)")
+            for event in self.timeline[-10:]:
+                lines.append(f"- `{event.timestamp[:19]}` {event.session_id}: {event.summary}")
 
         if self.latest_signal:
             lines.append(f"\n**Latest**: {self.latest_signal.type.value} "
@@ -110,7 +136,7 @@ class OrchestratorSession:
         """
         Look for new signal files and summarize.
 
-        Returns a summary of all signals for display.
+        Returns a summary of all signals for display, including chronological timeline.
         """
         signals = read_signals(self.signals_dir)
 
@@ -119,22 +145,40 @@ class OrchestratorSession:
         audits_passed = []
         revisions_needed = []
         pending_questions = []
+        timeline = []
 
         for signal in signals:
+            # Build human-readable summary for timeline
             if signal.type == SignalType.SESSION_STARTED:
                 sessions_started.append(signal.session_id)
+                summary = "Session started"
             elif signal.type == SignalType.SESSION_DONE:
                 sessions_done.append(signal.session_id)
+                commit = signal.payload.get("commit_hash", "")
+                summary = f"Session done (commit: {commit})" if commit else "Session done"
             elif signal.type == SignalType.AUDIT_PASSED:
                 audits_passed.append(signal.session_id)
+                summary = "Audit passed"
             elif signal.type == SignalType.REVISION_NEEDED:
                 revisions_needed.append(signal.session_id)
+                issues = signal.payload.get("issues", [])
+                summary = f"Revision needed ({len(issues)} issue{'s' if len(issues) != 1 else ''})"
             elif signal.type == SignalType.QUESTION:
                 pending_questions.append({
                     "session_id": signal.session_id,
                     "question": signal.payload.get("question", "Unknown question"),
                     "options": signal.payload.get("options", []),
                 })
+                summary = f"Question: {signal.payload.get('question', '?')[:50]}"
+            else:
+                summary = signal.type.value
+
+            timeline.append(SignalEvent(
+                timestamp=signal.timestamp,
+                signal_type=signal.type.value,
+                session_id=signal.session_id,
+                summary=summary,
+            ))
 
         return SignalSummary(
             total_signals=len(signals),
@@ -144,6 +188,7 @@ class OrchestratorSession:
             revisions_needed=revisions_needed,
             pending_questions=pending_questions,
             latest_signal=signals[-1] if signals else None,
+            timeline=timeline,
         )
 
     def handle_signal(self, signal: Signal) -> str:

@@ -18,6 +18,7 @@ from .state import (
     SessionState,
     SessionStatus,
     AuditResult,
+    StateChange,
 )
 from .signals import (
     Signal,
@@ -46,6 +47,7 @@ from .analyzer import (
 from .orchestrator import (
     OrchestratorSession,
     SignalSummary,
+    SignalEvent,
 )
 
 __all__ = [
@@ -57,6 +59,7 @@ __all__ = [
     "SessionState",
     "SessionStatus",
     "AuditResult",
+    "StateChange",
     # Signals
     "Signal",
     "SignalType",
@@ -81,4 +84,5 @@ __all__ = [
     # Orchestrator
     "OrchestratorSession",
     "SignalSummary",
+    "SignalEvent",
 ]

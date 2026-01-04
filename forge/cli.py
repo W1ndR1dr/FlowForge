@@ -2133,5 +2133,50 @@ def refactor_orchestrate(
         raise typer.Exit(1)
 
 
+@refactor_app.command("handoff")
+def refactor_handoff(
+    refactor_id: str = typer.Argument(..., help="Refactor ID"),
+    notes: str = typer.Option("", "--notes", "-n", help="Notes to include in handoff"),
+    terminal: str = typer.Option("auto", "--terminal", "-t", help="Terminal: warp, iterm, terminal, auto"),
+):
+    """
+    🔄 Handoff to a fresh orchestrator session.
+
+    Updates ORCHESTRATOR_HANDOFF.md with current state and opens a new
+    orchestrator session in a new terminal tab. The old session stays
+    open for reference.
+
+    Use this when context is getting tight or you want a fresh start.
+
+    Example:
+        forge refactor handoff major-refactor-mode-phase-1
+        forge refactor handoff major-refactor-mode-phase-1 --notes "Phase 2 complete"
+    """
+    project_root, config, registry = get_context()
+
+    from .refactor.orchestrator import OrchestratorSession
+
+    console.print(f"\n🔄 [bold]Handoff[/bold]: {refactor_id}\n")
+
+    orchestrator = OrchestratorSession(
+        refactor_id=refactor_id,
+        project_root=project_root,
+    )
+
+    # Update handoff file with current state
+    handoff_path = orchestrator.update_handoff(notes=notes)
+    console.print(f"[dim]Updated: {handoff_path}[/dim]\n")
+
+    # Launch new orchestrator session
+    success, message = orchestrator.launch(terminal=terminal)
+
+    if success:
+        console.print(f"[green]✓[/green] {message}")
+        console.print("\n[dim]Old session preserved for reference.[/dim]")
+    else:
+        console.print(f"[red]✗[/red] {message}")
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()
