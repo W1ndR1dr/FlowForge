@@ -1,15 +1,15 @@
 # Orchestrator Handoff - major-refactor-mode-phase-1
 
-> **Updated**: 2026-01-03 22:25
+> **Updated**: 2026-01-03 23:30
 > **Refactor**: major-refactor-mode-phase-1
 > **Status**: executing
-> **Generation**: Orchestrator #2 → #3
+> **Generation**: Orchestrator #3 → #4
 
 ---
 
 ## Why This Handoff
 
-Context tight (~85%). Session 4.3 in progress.
+Context at ~80%. Clean slate for Phase 5 (UI Dashboard).
 
 ---
 
@@ -17,28 +17,38 @@ Context tight (~85%). Session 4.3 in progress.
 
 **Key discussions this session:**
 
-1. **Three-layer audit validation** - Compared Audit Agent, Prometheus, and Builder self-audit outputs. Found that each catches different issues:
-   - Formal audit: philosophy alignment (surface)
-   - Builder self-audit: implementation bugs, security issues (deep)
-   - User vibes: drift, "feels wrong" (irreplaceable)
+1. **4.3 workflow polish** - Added comprehensive user guidance cues:
+   - "Go back to your orchestrator terminal" in all agent templates
+   - Audit fail flow with explicit step-by-step instructions
+   - "I'm lost" handler for confused users
+   - "How does this work" workflow overview
+   - ⚠️ HANDS OFF emoji + bold in all launch cues
+   - Proactive terminal cleanup guidance
 
-2. **AGI-pilled recalibration** - User caught me drifting prescriptive (proposing MAX_ITERATIONS=3). Corrected: build infrastructure (data, signals), let model judge (when to escalate).
+2. **4.4 Planning Agent robustness** - Now planners can survive long sessions:
+   - PLANNING_HANDOFF.md pattern (like orchestrator)
+   - Generation tracking (Planner #1 → #2 → #3)
+   - `forge refactor plan --resume <id>` command
+   - Path traversal protection added
 
-3. **Multi-commit audit bug** - Audit only showed 1 commit, not all 4 from builder. Fix: add `start_commit` to SessionState, show all commits in range. Added to 4.3 scope.
+3. **Prometheus consultations** - Resolved two open questions:
+   - PRE_REFACTOR.md: Planning Agent generates as byproduct (not separate step)
+   - Testing: Three-layer audit + spec-first tests; user vibes is ungameable oracle
 
-4. **Cross-agent workflow cues** - User noted agents don't guide them on what to do next. Created 4.3 to add "return to orchestrator" cues to all templates.
+4. **Vibecoder philosophy clarified** - This app is ONLY for vibecoders:
+   - "Quality for Vibecoders" section added to PHILOSOPHY.md
+   - Your job: describe, vibes check, pause when off
+   - Tests are implementation detail you never see
 
-5. **Terminal window management** - Added guidance to orchestrator prompt: tell user proactively when they can close session/audit terminals.
+5. **Warp tab title fix** - Added precmd hook to keep tab titles persistent
 
-6. **Thinking depth guidance** - Added table to orchestrator prompt for when to recommend plan mode / extended thinking before launching sessions.
-
-7. **Refactor naming lesson** - "major-refactor-mode-phase-1" is confusing because internal sessions are also "phases". Future refactors should avoid "Phase N" in titles. Added note to CLI help.
+6. **Prometheus retirement discussion** - Native system approaching vision fidelity. Prometheus may become "emeritus" - consulted for edge cases only.
 
 ---
 
 ## Open Questions / Pending Decisions
 
-- **Prometheus orchestrator** - User keeping it as reference (highest fidelity to original vision). Goal: eventually take training wheels off when native orchestrators match quality.
+None currently open. All questions resolved via Prometheus consultation.
 
 ---
 
@@ -50,33 +60,35 @@ Context tight (~85%). Session 4.3 in progress.
 - ✅ Phase 1: Complete (Foundation)
 - ✅ Phase 2: Complete (Detection + Analyzer)
 - ✅ Phase 3: Complete (Orchestrator + Handoff)
-- 🔄 Phase 4: In progress (4.1, 4.2 done; 4.3 running)
+- ✅ Phase 4: Complete (Agents + Polish + Planning Robustness)
+- ⏳ Phase 5: Ready to start (UI Dashboard)
 
 **Session Summary**
 
 | Session | Status | Audit | Notes |
 |---------|--------|-------|-------|
-| 4.2 | ✅ | passed | Audit agent with iteration tracking, escalation signal |
-| 4.1 | ✅ | passed | Phase agent with worktree support |
-| 4.3 | 🔄 in progress | - | Workflow polish + multi-commit audit fix |
+| 4.1 | ✅ | passed | Workflow handoff cues |
+| 4.2 | ✅ | passed | Audit agent |
+| 4.3 | ✅ | passed | Workflow polish + 4.4 spec |
+| 4.4 | ✅ | passed | Planning Agent robustness |
 
 ---
 
 ## What's Next
 
-1. **Wait for 4.3 to complete** - Builder is adding workflow cues + start_commit fix
-2. **Audit 4.3** - `forge refactor audit major-refactor-mode-phase-1 4.3`
-3. **Close out Phase 4** - Commit state, push, update EXECUTION_PLAN session log
-4. **Phase 5: UI Dashboard** - Swift/SwiftUI work, starts with 5.1
+1. **Start Phase 5: UI Dashboard** - Swift/SwiftUI work
+2. **Session 5.1**: Models & Basic View
+3. See EXECUTION_PLAN.md for full session specs
 
 ---
 
 ## Key Learnings to Preserve
 
-- **Builder self-audit is HIGH VALUE** - Catches things formal audit misses. Now codified in session template.
-- **User is message bus** - Every agent should end with clear "here's what you do next"
-- **Iteration tracking** - `iteration_count` exists but no hardcoded MAX. Model judges escalation.
-- **HANDS OFF warning** - All agent launches now print this in CLI
+- **User is message bus** - Every agent must say WHERE to go next (which terminal)
+- **Three-layer audit** - Builder self-check → Formal audit → User vibes (ungameable)
+- **Vibecoders only** - This app isn't for devs, framing reflects that
+- **Prometheus retiring** - Native system reaching fidelity, may only need for edge cases
+- **Tab title fix** - precmd hook keeps Warp from renaming tabs
 
 ---
 
@@ -99,7 +111,7 @@ forge refactor orchestrate major-refactor-mode-phase-1
 
 - `docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md` - Principles (stable anchor)
 - `docs/MAJOR_REFACTOR_MODE/DECISIONS.md` - Architecture decisions
-- `docs/MAJOR_REFACTOR_MODE/EXECUTION_PLAN.md` - All session specs (4.3 added)
+- `docs/MAJOR_REFACTOR_MODE/EXECUTION_PLAN.md` - All session specs
 - `state.json` - Runtime state
 - `signals/` - Agent signals
 

@@ -1,0 +1,9 @@
+{
+  "type": "session_done",
+  "session_id": "4.4",
+  "timestamp": "2026-01-03T23:17:04.785566",
+  "payload": {
+    "commit_hash": "992542f",
+    "summary": "Session 4.4 completed"
+  }
+}
