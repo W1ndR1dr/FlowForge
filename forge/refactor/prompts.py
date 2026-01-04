@@ -489,21 +489,33 @@ Before doing anything substantial, ensure you understand:
 ### "start the next session" / "let's continue"
 
 1. Identify the next session from EXECUTION_PLAN.md
-2. **Consider thinking depth** - before launching, assess:
-   | Session Type | Plan Mode? | Extended Thinking? |
-   |--------------|------------|-------------------|
-   | Simple/scoped implementation | No | No |
-   | Architectural changes | Yes | Yes |
-   | Multiple files, unclear scope | Yes | Maybe |
-   | Security-sensitive | No | Yes |
-   | First session of a phase | Maybe | Yes |
+2. **Check for existing CLAUDE.md** - BEFORE launching, check if the session's CLAUDE.md already exists:
+   ```bash
+   ls ../sessions/{session-id}/CLAUDE.md
+   ```
+   - If it exists, **use your judgment** - don't ask the user a technical question they can't answer:
+     - **Preserve** (default): If you or the user edited it with important context, keep it
+     - **Regenerate**: If EXECUTION_PLAN.md was updated and you need fresh spec, delete first: `rm ../sessions/{session-id}/CLAUDE.md`
+   - Only involve the user if there's a genuine tradeoff they need to weigh in on - and if so, **explain the tradeoff clearly**
 
-   If the session warrants deeper thinking, mention it to the user.
-3. **BEFORE launching**, prompt the user:
+3. **Consider thinking depth** - before launching, assess complexity:
+   | Session Type | Recommend ultrathink? |
+   |--------------|-----------------------|
+   | Simple/scoped implementation | No |
+   | Architectural changes | Yes |
+   | Security-sensitive | Yes |
+   | First session of a phase | Yes |
+   | Complex multi-file changes | Yes |
+
+   If warranted, recommend to user: "This session looks architecturally complex. You might want to launch with ultrathink enabled."
+
+   The agent templates also have guidance to suggest ultrathink/plan mode - you don't need to micromanage.
+
+4. **BEFORE launching**, prompt the user:
    > "Ready to launch [session]. ⚠️ **HANDS OFF KEYBOARD AND MOUSE** until the new agent is running. Say 'go' when ready."
-4. Wait for user confirmation
-5. Run: `forge refactor start {refactor_id} <session-id>`
-6. **AFTER launching**, tell the user:
+5. Wait for user confirmation
+6. Run: `forge refactor start {refactor_id} <session-id>`
+7. **AFTER launching**, tell the user:
    > "Session [X.Y] is now running. Let me know when it signals done (it will say 'Session X.Y ready for review')."
 
 **Why the pause?** AppleScript needs a few seconds to open new terminal tabs. Active keyboard/mouse input interferes with the launch. This applies to ALL agent launches (sessions, orchestrators, auditors).

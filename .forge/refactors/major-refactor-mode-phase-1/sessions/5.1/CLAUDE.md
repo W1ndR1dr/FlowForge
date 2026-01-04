@@ -2,27 +2,32 @@
 
 > **Refactor**: major-refactor-mode-phase-1
 > **Session**: 5.1
-> **Generated**: 2026-01-04 00:21
+> **Generated**: 2026-01-04 00:31
 
 ---
 
 ## FIRST: Read These Docs (REQUIRED)
 
-Before doing ANYTHING, read these files in order:
+Before doing ANYTHING, read these files to understand the context:
 
 **Philosophy & Decisions:**
 1. `docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md` - Guiding principles
 2. `docs/MAJOR_REFACTOR_MODE/DECISIONS.md` - Architecture decisions (don't re-litigate)
 
-**Design Research (CRITICAL):**
-3. `docs/design/UI_PATTERNS_RESEARCH.md` - UX patterns from Linear, Asana, Basecamp
-4. `docs/design/LINEAR_SWIFTUI_GUIDE.md` - SwiftUI implementation patterns (use as inspiration, not prescription)
+**Phase-Level Context:**
+**CRITICAL FOR ALL PHASE 5 SESSIONS:**
+
+**Required Reading:**
+- `docs/design/UI_PATTERNS_RESEARCH.md` - UX patterns from Linear, Asana, Basecamp
+- `docs/design/LINEAR_SWIFTUI_GUIDE.md` - SwiftUI implementation patterns (use as inspiration, not prescription)
 
 **User Preferences:**
 - No sentimentality about existing UI - full redesign is fine
 - Pre-MVP mindset - zero technical debt
+- **Rebuild > Remodel**: If starting fresh produces a better result than adapting existing code, start fresh. Don't salvage code just because it exists.
 - Refactor belongs in project view (project-specific)
 - Data source: Read local `.forge/refactors/` files directly (no API for Mac app)
+- Deep research threads available: Ask user to spawn if needed for design questions
 
 ---
 

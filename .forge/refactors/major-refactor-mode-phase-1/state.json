@@ -93,18 +93,18 @@
     },
     "5.1": {
       "session_id": "5.1",
-      "status": "in_progress",
-      "started_at": "2026-01-04T00:21:27.461539",
-      "completed_at": null,
-      "start_commit": "58368ba",
-      "commit_hash": null,
-      "audit_result": "pending",
+      "status": "completed",
+      "started_at": "2026-01-04T00:42:19.630677",
+      "completed_at": "2026-01-04T00:54:20.578350",
+      "start_commit": "7158981",
+      "commit_hash": "e84c3e9",
+      "audit_result": "passed",
       "notes": "",
       "iteration_count": 0
     }
   },
   "started_at": "2026-01-03T15:01:58.258740",
-  "updated_at": "2026-01-04T00:21:27.461612",
+  "updated_at": "2026-01-04T00:58:09.136511",
   "completed_at": null,
   "history": [
     {
@@ -331,6 +331,45 @@
         "old_status": "in_progress",
         "new_status": "in_progress",
         "start_commit": "58368ba"
+      }
+    },
+    {
+      "timestamp": "2026-01-04T00:29:31.227825",
+      "action": "session_started",
+      "details": {
+        "session_id": "5.1",
+        "old_status": "in_progress",
+        "new_status": "in_progress",
+        "start_commit": "7158981"
+      }
+    },
+    {
+      "timestamp": "2026-01-04T00:31:36.348857",
+      "action": "session_started",
+      "details": {
+        "session_id": "5.1",
+        "old_status": "in_progress",
+        "new_status": "in_progress",
+        "start_commit": "7158981"
+      }
+    },
+    {
+      "timestamp": "2026-01-04T00:42:19.630702",
+      "action": "session_started",
+      "details": {
+        "session_id": "5.1",
+        "old_status": "in_progress",
+        "new_status": "in_progress",
+        "start_commit": "7158981"
+      }
+    },
+    {
+      "timestamp": "2026-01-04T00:54:20.578388",
+      "action": "session_completed",
+      "details": {
+        "session_id": "5.1",
+        "old_status": "in_progress",
+        "commit_hash": "e84c3e9"
       }
     }
   ]

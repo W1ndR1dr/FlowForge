@@ -1472,6 +1472,7 @@ Note for Phase 5:
 > **User Preferences:**
 > - No sentimentality about existing UI - full redesign is fine
 > - Pre-MVP mindset - zero technical debt
+> - **Rebuild > Remodel**: If starting fresh produces a better result than adapting existing code, start fresh. Don't salvage code just because it exists.
 > - Refactor belongs in project view (project-specific)
 > - Data source: Read local `.forge/refactors/` files directly (no API for Mac app)
 > - Deep research threads available: Ask user to spawn if needed for design questions

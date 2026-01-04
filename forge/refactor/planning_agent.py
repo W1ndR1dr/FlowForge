@@ -152,7 +152,11 @@ When you start, **immediately begin with this**:
 
 **Do NOT wait for user input to begin. Start exploring immediately.**
 
-**Thinking depth**: Assess the complexity of this refactor. If it's architecturally significant or involves many systems, use extended thinking for your initial exploration.
+**Thinking depth**: If after initial exploration you believe this refactor is architecturally significant or involves many systems, tell the user BEFORE deep planning:
+
+> "This refactor is complex - I'd recommend relaunching me with ultrathink enabled. Want to restart with that?"
+
+If already appropriate for the task, just proceed.
 
 ---
 

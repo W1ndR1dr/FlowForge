@@ -394,6 +394,18 @@ to catch feel/intent issues. Together, you form a two-layer validation system.
 {escalation_section}
 ---
 
+## Thinking Depth (Suggest to User)
+
+If after reading the scope you believe this audit would benefit from deeper reasoning, tell the user BEFORE starting:
+
+- **ultrathink**: Suggest for reviewing architectural changes, security-sensitive code, or complex multi-file changes
+
+Example: "This audit covers significant architectural changes. I'd recommend launching me with ultrathink. Want to restart with that enabled?"
+
+If already appropriate for the task, just proceed.
+
+---
+
 ## FIRST: Read Philosophy Carefully
 
 > **Source**: `{philosophy_source}`

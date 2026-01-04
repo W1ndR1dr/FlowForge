@@ -299,6 +299,19 @@ Before doing ANYTHING, read these files to understand the context:
 {phase_context_section}
 ---
 
+## Thinking Depth (Suggest to User)
+
+If after reading the docs you believe this session would benefit from deeper reasoning, tell the user BEFORE starting work:
+
+- **ultrathink**: Suggest for architectural decisions, security-sensitive code, or complex multi-file changes
+- **plan mode**: Suggest if scope is unclear and you need to explore before committing to an approach
+
+Example: "This session involves architectural decisions. I'd recommend launching me with ultrathink. Want to restart with that enabled?"
+
+If already appropriate for the task, just proceed.
+
+---
+
 ## Your Mission
 
 {spec.prompt}
@@ -405,7 +418,7 @@ Always end your work with a clear next-step that tells the user **which terminal
 
         return claude_md
 
-    def launch(self, terminal: str = "auto") -> tuple[bool, str]:
+    def launch(self, terminal: str = "auto", force_regenerate: bool = False) -> tuple[bool, str]:
         """
         Launch the execution session in a terminal.
 
@@ -475,6 +488,7 @@ Always end your work with a clear next-step that tells the user **which terminal
         claude_md_content = self.generate_execution_claude_md(spec)
 
         # Determine where to write CLAUDE.md and launch terminal
+        preserved_msg = None  # Set if we preserve existing CLAUDE.md
         if worktree_path:
             # For worktree sessions, write CLAUDE.md to both locations:
             # - Worktree root (Claude reads this)
@@ -482,25 +496,43 @@ Always end your work with a clear next-step that tells the user **which terminal
             work_dir = worktree_path
             worktree_claude_md = worktree_path / "CLAUDE.md"
 
-            # Preserve existing CLAUDE.md if present (don't lose project instructions)
             if worktree_claude_md.exists():
                 existing_content = worktree_claude_md.read_text()
-                # Prepend session instructions, keep project instructions
-                combined = (
-                    claude_md_content +
-                    "\n\n---\n\n# Original Project CLAUDE.md\n\n" +
-                    existing_content
-                )
-                worktree_claude_md.write_text(combined)
+
+                # Detect if this is OUR session CLAUDE.md (from previous launch) or project's original
+                is_session_claude_md = existing_content.strip().startswith("# Execution Session:")
+
+                if is_session_claude_md and not force_regenerate:
+                    # Preserve orchestrator edits from previous launch
+                    preserved_msg = "(Preserving existing CLAUDE.md - use --force to regenerate)"
+                elif is_session_claude_md:
+                    # Force regenerate - overwrite our previous version
+                    worktree_claude_md.write_text(claude_md_content)
+                else:
+                    # Project's original CLAUDE.md - merge (prepend session, keep project)
+                    combined = (
+                        claude_md_content +
+                        "\n\n---\n\n# Original Project CLAUDE.md\n\n" +
+                        existing_content
+                    )
+                    worktree_claude_md.write_text(combined)
             else:
                 worktree_claude_md.write_text(claude_md_content)
 
-            # Also save to session dir for reference
+            # Also save to session dir for reference (always regenerate this copy)
             (session_dir / "CLAUDE.md").write_text(claude_md_content)
         else:
             # For non-worktree sessions, use session directory
             work_dir = session_dir
-            (session_dir / "CLAUDE.md").write_text(claude_md_content)
+            session_claude_md = session_dir / "CLAUDE.md"
+
+            # Preserve existing CLAUDE.md if present (orchestrator may have edited it)
+            # Use --force to regenerate from EXECUTION_PLAN.md
+            if session_claude_md.exists() and not force_regenerate:
+                preserved_msg = "(Preserving existing CLAUDE.md - use --force to regenerate)"
+            else:
+                session_claude_md.write_text(claude_md_content)
+                preserved_msg = None
 
         # Launch terminal
         terminal_enum = Terminal(terminal) if terminal != "auto" else Terminal.AUTO
@@ -519,8 +551,9 @@ Always end your work with a clear next-step that tells the user **which terminal
         )
 
         if success:
+            preserved_note = f"\n{preserved_msg}" if preserved_msg else ""
             return True, (
-                f"Session {self.session_id} launched!\n\n"
+                f"Session {self.session_id} launched!{preserved_note}\n\n"
                 f"Working directory: {work_dir}\n"
                 f"Claude will read the CLAUDE.md and begin working.\n"
                 f"When done, run: forge refactor done {self.session_id}"
