@@ -116,6 +116,7 @@ def open_terminal_in_directory(
     command: Optional[str] = None,
     title: Optional[str] = None,
     initial_input: Optional[str] = None,
+    skip_pause: bool = False,
 ) -> bool:
     """
     Open a new terminal tab/window in the specified directory.
@@ -126,6 +127,7 @@ def open_terminal_in_directory(
         command: Optional command to run after opening
         title: Optional title for the tab/window
         initial_input: Optional input to type after command starts (e.g., "start" for Claude)
+        skip_pause: If True, skip the pre-launch pause (for automated/testing scenarios)
 
     Returns:
         True if successful, False otherwise
@@ -140,6 +142,13 @@ def open_terminal_in_directory(
 
     if terminal == Terminal.AUTO:
         terminal = detect_terminal()
+
+    # Pause before AppleScript to prevent input interference
+    # User needs ~3-4 seconds hands-off while the new terminal opens
+    if not skip_pause:
+        print("\n🚀 Ready to launch new terminal session.")
+        print("   Please keep hands off keyboard/mouse for a few seconds.")
+        input("   Press Enter when ready...")
 
     try:
         if terminal == Terminal.WARP:
