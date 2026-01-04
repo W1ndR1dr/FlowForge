@@ -49,6 +49,13 @@ from .orchestrator import (
     SignalSummary,
     SignalEvent,
 )
+from .audit_agent import (
+    AuditAgent,
+    AuditSpec,
+    AuditIssue,
+    record_audit_pass,
+    record_audit_fail,
+)
 
 __all__ = [
     # Planning
@@ -85,4 +92,10 @@ __all__ = [
     "OrchestratorSession",
     "SignalSummary",
     "SignalEvent",
+    # Audit
+    "AuditAgent",
+    "AuditSpec",
+    "AuditIssue",
+    "record_audit_pass",
+    "record_audit_fail",
 ]

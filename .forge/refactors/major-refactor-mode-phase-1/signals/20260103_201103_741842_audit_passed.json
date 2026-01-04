@@ -1,0 +1,8 @@
+{
+  "type": "audit_passed",
+  "session_id": "2.1",
+  "timestamp": "2026-01-03T20:11:03.741842",
+  "payload": {
+    "notes": "Test audit pass"
+  }
+}

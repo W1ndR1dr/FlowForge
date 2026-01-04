@@ -2178,5 +2178,134 @@ def refactor_handoff(
         raise typer.Exit(1)
 
 
+@refactor_app.command("audit")
+def refactor_audit(
+    refactor_id: str = typer.Argument(..., help="Refactor ID"),
+    session_ids: str = typer.Argument(..., help="Session ID(s) to audit (comma-separated, e.g., '1.1' or '1.1,1.2')"),
+    terminal: str = typer.Option("auto", "--terminal", "-t", help="Terminal: warp, iterm, terminal, auto"),
+):
+    """
+    🔍 Launch an audit agent to validate session work.
+
+    The audit agent is the GUARDIAN of idea fidelity. It:
+    - Reads PHILOSOPHY.md carefully
+    - Reviews the session outputs and code changes
+    - Validates alignment with principles
+    - Reports issues or passes the audit
+
+    Example:
+        forge refactor audit major-refactor-mode-phase-1 1.1
+        forge refactor audit major-refactor-mode-phase-1 1.1,1.2
+    """
+    project_root, config, registry = get_context()
+
+    from .refactor.audit_agent import AuditAgent
+
+    # Parse session IDs
+    sessions = [s.strip() for s in session_ids.split(",")]
+
+    console.print(f"\n🔍 [bold]Launching Audit[/bold]: {refactor_id}\n")
+    console.print(f"[dim]Sessions: {', '.join(sessions)}[/dim]\n")
+
+    audit_agent = AuditAgent(
+        refactor_id=refactor_id,
+        session_ids=sessions,
+        project_root=project_root,
+    )
+
+    success, message = audit_agent.launch(terminal=terminal)
+
+    if success:
+        console.print(f"[green]✓[/green] {message}")
+        console.print("\n[dim]The audit agent will validate work against PHILOSOPHY.md[/dim]")
+        console.print("[dim]When complete, it will signal pass/fail.[/dim]")
+    else:
+        console.print(f"[red]✗[/red] {message}")
+        raise typer.Exit(1)
+
+
+@refactor_app.command("audit-pass")
+def refactor_audit_pass(
+    refactor_id: str = typer.Argument(..., help="Refactor ID"),
+    session_ids: str = typer.Argument(..., help="Session ID(s) that passed (comma-separated)"),
+    notes: str = typer.Option("", "--notes", "-n", help="Audit notes"),
+):
+    """
+    ✅ Record that an audit passed.
+
+    Updates session states and writes AUDIT_PASSED signal.
+    Called by the audit agent when work aligns with philosophy.
+
+    Example:
+        forge refactor audit-pass major-refactor-mode-phase-1 1.1
+        forge refactor audit-pass major-refactor-mode-phase-1 1.1,1.2 --notes "Clean implementation"
+    """
+    project_root, config, registry = get_context()
+
+    from .refactor.audit_agent import record_audit_pass
+
+    # Parse session IDs
+    sessions = [s.strip() for s in session_ids.split(",")]
+
+    success, message = record_audit_pass(
+        refactor_id=refactor_id,
+        session_ids=sessions,
+        project_root=project_root,
+        notes=notes,
+    )
+
+    if success:
+        console.print(f"\n[green]✓[/green] {message}")
+
+        # Show what's next
+        console.print("\n[dim]The orchestrator can now advance to the next phase.[/dim]")
+    else:
+        console.print(f"[red]✗[/red] {message}")
+        raise typer.Exit(1)
+
+
+@refactor_app.command("audit-fail")
+def refactor_audit_fail(
+    refactor_id: str = typer.Argument(..., help="Refactor ID"),
+    session_ids: str = typer.Argument(..., help="Session ID(s) that failed (comma-separated)"),
+    issues: str = typer.Option(..., "--issues", "-i", help="Brief summary of issues found"),
+):
+    """
+    ❌ Record that an audit found issues.
+
+    Updates session states and writes REVISION_NEEDED signal.
+    Called by the audit agent when work doesn't align with philosophy.
+
+    Example:
+        forge refactor audit-fail major-refactor-mode-phase-1 1.1 --issues "Anti-pattern detected: hardcoded thresholds"
+    """
+    project_root, config, registry = get_context()
+
+    from .refactor.audit_agent import record_audit_fail
+
+    # Parse session IDs
+    sessions = [s.strip() for s in session_ids.split(",")]
+
+    # Parse issues (split by semicolon for multiple)
+    issue_list = [i.strip() for i in issues.split(";")]
+
+    success, message = record_audit_fail(
+        refactor_id=refactor_id,
+        session_ids=sessions,
+        project_root=project_root,
+        issues=issue_list,
+    )
+
+    if success:
+        console.print(f"\n[yellow]⚠️[/yellow] {message}")
+
+        # Show what's next
+        console.print("\n[dim]Sessions marked as needing revision.[/dim]")
+        console.print("[dim]The builder should fix the issues and run 'forge refactor done' again.[/dim]")
+    else:
+        console.print(f"[red]✗[/red] {message}")
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()
