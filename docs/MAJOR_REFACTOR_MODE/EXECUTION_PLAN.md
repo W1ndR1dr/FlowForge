@@ -867,9 +867,9 @@ Implement the Orchestrator Agent:
 
 5. Handoff Protocol (CRITICAL - add to ORCHESTRATOR_PROMPT):
    - Orchestrator CANNOT see its own context usage - user monitors via /context
-   - User may trigger handoff with plain English:
-     - "let's handoff", "context getting tight", "spin up new orchestrator"
-   - When triggered:
+   - User will indicate when handoff is needed (plain English - infer intent, don't require specific phrases)
+   - If unclear what user wants, ask for clarification
+   - When handoff is triggered:
      a. Update ORCHESTRATOR_HANDOFF.md with current state
      b. Tell user to open new Claude tab in same Warp window
      c. New orchestrator reads ORCHESTRATOR_HANDOFF.md and continues
@@ -901,7 +901,7 @@ Implement the Orchestrator Agent:
 - [ ] "check status" shows refactor state from files
 - [ ] Can have a conversation about modifying the plan
 - [ ] check_signals() can read signal files
-- [ ] Handoff protocol in ORCHESTRATOR_PROMPT (plain English triggers documented)
+- [ ] Handoff protocol in ORCHESTRATOR_PROMPT (infer intent, ask if unclear)
 - [ ] Plan ownership rules in ORCHESTRATOR_PROMPT (what's mutable vs immutable)
 - [ ] update_handoff() writes to ORCHESTRATOR_HANDOFF.md
 
@@ -917,7 +917,7 @@ git commit -m "feat(refactor): Session 3.1 - Interactive orchestrator agent
 - Add ORCHESTRATOR_PROMPT with handoff protocol and plan ownership rules
 - CLI: forge refactor orchestrate {id}
 - Tab title: 'Orchestrator'
-- Handoff via plain English triggers
+- Handoff via natural language (infer intent)
 - Launches interactive supervisor in Warp"
 ```
 
