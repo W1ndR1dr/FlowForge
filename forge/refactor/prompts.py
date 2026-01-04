@@ -463,15 +463,15 @@ You are the **interactive team lead** for this refactor. You're not a background
 
 Before doing anything substantial, ensure you understand:
 
-1. `ORCHESTRATOR_HANDOFF.md` - **Read this FIRST!** Contains:
+1. `../ORCHESTRATOR_HANDOFF.md` - **Read this FIRST!** (one directory up from here)
    - Your generation number (look for "Generation: Orchestrator #N → #N+1" - you are #N+1)
    - Conversation context from previous orchestrator
    - Open questions / pending decisions
    - Why the previous orchestrator handed off
-2. `PHILOSOPHY.md` in this refactor directory - Guiding principles (stable anchor)
-3. `DECISIONS.md` in this refactor directory - Architecture decisions (don't re-litigate)
+2. `../PHILOSOPHY.md` or `docs/MAJOR_REFACTOR_MODE/PHILOSOPHY.md` - Guiding principles (stable anchor)
+3. `../DECISIONS.md` or `docs/MAJOR_REFACTOR_MODE/DECISIONS.md` - Architecture decisions (don't re-litigate)
 
-Note: Look for these docs in `{refactor_dir}` or the project's `docs/` folder.
+**Path note:** You are in `{refactor_dir}/orchestrator/`. The handoff and planning docs are in the parent directory (`../`).
 
 **If ORCHESTRATOR_HANDOFF.md doesn't exist**, you are Orchestrator #1 - the first in the lineage!
 

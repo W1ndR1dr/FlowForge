@@ -13,10 +13,13 @@ Key responsibilities:
 """
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+from rich.console import Console
 
 from ..terminal import open_terminal_in_directory, Terminal
 from .state import RefactorState, RefactorStatus, SessionStatus, AuditResult
@@ -115,6 +118,32 @@ class OrchestratorSession:
         self.project_root = project_root
         self.refactor_dir = project_root / ".forge" / "refactors" / refactor_id
         self.signals_dir = get_signals_dir(self.refactor_dir)
+        self.console = Console()
+
+    def get_current_generation(self) -> int:
+        """
+        Parse ORCHESTRATOR_HANDOFF.md to find current generation number.
+
+        Looks for "Generation: Orchestrator #N → #N+1" and returns N+1
+        (the number AFTER the arrow, which is the incoming orchestrator's number).
+
+        Returns 1 if no handoff file exists (first orchestrator).
+        """
+        handoff_path = self.refactor_dir / "ORCHESTRATOR_HANDOFF.md"
+        if not handoff_path.exists():
+            return 1
+
+        content = handoff_path.read_text()
+
+        # Look for "Generation: Orchestrator #N → #N+1"
+        # The number after the arrow is the current/incoming generation
+        match = re.search(r"Generation:\s*Orchestrator\s*#(\d+)\s*→\s*#(\d+)", content)
+        if match:
+            # Return the number AFTER the arrow (the incoming generation)
+            return int(match.group(2))
+
+        # Fallback: no generation info found, assume first
+        return 1
 
     def read_state(self) -> Optional[RefactorState]:
         """
@@ -280,7 +309,6 @@ class OrchestratorSession:
     def update_handoff(
         self,
         notes: str = "",
-        generation: int = 1,
         open_questions: list[str] | None = None,
         conversation_context: str = "",
         why_handoff: str = "",
@@ -293,11 +321,22 @@ class OrchestratorSession:
 
         Args:
             notes: General notes from this session
-            generation: Orchestrator generation number (incremented on each handoff)
             open_questions: List of unresolved questions/pending decisions
             conversation_context: Summary of key discussion points (not transcript)
             why_handoff: Reason for handoff (context tight, user requested, etc.)
+
+        Note: Generation number is auto-detected from existing handoff file.
         """
+        # Warn if critical fidelity fields are empty
+        if not why_handoff:
+            self.console.print(
+                "[yellow]Warning: No handoff reason provided. "
+                "Consider adding context for the next orchestrator.[/yellow]"
+            )
+
+        # Auto-detect generation from existing handoff (or 1 if first)
+        generation = self.get_current_generation()
+
         state = self.read_state()
         signals = self.check_signals()
 
