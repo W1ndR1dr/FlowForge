@@ -172,9 +172,25 @@ class CodebaseAnalyzer:
         rel_path = str(path.relative_to(self.project_root))
 
         for pattern in self.gitignore_patterns:
+            # Skip negation patterns (not supported)
+            if pattern.startswith("!"):
+                continue
+
+            # Handle root-only patterns (starting with /)
+            root_only = pattern.startswith("/")
+            if root_only:
+                pattern = pattern[1:]
+
             # Handle directory patterns
             if pattern.endswith("/"):
                 pattern = pattern[:-1]
+
+            # For root-only patterns, only match at the root level
+            if root_only:
+                first_part = rel_path.split("/")[0]
+                if fnmatch.fnmatch(first_part, pattern):
+                    return True
+                continue
 
             # Check if any part of the path matches
             parts = rel_path.split("/")
@@ -376,14 +392,18 @@ Respond in this exact JSON format:
         except json.JSONDecodeError:
             pass
 
-        # Fallback result
+        # Fallback result - ensure we always have some files
+        fallback_files = relevant_files[:10] if relevant_files else [
+            {"path": f, "relevance": "Found in codebase"} for f in all_files[:10]
+        ]
+
         return AnalysisResult(
             goal=goal,
-            executive_summary=f"Analyzed {len(all_files)} files for goal: {goal}. Full analysis not available - check Claude CLI.",
-            current_architecture="Manual analysis required.",
-            key_files=[{"path": f["path"], "purpose": f.get("relevance", ""), "key_lines": ""} for f in relevant_files[:10]],
-            patterns_in_use=[],
-            known_gaps=["Full analysis not completed - Claude CLI may have issues"],
+            executive_summary=f"Scanned {len(all_files)} files for goal: {goal}. AI analysis incomplete - Claude CLI may have timed out or returned an error. The files listed below are potentially relevant based on file structure.",
+            current_architecture="Manual analysis required. Consider re-running with a more specific goal.",
+            key_files=[{"path": f.get("path", f) if isinstance(f, dict) else f, "purpose": f.get("relevance", "") if isinstance(f, dict) else "", "key_lines": ""} for f in fallback_files],
+            patterns_in_use=["Unable to detect patterns - manual review needed"],
+            known_gaps=["AI analysis incomplete - verify results manually", "Claude CLI may need to be checked"],
         )
 
     def save_analysis(

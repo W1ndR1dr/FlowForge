@@ -2041,6 +2041,12 @@ def refactor_analyze(
     """
     project_root, config, registry = get_context()
 
+    # Validate goal
+    if not goal or not goal.strip():
+        console.print("[red]Goal cannot be empty. Provide a description of what you want to accomplish.[/red]")
+        console.print("[dim]Example: --goal \"Refactor API to use async patterns\"[/dim]")
+        raise typer.Exit(1)
+
     from .refactor import analyze_codebase, PlanningAgent
 
     # Verify refactor exists
