@@ -2092,6 +2092,76 @@ def refactor_done(
         raise typer.Exit(1)
 
 
+@refactor_app.command("partial")
+def refactor_partial(
+    session_id: str = typer.Argument(..., help="Session ID to mark as partial"),
+    refactor_id: str = typer.Option(None, "--refactor", "-r", help="Refactor ID (auto-detected if omitted)"),
+    reason: str = typer.Option("", "--reason", help="Why session stopped (e.g., 'context limit at 68%')"),
+):
+    """
+    ⏸️  Mark a session as partial (stopped before completion).
+
+    Use when:
+    - Context limit reached and need to subdivide
+    - Stopping mid-session for any reason
+    - Work was committed but session isn't complete
+
+    Partial sessions skip audit. The orchestrator will subdivide.
+
+    Example:
+        forge refactor partial 5.2 --reason "context limit at 68%"
+    """
+    project_root, config, registry = get_context()
+
+    from .refactor import PlanningAgent
+    from .refactor.session import partial_session
+
+    # Auto-detect refactor_id from current active refactor if not provided
+    if not refactor_id:
+        agent = PlanningAgent(project_root)
+        refactors = agent.list_refactors()
+        executing = [r for r in refactors if r.status == "executing"]
+        if len(executing) == 1:
+            refactor_id = executing[0].id
+        elif len(executing) > 1:
+            console.print("[yellow]Multiple refactors executing. Specify --refactor ID[/yellow]")
+            for r in executing:
+                console.print(f"  - {r.id}")
+            raise typer.Exit(1)
+        else:
+            # Check for any refactor with this session in progress
+            for r in refactors:
+                state_path = project_root / ".forge" / "refactors" / r.id / "state.json"
+                if state_path.exists():
+                    from .refactor.state import RefactorState
+                    state = RefactorState.load(state_path)
+                    if state.current_session == session_id:
+                        refactor_id = r.id
+                        break
+
+        if not refactor_id:
+            console.print("[red]Could not determine refactor. Specify --refactor ID[/red]")
+            raise typer.Exit(1)
+
+    success, message = partial_session(
+        refactor_id=refactor_id,
+        session_id=session_id,
+        project_root=project_root,
+        reason=reason,
+    )
+
+    if success:
+        console.print(f"\n[yellow]⏸️[/yellow] {message}")
+        console.print(f"\n[dim]Reason: {reason or 'Not specified'}[/dim]")
+        console.print("\n[bold]Next steps:[/bold]")
+        console.print("  1. Go back to orchestrator")
+        console.print("  2. Orchestrator will subdivide this session")
+        console.print("  3. No audit needed for partial sessions")
+    else:
+        console.print(f"[red]✗[/red] {message}")
+        raise typer.Exit(1)
+
+
 @refactor_app.command("analyze")
 def refactor_analyze(
     refactor_id: str = typer.Argument(..., help="Refactor ID"),

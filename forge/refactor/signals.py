@@ -31,6 +31,7 @@ class SignalType(str, Enum):
     # Session lifecycle
     SESSION_STARTED = "session_started"  # Agent began work on a session
     SESSION_DONE = "session_done"  # Agent finished work (includes commit_hash, summary)
+    SESSION_PARTIAL = "session_partial"  # Agent stopped mid-session (needs subdivision)
 
     # Audit results
     AUDIT_PASSED = "audit_passed"  # Audit agent approved the session
@@ -240,6 +241,24 @@ def signal_session_done(
         {
             "commit_hash": commit_hash,
             "summary": summary,
+        },
+    )
+
+
+def signal_session_partial(
+    signals_dir: Path,
+    session_id: str,
+    commit_hash: Optional[str] = None,
+    reason: str = "",
+) -> Path:
+    """Write a SESSION_PARTIAL signal (stopped mid-session, needs subdivision)."""
+    return write_signal(
+        signals_dir,
+        SignalType.SESSION_PARTIAL,
+        session_id,
+        {
+            "commit_hash": commit_hash,
+            "reason": reason,
         },
     )
 

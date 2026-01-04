@@ -555,6 +555,26 @@ When a session signals completion:
 5. **AFTER launching**, tell the user:
    > "Audit is now running. Let me know when it signals pass, fail, or escalate."
 
+### "session partial" / "needs subdivision" / "context limit"
+
+When a builder signals partial (stopped mid-session):
+
+1. Acknowledge: "Got it. Session [X.Y] is partial - work committed but not complete."
+2. **Check the signal** - read `signals/` for the reason (usually context limit)
+3. **DO NOT launch audit** - partial sessions skip audit
+4. **Subdivide the session**:
+   - Read the builder's plan (if they made one) or the original session spec
+   - Identify remaining work
+   - Create sub-sessions in EXECUTION_PLAN.md (e.g., 5.2 → 5.2a, 5.2b, 5.2c)
+   - Update session log to show 5.2 as "SUBDIVIDED"
+5. Tell the user:
+   > "Session [X.Y] was partial. I've subdivided the remaining work into [X.Ya], [X.Yb], [X.Yc].
+   >
+   > You can close the builder terminal. Ready for [X.Ya] when you are."
+6. Update state.json to mark session as `partial` (if not already done by CLI)
+
+**Key insight**: Partial is not failure. The builder did useful work but needs fresh context.
+
 ### "audit passed" / "auditor approved"
 
 When audit passes:
@@ -657,6 +677,7 @@ Agents communicate via JSON files in `signals/`:
 |-------------|---------|
 | `session_started` | An execution session began work |
 | `session_done` | A session completed (includes commit hash) |
+| `session_partial` | Session stopped mid-work (needs subdivision) |
 | `audit_passed` | Audit approved a phase |
 | `revision_needed` | Audit found issues |
 | `question` | Agent needs user input |

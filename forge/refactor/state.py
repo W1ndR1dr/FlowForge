@@ -28,6 +28,7 @@ class SessionStatus(str, Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
+    PARTIAL = "partial"  # Stopped mid-session (e.g., context limit, subdivision)
     NEEDS_REVISION = "needs_revision"
 
 
@@ -37,6 +38,7 @@ class AuditResult(str, Enum):
     PENDING = "pending"
     PASSED = "passed"
     FAILED = "failed"
+    SKIPPED = "skipped"  # No audit needed (e.g., partial session)
 
 
 @dataclass
@@ -264,6 +266,43 @@ class RefactorState:
             session_id=session_id,
             old_status=old_status.value,
             commit_hash=commit_hash,
+        )
+        return session
+
+    def partial_session(
+        self,
+        session_id: str,
+        commit_hash: Optional[str] = None,
+        reason: str = "",
+    ) -> SessionState:
+        """
+        Mark a session as partial (stopped before completion).
+
+        Use when:
+        - Context limit reached and need to subdivide
+        - Stopping mid-session for any reason
+        - Work was committed but session isn't complete
+
+        Partial sessions skip audit (audit_result = SKIPPED).
+        """
+        if session_id not in self.sessions:
+            raise ValueError(f"Session not found: {session_id}")
+
+        session = self.sessions[session_id]
+        old_status = session.status
+        session.status = SessionStatus.PARTIAL
+        session.completed_at = datetime.now().isoformat()
+        session.audit_result = AuditResult.SKIPPED
+        if commit_hash:
+            session.commit_hash = commit_hash
+        if reason:
+            session.notes = f"PARTIAL: {reason}"
+        self._log_change(
+            "session_partial",
+            session_id=session_id,
+            old_status=old_status.value,
+            commit_hash=commit_hash,
+            reason=reason,
         )
         return session
 

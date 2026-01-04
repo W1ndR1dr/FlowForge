@@ -21,7 +21,7 @@ from typing import Optional
 from ..terminal import open_terminal_in_directory, Terminal
 from ..worktree import WorktreeManager
 from .state import RefactorState, RefactorStatus, SessionStatus
-from .signals import signal_session_started, signal_session_done, get_signals_dir
+from .signals import signal_session_started, signal_session_done, signal_session_partial, get_signals_dir
 
 
 @dataclass
@@ -380,6 +380,29 @@ When you've completed ALL exit criteria, self-audited, and committed:
 
 ---
 
+## If You Need to Stop Early (Context Limit / Subdivision)
+
+If you're running low on context or the session is too large to complete:
+
+1. **Commit what you've done** (partial progress is valuable)
+2. **Run this command** instead of `forge refactor done`:
+   ```bash
+   forge refactor partial {self.session_id} --reason "context limit at X%"
+   ```
+3. Tell the user:
+   > "Session {self.session_id} marked partial. Work committed but not complete.
+   >
+   > **Go back to your orchestrator terminal** and tell them I need subdivision."
+
+The orchestrator will subdivide the remaining work into smaller sessions.
+
+**When to use partial:**
+- Context usage above 60% with significant work remaining
+- Session scope is larger than one context window
+- You realize mid-session the task needs to be split
+
+---
+
 ## Communicating Back to User
 
 You are one agent in a multi-agent workflow. The user coordinates between you and the orchestrator.
@@ -691,3 +714,73 @@ def complete_session(
 
     worktree_msg = f" (worktree: {worktree_path.name})" if worktree_path else ""
     return True, f"Session {session_id} marked complete (commit: {commit_hash or 'unknown'}){worktree_msg}"
+
+
+def partial_session(
+    refactor_id: str,
+    session_id: str,
+    project_root: Path,
+    commit_hash: Optional[str] = None,
+    reason: str = "",
+) -> tuple[bool, str]:
+    """
+    Mark a session as partial (stopped before completion).
+
+    Use when:
+    - Context limit reached and need to subdivide
+    - Stopping mid-session for any reason
+    - Work was committed but session isn't complete
+
+    Partial sessions:
+    1. Update RefactorState with PARTIAL status
+    2. Set audit_result to SKIPPED (no audit needed)
+    3. Write SESSION_PARTIAL signal
+    4. Return status
+
+    The orchestrator sees this signal and knows to subdivide.
+    """
+    refactor_dir = project_root / ".forge" / "refactors" / refactor_id
+    state_path = refactor_dir / "state.json"
+
+    if not state_path.exists():
+        return False, f"No state found for refactor {refactor_id}"
+
+    state = RefactorState.load(state_path)
+
+    # Check for worktree and get commit hash from there if applicable
+    session = ExecutionSession(refactor_id, session_id, project_root)
+    worktree_path = session.get_worktree_path()
+    git_cwd = worktree_path if worktree_path else project_root
+
+    # Get commit hash from git if not provided
+    if not commit_hash:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                cwd=git_cwd,
+            )
+            if result.returncode == 0:
+                commit_hash = result.stdout.strip()[:7]
+        except Exception:
+            pass
+
+    # Mark session as partial
+    try:
+        state.partial_session(session_id, commit_hash=commit_hash, reason=reason)
+        state.save(state_path)
+    except ValueError as e:
+        return False, str(e)
+
+    # Write SESSION_PARTIAL signal
+    signals_dir = get_signals_dir(refactor_dir)
+    signal_session_partial(
+        signals_dir,
+        session_id,
+        commit_hash=commit_hash,
+        reason=reason,
+    )
+
+    worktree_msg = f" (worktree: {worktree_path.name})" if worktree_path else ""
+    return True, f"Session {session_id} marked partial (commit: {commit_hash or 'unknown'}){worktree_msg}"
