@@ -285,9 +285,23 @@ When all exit criteria are met:
 
 ---
 
+## Before Signaling Done
+
+Perform adversarial self-review of your own code:
+
+- [ ] **Invalid inputs**: What happens with empty, null, malicious input?
+- [ ] **Path traversal**: Can `../../../` break assumptions?
+- [ ] **Error paths**: What if dependencies fail? Are errors handled or swallowed?
+- [ ] **Edge cases**: What if file doesn't exist? What if it's empty?
+- [ ] **Dead code**: Any unused variables or unreachable branches?
+
+Fix any issues you find. THEN signal done.
+
+---
+
 ## Signaling Ready for Review
 
-When you've completed ALL exit criteria and committed:
+When you've completed ALL exit criteria, self-audited, and committed:
 
 1. **Run this command** to signal you're ready for review:
    ```bash
