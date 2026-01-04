@@ -249,19 +249,19 @@ When all exit criteria are met:
 
 ---
 
-## Signaling Completion
+## Signaling Ready for Review
 
 When you've completed ALL exit criteria and committed:
 
-1. **Run this command** to signal completion to the orchestrator:
+1. **Run this command** to signal you're ready for review:
    ```bash
    forge refactor done {self.session_id}
    ```
 
 2. Tell the user:
-   > "Session {self.session_id} complete! All exit criteria verified and committed."
+   > "Session {self.session_id} ready for review. All exit criteria verified and committed."
 
-The orchestrator monitors signals and will know you're done.
+**Note:** This signals "work complete, ready for audit" - NOT final approval. The orchestrator or audit agent will review. If issues are found, you may be asked to revise.
 
 ---
 
