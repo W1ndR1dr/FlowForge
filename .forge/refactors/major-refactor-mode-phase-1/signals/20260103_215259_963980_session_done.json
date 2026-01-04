@@ -1,0 +1,9 @@
+{
+  "type": "session_done",
+  "session_id": "4.1",
+  "timestamp": "2026-01-03T21:52:59.963980",
+  "payload": {
+    "commit_hash": "b52567c",
+    "summary": "Added worktree support to ExecutionSession, start-phase CLI, and output.md generation"
+  }
+}

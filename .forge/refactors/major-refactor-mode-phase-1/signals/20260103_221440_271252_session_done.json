@@ -1,0 +1,9 @@
+{
+  "type": "session_done",
+  "session_id": "4.1",
+  "timestamp": "2026-01-03T22:14:40.271252",
+  "payload": {
+    "commit_hash": "0e2ce63",
+    "summary": "Added workflow handoff cues to session template"
+  }
+}
