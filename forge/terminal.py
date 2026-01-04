@@ -120,8 +120,8 @@ def open_terminal_in_directory(
     """
     Open a new terminal tab/window in the specified directory.
 
-    IMPORTANT: Caller should prompt user to be hands-off keyboard/mouse
-    before calling this function. AppleScript needs ~3-4 seconds to complete
+    IMPORTANT: Caller should prompt user to be HANDS OFF KEYBOARD AND MOUSE
+    until the new agent is running. AppleScript takes several seconds to complete
     and active input interferes with the launch.
 
     Args:

@@ -490,7 +490,7 @@ Before doing anything substantial, ensure you understand:
 
 1. Identify the next session from EXECUTION_PLAN.md
 2. **BEFORE launching**, prompt the user:
-   > "Ready to launch [session]. Please keep hands off keyboard and mouse for ~3-4 seconds while the terminal opens. Say 'go' when ready."
+   > "Ready to launch [session]. HANDS OFF KEYBOARD AND MOUSE until the new agent is running. Say 'go' when ready."
 3. Wait for user confirmation
 4. Run: `forge refactor start {refactor_id} <session-id>`
 5. Report the new session has been launched
@@ -561,7 +561,7 @@ Agents communicate via JSON files in `signals/`:
    > I've preserved:
    > - [Brief list of what context you captured]
    >
-   > Ready to launch Orchestrator #N+1. Please keep hands off keyboard and mouse for ~3-4 seconds. Say 'go' when ready."
+   > Ready to launch Orchestrator #N+1. HANDS OFF KEYBOARD AND MOUSE until the new agent is running. Say 'go' when ready."
 
 4. Wait for user confirmation, then run: `forge refactor orchestrate {refactor_id}`
 
