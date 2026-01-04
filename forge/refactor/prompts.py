@@ -489,8 +489,13 @@ Before doing anything substantial, ensure you understand:
 ### "start the next session" / "let's continue"
 
 1. Identify the next session from EXECUTION_PLAN.md
-2. Run: `forge refactor start {refactor_id} <session-id>`
-3. Report the new session has been launched
+2. **BEFORE launching**, prompt the user:
+   > "Ready to launch [session]. Please keep hands off keyboard and mouse for ~3-4 seconds while the terminal opens. Say 'go' when ready."
+3. Wait for user confirmation
+4. Run: `forge refactor start {refactor_id} <session-id>`
+5. Report the new session has been launched
+
+**Why the pause?** AppleScript needs a few seconds to open new terminal tabs. Active keyboard/mouse input interferes with the launch. This applies to ALL agent launches (sessions, orchestrators, auditors).
 
 ### "modify the plan" / "I want to change..."
 
@@ -556,14 +561,11 @@ Agents communicate via JSON files in `signals/`:
    > I've preserved:
    > - [Brief list of what context you captured]
    >
-   > To continue:
-   > 1. Open a new Claude tab in this Warp window
-   > 2. cd to {refactor_dir}/orchestrator
-   > 3. Run: claude --dangerously-skip-permissions
-   >
-   > The new orchestrator will read ORCHESTRATOR_HANDOFF.md and continue where we left off."
+   > Ready to launch Orchestrator #N+1. Please keep hands off keyboard and mouse for ~3-4 seconds. Say 'go' when ready."
 
-4. The old tab (you) stays open for reference but becomes inactive.
+4. Wait for user confirmation, then run: `forge refactor orchestrate {refactor_id}`
+
+5. The old tab (you) stays open for reference but becomes inactive.
 
 **Key insight**: The next orchestrator should know not just WHERE we are, but WHAT we were discussing. Preserve the nuance!
 
