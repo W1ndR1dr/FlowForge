@@ -184,50 +184,46 @@ Major Refactor Mode uses file-based agent coordination with "docs as memory" to 
 | 2026-01-03 | Claude decides detection | AGI-pilled, model judgment improves |
 | 2026-01-03 | Three-layer audit | Builder self-check → Formal auditor → User vibes |
 | 2026-01-03 | No hardcoded iteration limits | Model judges escalation, not MAX_ITERATIONS constant |
+| 2026-01-03 | PRE_REFACTOR.md as planning byproduct | Planning Agent generates it, not separate analyze step |
+| 2026-01-03 | Testing = signals, not source of truth | Three-layer audit + spec-first tests; user vibes ungameable |
 
 ---
 
-## Open Questions (Revisit Later)
+## Resolved Questions
 
-Questions we've identified but intentionally deferred:
+Questions that were open, now decided:
 
-### CodebaseAnalyzer Role
+### Decision: PRE_REFACTOR.md Generation
 
-**Question**: Should `forge refactor analyze` remain a separate step, or should the Planning Agent handle codebase exploration dynamically?
+**Rejected**: Separate `forge refactor analyze` step before planning
 
-**Current state**: Both paths exist - manual `analyze` command AND Planning Agent can create PRE_REFACTOR.md
+**Why rejected**: Clutters workflow, duplicates exploration, may miss nuance
 
-**Tension**:
-- Manual analyze: Saves Planning Agent context, consistent structure
-- Dynamic exploration: More AGI-pilled, user-validated, focused
+**Approved**: Planning Agent generates PRE_REFACTOR.md as byproduct at end of planning
 
-**Recommendation**: Revisit after 4.4 (Planning Agent robustness). Once planning can go the distance, we'll know if analyzer adds value or is cruft.
+**Rationale**:
+- Captures what Planning Agent actually understood (not a generic scan)
+- No separate workflow step
+- Becomes immutable "before" snapshot for audit comparison
+- `forge refactor analyze` becomes optional fallback if Planning Agent didn't generate one
 
-**Added**: 2026-01-03
+**Decided**: 2026-01-03 (via Prometheus consultation)
 
 ---
 
-### Testing Philosophy for Vibecoding
+### Decision: Testing Strategy
 
-**Question**: What role should automated tests play in AI-assisted development?
+**Rejected**: Automated tests as primary quality signal
 
-**The concern**: Reward hacking - LLMs might game tests (optimize for green checkmarks) rather than truly solving the problem. Tests become a metric to exploit rather than a quality signal.
+**Why rejected**: Reward hacking - LLMs can optimize for metrics (green checkmarks) rather than actual correctness
 
-**Current approach in Major Refactor Mode**:
-- Three-layer audit replaces traditional testing
-- Builder self-check (introspection)
-- Formal audit (philosophy alignment)
-- User vibes (can't be gamed)
-- No automated tests as exit criteria
+**Approved**: Three-layer audit + spec-first tests for regression
 
-**Is this right?** Unclear. Considerations:
-- For infrastructure/prompts/workflow, "does it work when you run it" is the real test
-- User vibes catch drift that automated tests can't
-- But for production code (APIs, data processing), tests catch regressions humans miss
-- Tests are a form of specification - if LLM can game them, the spec was incomplete
+**Rationale**:
+- User vibes is the ungameable oracle (human intuition, not formal spec)
+- Tests are one signal among many, not source of truth
+- Spec-first tests (written BEFORE implementation) define target, can't be gamed
+- Regression tests catch breaks over time (safety net)
+- See PHILOSOPHY.md "Testing in AI-Assisted Development" for full framing
 
-**AGI-pilled view**: Tests become ONE signal among many, not source of truth. Philosophy + model judgment + human oversight is the stack.
-
-**Recommendation**: Revisit in a future phase. For now, three-layer audit is the testing strategy.
-
-**Added**: 2026-01-03
+**Decided**: 2026-01-03 (via Prometheus consultation)

@@ -111,6 +111,36 @@ Reality: build → audit → fix → audit → polish → done.
 
 ---
 
+## Testing in AI-Assisted Development
+
+Tests are **one signal among many**, not the source of truth.
+
+| Layer | What It Catches | Gameable? |
+|-------|-----------------|-----------|
+| Builder self-check | Obvious bugs | Yes - same model, same blindspots |
+| Formal auditor | Spec compliance | Harder - fresh context |
+| **User vibes** | "Feels wrong" | **Ungameable** - human intuition |
+
+The user vibes layer is the key. It's the oracle that can't be optimized against because it emerges from human intuition, not a formal specification.
+
+**Where tests fit:**
+- **Spec-first tests**: Written BEFORE implementation (defines target, not hackable)
+- **Regression tests**: Catches breaks over time (safety net)
+- **Integration tests**: Validates system behavior (harder to game)
+
+**Anti-pattern**: Treating "tests pass" as proof of correctness. LLMs can optimize for metrics (coverage, green checkmarks) rather than actual correctness. This is reward hacking.
+
+**The synthesis:**
+```
+Three-Layer Audit (alignment, intent)
+        +
+Spec-First Tests (behavior, regression)
+        =
+Complete quality picture
+```
+
+---
+
 ## Design Principles (Reference)
 
 1. **Docs ARE the memory** - No accumulated context, agents read from files
