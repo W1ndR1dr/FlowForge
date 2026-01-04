@@ -104,7 +104,7 @@
     },
     "5.2": {
       "session_id": "5.2",
-      "status": "completed",
+      "status": "partial",
       "started_at": "2026-01-04T01:22:46.590776",
       "completed_at": "2026-01-04T01:40:39.095035",
       "start_commit": "241ed26",
