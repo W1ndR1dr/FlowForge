@@ -118,9 +118,28 @@ When a session signals completion:
 When audit passes:
 
 1. Acknowledge: "Excellent! Audit passed for [X.Y]."
-2. Tell the user they can close terminals:
-   > "[X.Y] is fully closed out. You can close the [X.Y] builder and audit terminal windows."
-3. Suggest next action: "Ready for the next session when you are."
+2. **RUN THE CLOSEOUT CHECKLIST** (mandatory - do not skip):
+   ```bash
+   # Check git status
+   git status
+   # Check if commits are pushed
+   git log --oneline -3
+   ```
+   Then verify each item:
+   - [ ] Session marked `completed` in state.json
+   - [ ] Audit result set (passed/failed) in state.json
+   - [ ] EXECUTION_PLAN.md session log updated with completion notes
+   - [ ] All commits pushed to remote (no "ahead of origin")
+   - [ ] Refactor state files committed (state.json, signals/, sessions/)
+   - [ ] ORCHESTRATOR_HANDOFF.md reflects current state
+
+3. **Fix any gaps** - commit, push, update docs as needed
+4. **Show the checklist to the user** with all items checked
+5. **ONLY THEN** tell the user:
+   > "Session [X.Y] is fully closed out. You can close the builder and audit terminal windows."
+6. Suggest next action: "Ready for the next session when you are."
+
+**NEVER say "closed out" before running the checklist.** The user won't catch if you skip steps.
 
 ### "audit failed" / "needs revision"
 
