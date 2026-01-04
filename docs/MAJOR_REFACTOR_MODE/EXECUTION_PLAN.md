@@ -1463,6 +1463,19 @@ Note for Phase 5:
 
 ## Phase 5: UI Dashboard (Swift)
 
+> **CRITICAL FOR ALL PHASE 5 SESSIONS:**
+>
+> **Required Reading:**
+> - `docs/design/UI_PATTERNS_RESEARCH.md` - UX patterns from Linear, Asana, Basecamp
+> - `docs/design/LINEAR_SWIFTUI_GUIDE.md` - SwiftUI implementation patterns (use as inspiration, not prescription)
+>
+> **User Preferences:**
+> - No sentimentality about existing UI - full redesign is fine
+> - Pre-MVP mindset - zero technical debt
+> - Refactor belongs in project view (project-specific)
+> - Data source: Read local `.forge/refactors/` files directly (no API for Mac app)
+> - Deep research threads available: Ask user to spawn if needed for design questions
+
 ---
 
 ### Session 5.1: Models & Basic View
@@ -1479,9 +1492,17 @@ Note for Phase 5:
 **PROMPT** (copy this into Claude Code):
 
 ```
-Read docs/MAJOR_REFACTOR_MODE/VISION.md for the target UX.
+FIRST: Read the design research docs (see Phase 5 header above).
+
+Design vision from research:
+- Stepped progress indicator: [✓ Planning] ──→ [● Foundation] - - → [○ Polish]
+- Linear-inspired dark mode (use as inspiration, not prescription)
+- Dense rows (32-36px), 150ms hover transitions
+- Progressive disclosure (collapsed by default, count badges)
+
 Look at existing patterns in ForgeApp/Models/Feature.swift and
-ForgeApp/Design/Components/WorkspaceCard.swift.
+ForgeApp/Design/Components/WorkspaceCard.swift - but feel free to deviate
+if the research suggests better patterns.
 
 Add Major Refactor Mode to Forge macOS app:
 
@@ -1526,7 +1547,7 @@ Test: Create a test refactor via CLI, see it appear in the app.
 - [ ] RefactorPlan.swift model exists and parses correctly
 - [ ] RefactorDashboardView shows list of phases
 - [ ] Can navigate to dashboard from main app
-- [ ] Styling matches existing Forge design
+- [ ] Styling follows design research (or explains deviation)
 
 ---
 
@@ -1539,7 +1560,7 @@ git commit -m "feat(refactor): Session 5.1 - Swift models and basic dashboard
 
 - Add RefactorPlan model
 - Add RefactorDashboardView with phase list
-- Add RefactorClient for API integration
+- Add RefactorClient for local file reading
 - Navigate from main app to refactor view"
 ```
 
@@ -1551,6 +1572,7 @@ Note for Session 5.2:
 - What models exist
 - How navigation works
 - What styling was used
+- Any design decisions made
 
 ---
 
@@ -1575,7 +1597,14 @@ Note for Session 5.2:
 **PROMPT** (copy this into Claude Code):
 
 ```
-Read docs/MAJOR_REFACTOR_MODE/VISION.md for notification design.
+FIRST: Read the design research docs (see Phase 5 header above).
+
+Key patterns from research:
+- Calm notifications (badge-only by default, not naggy)
+- Progressive disclosure for phase details
+- 150-200ms animation timing
+- Decision prompts: context + specific ask + escape hatch
+
 Look at ForgeApp/Design/DesignTokens.swift for styling.
 Look at ForgeApp/Design/Components/WorkspaceCard.swift for card pattern.
 
