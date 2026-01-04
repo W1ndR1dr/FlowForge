@@ -141,6 +141,28 @@ Complete quality picture
 
 ---
 
+## Quality for Vibecoders
+
+You don't need to understand tests. Your job is simpler:
+
+1. **Describe what you want** (natural language)
+2. **Vibes check** - does the result feel right?
+3. **Pause when something feels off** (trust your instinct)
+
+The three-layer audit handles the rest:
+
+| Layer | Who Does It | Your Role |
+|-------|-------------|-----------|
+| Builder self-check | AI | None - handled for you |
+| Formal auditor | AI | None - validates technical correctness |
+| **User vibes** | You | Does this match your intent? |
+
+Tests are an implementation detail you never see. The AI might generate them internally for regression safety, but that's not your concern.
+
+**Your intuition is the ungameable oracle. Trust it.**
+
+---
+
 ## Design Principles (Reference)
 
 1. **Docs ARE the memory** - No accumulated context, agents read from files
