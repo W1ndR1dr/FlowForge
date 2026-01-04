@@ -1,6 +1,6 @@
 # Orchestrator Handoff - major-refactor-mode-phase-1
 
-> **Updated**: 2026-01-04 01:15
+> **Updated**: 2026-01-04 01:45
 > **Refactor**: major-refactor-mode-phase-1
 > **Status**: executing
 > **Generation**: Orchestrator #4 → #5
@@ -9,15 +9,15 @@
 
 ## Why This Handoff
 
-Session 5.1 complete. Ready for 5.2 or wrap for the night.
+Context at ~13%. Session 5.1 complete, ready for 5.2.
 
 ---
 
 ## Conversation Context
 
-**Key discussions this session:**
+**Key work this session:**
 
-1. **Session 5.1 launched** - Swift/SwiftUI work for refactor dashboard:
+1. **Session 5.1 complete** - Swift/SwiftUI refactor dashboard:
    - RefactorPlan.swift models (mirrors Python RefactorState)
    - RefactorDashboardView with stepped progress indicator
    - RefactorClient reads local `.forge/refactors/` files
@@ -30,23 +30,29 @@ Session 5.1 complete. Ready for 5.2 or wrap for the night.
    - Detects "# Execution Session:" marker to distinguish session vs project CLAUDE.md
    - Orchestrator uses judgment on preserve/regenerate (vibecoder-friendly)
 
-3. **Design research integration**:
-   - `docs/design/UI_PATTERNS_RESEARCH.md` - UX patterns from Linear, Asana, Basecamp
-   - `docs/design/LINEAR_SWIFTUI_GUIDE.md` - SwiftUI implementation specifics
-   - Added as required reading for all Phase 5 sessions
-   - "Rebuild > Remodel" guidance - start fresh if better than adapting
+3. **Agent workflow standardization** - All agents now have consistent patterns:
+   - **Planner**: Verify docs exist, commit, push → "Say 'go' when ready"
+   - **Builder**: Exit criteria, self-review, commit → "Go back to orchestrator"
+   - **Auditor**: Validate code, signal pass/fail → "Go back to orchestrator"
+   - **Orchestrator**: Git status, session log, handoff → Show checked items THEN "closed out"
 
-4. **Deep research threads** - User noted these are meaningfully distinct from web search:
-   - Orchestrators can ask user to spawn deep research for design questions
-   - Added to Phase 5 guidance in EXECUTION_PLAN.md
+   Key principle: Agent does technical work, user gets simple cues.
 
-5. **Prometheus nearing retirement** - Finding fewer novel insights, native audit catching what matters
+4. **Mandatory closeout checklist** added to orchestrator:
+   - Must verify git state, session log, handoff before declaring "closed out"
+   - "NEVER say closed out before running the checklist"
+
+5. **Design research integration**:
+   - `docs/design/UI_PATTERNS_RESEARCH.md` - UX patterns
+   - `docs/design/LINEAR_SWIFTUI_GUIDE.md` - SwiftUI specifics
+   - Required reading for all Phase 5 sessions
+   - "Rebuild > Remodel" guidance
 
 ---
 
 ## Open Questions / Pending Decisions
 
-None currently open.
+None. Plan stays the same - 5.2 is next.
 
 ---
 
@@ -75,6 +81,7 @@ None currently open.
    - Expand PhaseCardView with details
    - Add notification system for decision prompts
    - Calm notifications (badge-only default)
+   - See EXECUTION_PLAN.md for full spec
 
 2. **Session 6.1**: Full Integration & Polish (final session)
 
@@ -83,11 +90,11 @@ None currently open.
 ## Key Learnings to Preserve
 
 - **CLAUDE.md preservation** - Don't overwrite orchestrator edits on relaunch
-- **Design research matters** - UI_PATTERNS_RESEARCH.md and LINEAR_SWIFTUI_GUIDE.md are required reading for Phase 5
+- **Mandatory closeout checklist** - Run git verification before declaring done
+- **Agent does work, user gets cues** - Technical stuff is agent's job, user gets simple instructions
+- **Design research matters** - UI_PATTERNS_RESEARCH.md and LINEAR_SWIFTUI_GUIDE.md are required reading
 - **"Rebuild > Remodel"** - Builders can start fresh if it produces better result
-- **Orchestrator uses judgment** - Don't ask user technical questions they can't answer
 - **Deep research threads** - Meaningfully distinct capability, ask user to spawn when needed
-- **Git closeout checklist** - Verify commits, push, session log before declaring done
 
 ---
 
@@ -120,9 +127,9 @@ forge refactor orchestrate major-refactor-mode-phase-1
 
 ## Important Context
 
-- User is **AGI-pilled**: trust model judgment over hardcoded rules
+- User is **AGI-pilled**: trust model judgment when it has sufficient context
 - User is **vibecoder**: don't ask deep technical questions, make the call
 - **Progressive delegation**: handle procedural work autonomously, only escalate decisions
 - **Three-layer audit**: Builder self-check → Formal audit → User vibes
-- Commit after each session, push to main
 - **Always verify git closeout** before declaring a session complete
+- Commit after each session, push to main
